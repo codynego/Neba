@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { publicPageMetadata } from "@/lib/seo";
 const pages = {
   about: { title: "Good help. Close by.", label: "ABOUT NEBA", intro: "Neba connects people who need a little help with people nearby who have time or a useful skill.", sections: [
     ["Everyday needs, local people", "Post an errand, moving task, tech request, or event job. Helpers in your city can apply, and you choose who fits your request."],
@@ -34,6 +35,13 @@ const pages = {
 };
 export const dynamicParams = false;
 export function generateStaticParams() { return Object.keys(pages).map((info) => ({ info })); }
+export async function generateMetadata({ params }: { params: Promise<{ info: string }> }) {
+  const { info } = await params;
+  if (!Object.hasOwn(pages, info)) notFound();
+  const page = pages[info as keyof typeof pages];
+  const titles: Record<string, string> = { about: "About Neba: local help and neighborhood skills", help: "Help center: posting tasks, offering skills and verification", "community-guidelines": "Community guidelines for safe, respectful tasks", privacy: "Privacy and personal information", terms: "Pilot terms and task agreements" };
+  return publicPageMetadata(titles[info], page.intro, `/${info}`);
+}
 export default async function InfoPage({ params }: { params: Promise<{ info: string }> }) {
   const { info } = await params;
   if (!Object.hasOwn(pages, info)) notFound();
