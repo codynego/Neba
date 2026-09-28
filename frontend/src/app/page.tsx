@@ -1,47 +1,24 @@
-"use client";
 import Link from "next/link";
-import { ArrowRight, ArrowUpRight, MapPin, Search, ShieldCheck, Users, Zap } from "lucide-react";
-import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
-import { Offer, Page, Task } from "@/lib/types";
-import { TaskCard } from "@/components/task-card";
-import { OfferCard } from "@/components/offer-card";
+import Image from "next/image";
+import { ArrowRight, ArrowUpRight, HandHeart, MapPin, Package, ShoppingBag, PartyPopper, Laptop, Plus, Clock3, MoveUpRight } from "lucide-react";
 
-export default function Home() {
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [offers, setOffers] = useState<Offer[]>([]);
-  const [city, setCity] = useState("");
-  useEffect(() => {
-    api<Page<Task>>("/tasks/").then((data) => setTasks(data.results.slice(0, 3))).catch(() => {});
-    api<Page<Offer>>("/offers/").then((data) => setOffers(data.results.slice(0, 2))).catch(() => {});
-  }, []);
-  return <main>
-    <section className="hero"><div className="container hero-grid">
-      <div className="hero-copy">
-        <div className="hero-kicker"><span className="pulse-dot" /> YOUR CITY. YOUR COMMUNITY. YOUR NEXT CONNECTION.</div>
-        <h1>Good help is <span>closer</span> than you think.</h1>
-        <p>Got something that needs doing? Have a skill to share? Find people and opportunities in your city.</p>
-        <form className="hero-search" onSubmit={(event) => { event.preventDefault(); location.href = `/tasks?city=${encodeURIComponent(city)}`; }}>
-          <MapPin size={21} /><input aria-label="Your city" placeholder="Enter your city" value={city} onChange={(event) => setCity(event.target.value)} />
-          <button aria-label="Find tasks" type="submit"><Search size={21} /></button>
-        </form>
-        <div className="hero-actions"><Link href="/tasks/new" className="button button-dark">Post a task <ArrowUpRight size={18} /></Link><Link href="/offers/new" className="button button-outline">Offer your skills <ArrowUpRight size={18} /></Link></div>
-      </div>
-      <div className="hero-visual" aria-label="Example of a task post">
-        <div className="visual-top"><span>NEARWORK / YOUR CITY</span><span className="visual-live"><span /> OPEN TO NEW TASKS</span></div>
-        <div className="visual-main"><div className="visual-orbit orbit-one" /><div className="visual-orbit orbit-two" /><div className="visual-pin pin-one"></div><div className="visual-pin pin-two"></div><div className="visual-pin pin-three"></div><div className="visual-center">YOU<br />ARE<br />HERE<span>.</span></div></div>
-        <div className="visual-bottom"><span>POST A NEED</span><span>FIND A PERSON</span><span>GET IT DONE</span></div>
-      </div>
-    </div></section>
-    <section className="ticker" aria-label="How Nearwork works"><div className="container ticker-inner"><span>Real tasks.</span><span className="ticker-symbol"></span><span>Real people.</span><span className="ticker-symbol"></span><span>Right around you.</span></div></section>
-    <section className="section"><div className="container">
-      <div className="section-heading"><div><span className="eyebrow">OPPORTUNITIES</span><h2>Things people need<br /><em>help with.</em></h2></div><Link href="/tasks" className="section-link">Explore all tasks <ArrowUpRight size={18} /></Link></div>
-      {tasks.length ? <div className="task-grid">{tasks.map((task) => <TaskCard task={task} key={task.id} />)}</div> : <div className="empty-feature"><div><h3>Be the first to post a task.</h3><p>Tell your community what needs doing and what you can pay.</p></div><Link href="/tasks/new" className="button button-dark">Post a task <ArrowUpRight size={18} /></Link></div>}
-    </div></section>
-    <section className="how-section"><div className="container how-grid"><div><span className="eyebrow">SIMPLE BY DESIGN</span><h2>From I need help<br />to <em>handled.</em></h2><p>Post the details, hear from interested people, then choose who feels right for the job.</p><Link href="/tasks/new" className="button button-light">Get started <ArrowRight size={17} /></Link></div><div className="steps"><div><span className="step-number">01</span><div><h3>Describe the task</h3><p>Add a clear description, location, time, and reward.</p></div></div><div><span className="step-number">02</span><div><h3>Connect locally</h3><p>People in your city can apply with a short introduction.</p></div></div><div><span className="step-number">03</span><div><h3>Choose and complete</h3><p>Pick an applicant and mark the task complete when it is done.</p></div></div></div></div></section>
-    <section className="section people-section"><div className="container"><div className="section-heading"><div><span className="eyebrow">PEOPLE WHO CAN HELP</span><h2>Skills in your<br /><em>neighborhood.</em></h2></div><Link href="/offers" className="section-link">Browse all offers <ArrowUpRight size={18} /></Link></div>{offers.length ? <div className="offer-grid">{offers.map((offer) => <OfferCard offer={offer} key={offer.id} />)}</div> : <div className="empty-feature"><div><h3>Have a skill people need?</h3><p>Create an offer so nearby people can discover you.</p></div><Link href="/offers/new" className="button button-dark">Create an offer <ArrowUpRight size={18} /></Link></div>}</div></section>
-    <section className="trust-strip"><div className="container trust-grid"><div><Users size={26} /><span>People in your community</span></div><div><Zap size={26} /><span>Small tasks, real impact</span></div><div><ShieldCheck size={26} /><span>Clear agreements upfront</span></div></div></section>
-    <section className="bottom-cta"><div className="container bottom-cta-inner"><div><span className="eyebrow">START LOCAL</span><h2>Your next connection<br />could be <em>around the corner.</em></h2></div><Link href="/tasks/new" className="button button-yellow">Post your first task <ArrowUpRight size={18} /></Link></div></section>
+const everydayHelp = [
+  { icon: Package, title: "An extra pair of hands", description: "That sofa won’t move itself. Find someone to help with the heavy lifting.", category: "moving", label: "Moving & assembly" },
+  { icon: ShoppingBag, title: "One less errand", description: "Groceries, pickups, and the little things you can’t get to today.", category: "errands", label: "Everyday errands" },
+  { icon: Laptop, title: "A skill you’re missing", description: "A tricky setup, a lesson, or a problem that needs a different kind of know-how.", category: "tech", label: "Skills & tech help" },
+  { icon: PartyPopper, title: "Help when it gets busy", description: "Setting up, packing down, and making your next gathering run a little smoother.", category: "events", label: "Event support" },
+];
+
+export default function LandingPage() {
+  return <main className="landing-page">
+    <section className="landing-hero landing-container">
+      <div className="landing-hero-copy"><span className="landing-eyebrow"><span className="availability-dot" /> YOUR NEIGHBORHOOD HAS YOUR BACK</span><h1>Life happens.<br /><span>Help is nearby.</span></h1><p>A quick errand. A heavy fridge. A skill you need.<br className="desktop-break" /> Connect with someone in your city and get it done.</p><div className="landing-hero-actions"><Link href="/tasks/new" className="button button-dark">I need a little help<ArrowRight size={19} /></Link><Link href="/tasks" className="button button-outline">I can lend a hand<ArrowUpRight size={19} /></Link></div><div className="hero-footnote"><HandHeart size={18} /><span>Real-world tasks. People close by. A little less stress.</span></div></div>
+      <div className="landing-hero-visual landing-photo-visual"><Image className="landing-hero-photo" src="/images/neba-neighbors.png" alt="Illustrative scene of two neighbors helping move a fridge outside a home." fill priority sizes="(max-width: 760px) calc(100vw - 40px), (max-width: 1440px) 45vw, 600px" /><div className="visual-label"><MapPin size={14} /><span>GOOD HELP STARTS CLOSE TO HOME</span></div><div className="example-task photo-task"><div className="example-task-top"><span className="category-icon category-moving"><Package size={22} /></span><span className="example-label">EXAMPLE TASK</span><ArrowUpRight size={17} /></div><h2>Help move a fridge upstairs</h2><div className="example-meta"><span><MapPin size={14} />GRA, Benin City</span><span><Clock3 size={14} />About 30 minutes</span></div><div className="example-reward"><div><small>A little reward for your time</small><strong>₦4,000 <span>+ lunch</span></strong></div><span className="example-plus"><Plus size={20} /></span></div></div></div>
+    </section>
+    <div className="landing-values"><div className="landing-container"><span><MapPin size={19} /> In your city</span><span><HandHeart size={19} /> For everyday needs</span><span><MoveUpRight size={19} /> On your terms</span></div></div>
+    <section className="landing-section landing-container" id="everyday-help"><div className="landing-section-heading"><div><span className="landing-eyebrow">BIG OR SMALL. THERE’S HELP FOR THAT.</span><h2>For the things<br />life throws at you.</h2></div><p>You don’t need a whole team.<br />Sometimes, just a good neighbor.</p></div><div className="everyday-grid">{everydayHelp.map(({ icon: Icon, title, description, category, label }) => <Link href={`/tasks/new?category=${category}`} className="everyday-card" key={category}><div className="everyday-card-top"><span className="category-icon"><Icon size={25} /></span><ArrowUpRight size={20} /></div><span className="card-category">{label}</span><h3>{title}</h3><p>{description}</p><span className="everyday-card-link">Get a little help<ArrowRight size={16} /></span></Link>)}</div></section>
+    <section className="landing-how" id="how-it-works"><div className="landing-container"><div className="landing-how-intro"><span className="landing-eyebrow">LESS BROWSING. MORE DOING.</span><h2>From “I need help”<br />to <span>“it’s done.”</span></h2><p>No long search. Just a clear request and someone who can help.</p><Link className="section-link" href="/tasks/new">Post your first task<ArrowRight size={17} /></Link></div><div className="landing-steps"><article><span className="landing-step-number">1</span><div><h3>Say what you need.</h3><p>Tell us the task, where it is, and what you’d like to offer for their time.</p></div></article><article><span className="landing-step-number">2</span><div><h3>Choose a helping hand.</h3><p>People in your city can apply. Read their introduction and choose who fits.</p></div></article><article><span className="landing-step-number">3</span><div><h3>Make it happen.</h3><p>Agree on the details, coordinate directly, and mark the task complete.</p></div></article></div></div></section>
+    <section className="landing-helper-section landing-container"><div className="helper-graphic" aria-hidden="true"><span className="helper-graphic-ring" /><div className="helper-graphic-center"><HandHeart size={66} strokeWidth={1.3} /></div><span className="helper-skill skill-one"><Package size={18} />A steady pair of hands</span><span className="helper-skill skill-two"><Laptop size={18} />A useful skill</span><span className="helper-skill skill-three"><Clock3 size={18} />A little free time</span></div><div className="landing-helper-copy"><span className="landing-eyebrow">THAT THING YOU’RE GOOD AT?</span><h2>It could make<br />someone’s day.</h2><p>You don’t have to be a professional at everything. Share a skill, offer your time, and earn by helping people around you.</p><Link className="button button-dark" href="/offers/new">Put your skills to work<ArrowUpRight size={18} /></Link><Link className="helper-browse-link" href="/tasks">Or find a task you can help with<ArrowRight size={16} /></Link></div></section>
+    <section className="landing-cta landing-container"><div><span className="landing-eyebrow">GOOD PEOPLE. CLOSE BY.</span><h2>Your next helping hand<br />could be a neighbor.</h2><p>Ask for help. Offer a skill. Get on with your day.</p></div><Link className="button button-dark" href="/register">Find your neighborhood<ArrowRight size={19} /></Link></section>
   </main>;
 }
-

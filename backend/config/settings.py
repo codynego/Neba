@@ -44,10 +44,16 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 AUTH_USER_MODEL = "accounts.User"
 REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": ["rest_framework.authentication.TokenAuthentication"],
+    "DEFAULT_AUTHENTICATION_CLASSES": ["rest_framework.authentication.TokenAuthentication", "rest_framework.authentication.SessionAuthentication"],
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticatedOrReadOnly"],
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 20,
+    "DEFAULT_THROTTLE_CLASSES": ["rest_framework.throttling.ScopedRateThrottle"],
+    "DEFAULT_THROTTLE_RATES": {
+        "phone_send": "5/hour", "phone_check": "15/hour", "identity_submit": "3/day",
+        "capture_challenge": "10/hour", "safety_report": "10/hour", "block_user": "30/hour",
+        "task_messages": "120/hour",
+    },
 }
 CORS_ALLOWED_ORIGINS = [x.strip() for x in os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000").split(",")]
 LANGUAGE_CODE = "en-us"
@@ -56,3 +62,12 @@ USE_I18N = True
 USE_TZ = True
 STATIC_URL = "static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID", "")
+TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "")
+TWILIO_VERIFY_SERVICE_SID = os.getenv("TWILIO_VERIFY_SERVICE_SID", "")
+PHONE_ALLOWED_PREFIXES = tuple(x.strip() for x in os.getenv("PHONE_ALLOWED_PREFIXES", "+234").split(",") if x.strip())
+VERIFICATION_ENCRYPTION_KEY = os.getenv("VERIFICATION_ENCRYPTION_KEY", "")
+VERIFICATION_RETENTION_DAYS = int(os.getenv("VERIFICATION_RETENTION_DAYS", "30"))
+DATA_UPLOAD_MAX_MEMORY_SIZE = 12 * 1024 * 1024
+FILE_UPLOAD_MAX_MEMORY_SIZE = 3 * 1024 * 1024

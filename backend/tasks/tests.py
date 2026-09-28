@@ -1,11 +1,17 @@
 ﻿from django.contrib.auth import get_user_model
 from rest_framework.test import APITestCase
+from django.utils import timezone
 
 class TaskFlowTests(APITestCase):
     def setUp(self):
         User = get_user_model()
         self.requester = User.objects.create_user(username="requester", password="strong-password-123", display_name="Requester")
         self.helper = User.objects.create_user(username="helper", password="strong-password-123", display_name="Helper")
+        for index, user in enumerate((self.requester, self.helper)):
+            user.phone = f"+234801234567{index}"
+            user.phone_verified_at = timezone.now()
+            user.identity_verified_at = timezone.now()
+            user.save()
         self.payload = {
             "title": "Move a table", "description": "Carry one table upstairs",
             "category": "moving", "city": "Abuja", "state": "FCT",
@@ -32,11 +38,24 @@ class TaskFlowTests(APITestCase):
         self.assertEqual(accepted.status_code, 200)
         self.assertEqual(accepted.data["status"], "accepted")
         completed = self.client.post(f"/api/tasks/{task_id}/complete/")
-        self.assertEqual(completed.status_code, 200)
-        self.assertEqual(completed.data["status"], "completed")
+        self.assertEqual(completed.status_code, 201)
+        self.client.force_authenticate(self.helper)
+        pending = self.client.get(f"/api/tasks/{task_id}/workspace/").data["pending_change"]
+        confirmed = self.client.post(f"/api/tasks/{task_id}/changes/{pending['id']}/respond/", {"decision": "accept"})
+        self.assertEqual(confirmed.status_code, 200)
+        self.assertEqual(self.client.get(f"/api/tasks/{task_id}/").data["status"], "completed")
 
-        self.client.force_authenticate(user=None)
+        self.client.force_authenticate(self.helper)
         self.assertEqual(self.client.get("/api/tasks/?city=Abuja").data["count"], 0)
+
+    def test_browsing_requires_authentication_on_list_and_detail(self):
+        from tasks.models import Task
+        from offers.models import Offer
+        task = Task.objects.create(requester=self.requester, **self.payload)
+        offer = Offer.objects.create(provider=self.helper, title="Moving help", description="Help moving", category="moving", city="Abuja", state="FCT", starting_price=5000)
+        self.client.force_authenticate(user=None)
+        for path in ("/api/tasks/", f"/api/tasks/{task.pk}/", "/api/offers/", f"/api/offers/{offer.pk}/"):
+            self.assertEqual(self.client.get(path).status_code, 401)
 
     def test_non_owner_cannot_complete(self):
         self.client.force_authenticate(self.requester)

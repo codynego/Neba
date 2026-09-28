@@ -1,4 +1,7 @@
-const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+export const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+export class ApiError extends Error {
+  constructor(message: string, public status: number) { super(message); this.name = "ApiError"; }
+}
 export function getToken() {
   return typeof window === "undefined" ? null : localStorage.getItem("nearwork_token");
 }
@@ -11,11 +14,11 @@ export function clearToken() {
   window.dispatchEvent(new Event("nearwork_auth"));
 }
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = getToken();
+  const token = path === "/auth/login/" || path === "/auth/register/" ? null : getToken();
   const response = await fetch(BASE + path, {
     ...options,
     headers: {
-      "Content-Type": "application/json",
+      ...(options.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
       ...(token ? { Authorization: `Token ${token}` } : {}),
       ...options.headers,
     },
@@ -24,7 +27,7 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
     const detail = data.detail || Object.values(data).flat().join(" ") || "Request failed";
-    throw new Error(String(detail));
+    throw new ApiError(String(detail), response.status);
   }
   if (response.status === 204) return undefined as T;
   return response.json();

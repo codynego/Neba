@@ -7,10 +7,19 @@ from rest_framework.views import APIView
 from .models import User
 
 class UserSerializer(serializers.ModelSerializer):
+    skills = serializers.ListField(child=serializers.ChoiceField(choices=("errands", "moving", "events", "tutoring", "tech", "other")), max_length=6, required=False)
+    def validate_skills(self, value):
+        return list(dict.fromkeys(value))
+    phone_verified = serializers.SerializerMethodField()
+    identity_verified = serializers.SerializerMethodField()
+    def get_phone_verified(self, user):
+        return bool(user.phone and user.phone_verified_at)
+    def get_identity_verified(self, user):
+        return bool(user.identity_verified_at and self.get_phone_verified(user))
     class Meta:
         model = User
-        fields = ("id", "username", "display_name", "city", "state", "date_joined")
-        read_only_fields = ("id", "date_joined")
+        fields = ("id", "username", "display_name", "city", "state", "date_joined", "phone", "phone_verified", "identity_verified", "photo_visible", "bio", "skills", "neighborhood", "availability")
+        read_only_fields = ("id", "date_joined", "phone", "phone_verified", "identity_verified", "photo_visible")
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[validate_password])
@@ -51,5 +60,5 @@ class MeView(generics.RetrieveUpdateAPIView):
 class LogoutView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     def post(self, request):
-        request.auth.delete()
+        Token.objects.filter(user=request.user).delete()
         return Response(status=204)

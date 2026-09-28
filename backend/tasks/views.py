@@ -1,17 +1,23 @@
 ﻿from django.db.models import Count
 from rest_framework import serializers, viewsets
 from rest_framework.decorators import action
+from rest_framework import permissions
 from rest_framework.response import Response
 from .models import Task
+from accounts.trust import require_phone, blocked_user_ids
+from accounts.safety_views import trust_summary
 
 class TaskSerializer(serializers.ModelSerializer):
+    requester_trust = serializers.SerializerMethodField()
+    def get_requester_trust(self, task):
+        return trust_summary(task.requester)
     requester_name = serializers.CharField(source="requester.display_name", read_only=True)
     application_count = serializers.IntegerField(read_only=True)
     class Meta:
         model = Task
         fields = ("id", "requester", "requester_name", "title", "description", "category", "city",
                   "state", "neighborhood", "reward_amount", "reward_note", "scheduled_for",
-                  "status", "application_count", "created_at", "updated_at")
+                  "status", "application_count", "created_at", "updated_at", "requester_trust")
         read_only_fields = ("id", "requester", "requester_name", "status", "application_count", "created_at", "updated_at")
     def validate_reward_amount(self, value):
         if value <= 0:
@@ -19,11 +25,13 @@ class TaskSerializer(serializers.ModelSerializer):
         return value
 
 class TaskViewSet(viewsets.ModelViewSet):
+    permission_classes = [permissions.IsAuthenticated]
     serializer_class = TaskSerializer
     def get_queryset(self):
         queryset = Task.objects.select_related("requester").annotate(application_count=Count("applications")).order_by("-created_at")
         if self.request.query_params.get("mine") == "true":
             return queryset.filter(requester=self.request.user) if self.request.user.is_authenticated else queryset.none()
+        queryset = queryset.filter(requester__is_active=True).exclude(requester_id__in=blocked_user_ids(self.request.user))
         if self.action == "list":
             queryset = queryset.filter(status=Task.Status.OPEN)
         city = self.request.query_params.get("city", "").strip()
@@ -37,6 +45,7 @@ class TaskViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(title__icontains=search)
         return queryset
     def perform_create(self, serializer):
+        require_phone(self.request.user)
         serializer.save(requester=self.request.user)
     def update(self, request, *args, **kwargs):
         task = self.get_object()

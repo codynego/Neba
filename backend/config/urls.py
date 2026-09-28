@@ -2,15 +2,17 @@ from django.contrib import admin
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 from locations.views import CityViewSet
-from tasks.views import TaskViewSet
-from offers.views import OfferViewSet
-from bookings.views import ApplicationViewSet
+from tasks.product_api import TaskViewSet
+from offers.product_api import OfferViewSet
+from bookings.product_api import ApplicationViewSet
+from accounts.notification_views import NotificationViewSet
 
 router = DefaultRouter()
 router.register("cities", CityViewSet, basename="city")
 router.register("tasks", TaskViewSet, basename="task")
 router.register("offers", OfferViewSet, basename="offer")
 router.register("applications", ApplicationViewSet, basename="application")
+router.register("notifications", NotificationViewSet, basename="notification")
 
 urlpatterns = [
     path("admin/", admin.site.urls),

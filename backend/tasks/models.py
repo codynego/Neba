@@ -15,6 +15,9 @@ class Task(models.Model):
         TECH = "tech", "Tech help"
         OTHER = "other", "Other"
     requester = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="tasks")
+    target_helper = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="direct_requests")
+    requested_offer = models.ForeignKey("offers.Offer", on_delete=models.SET_NULL, null=True, blank=True)
+    is_private = models.BooleanField(default=False)
     title = models.CharField(max_length=140)
     description = models.TextField()
     category = models.CharField(max_length=20, choices=Category.choices, default=Category.OTHER)

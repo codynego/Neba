@@ -3,3 +3,5 @@ djangorestframework>=3.16,<4.0
 django-cors-headers>=4.7,<5.0
 dj-database-url>=2.3,<4.0
 psycopg[binary]>=3.2,<4.0
+cryptography>=44,<47
+Pillow>=11,<13

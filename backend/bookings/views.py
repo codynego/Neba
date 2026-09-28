@@ -2,19 +2,35 @@
 from rest_framework import permissions, serializers, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.exceptions import PermissionDenied
+from django.shortcuts import get_object_or_404
+from accounts.trust import require_helper, require_phone, are_blocked
+from accounts.safety_views import trust_summary
 from tasks.models import Task
 from .models import Application
 
 class ApplicationSerializer(serializers.ModelSerializer):
+    applicant_trust = serializers.SerializerMethodField()
+    def get_applicant_trust(self, application):
+        return trust_summary(application.applicant)
     applicant_name = serializers.CharField(source="applicant.display_name", read_only=True)
     task_title = serializers.CharField(source="task.title", read_only=True)
     class Meta:
         model = Application
-        fields = ("id", "task", "task_title", "applicant", "applicant_name", "message", "contact_phone", "status", "created_at")
+        fields = ("id", "task", "task_title", "applicant", "applicant_name", "message", "contact_phone", "status", "created_at", "applicant_trust")
         read_only_fields = ("id", "task_title", "applicant", "applicant_name", "status", "created_at")
-        extra_kwargs = {"contact_phone": {"required": True, "allow_blank": False}}
+        extra_kwargs = {"contact_phone": {"read_only": True}}
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        # Share contact only after acceptance, and never across a block or suspension.
+        if instance.status != Application.Status.ACCEPTED or not instance.applicant.is_active or are_blocked(instance.applicant, instance.task.requester):
+            data["contact_phone"] = ""
+        return data
     def validate_task(self, task):
         user = self.context["request"].user
+        require_helper(user)
+        if not task.requester.is_active or are_blocked(user, task.requester):
+            raise PermissionDenied("This task is unavailable.")
         if task.requester_id == user.id:
             raise serializers.ValidationError("You cannot apply to your own task.")
         if task.status != Task.Status.OPEN:
@@ -34,13 +50,18 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             return queryset.filter(task__requester=user)
         return queryset.filter(applicant=user)
     def perform_create(self, serializer):
-        serializer.save(applicant=self.request.user)
+        require_helper(self.request.user)
+        serializer.save(applicant=self.request.user, contact_phone=self.request.user.phone)
     @action(detail=True, methods=["post"])
     def accept(self, request, pk=None):
         with transaction.atomic():
-            application = Application.objects.select_related("task").select_for_update().get(
+            application = get_object_or_404(Application.objects.select_related("task", "applicant").select_for_update(),
                 pk=pk, task__requester=request.user
             )
+            require_phone(request.user)
+            require_helper(application.applicant)
+            if are_blocked(request.user, application.applicant):
+                raise PermissionDenied("You cannot accept work from a blocked member.")
             task = Task.objects.select_for_update().get(pk=application.task_id)
             if task.status != Task.Status.OPEN or application.status != Application.Status.PENDING:
                 return Response({"detail": "This application can no longer be accepted."}, status=400)
