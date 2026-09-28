@@ -25,3 +25,7 @@ Use `frontend/.env.example` as the deployment configuration reference. Set `GOOG
 5. Publish accurate pilot/availability information and grow real local participation and mentions. SEO foundations support discovery; they do not guarantee rankings or a Google Maps listing.
 
 References: [Google Search Essentials](https://developers.google.com/search/docs/essentials), [Organization markup](https://developers.google.com/search/docs/appearance/structured-data/organization), [noindex](https://developers.google.com/search/docs/crawling-indexing/block-indexing), [sitemap guidance](https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap), [doorway abuse](https://developers.google.com/search/docs/essentials/spam-policies#doorway-abuse).
+
+## Verification performed
+
+Frontend type checking and the final production build passed. HTTP checks against a temporary local production server verified seven unique public titles, descriptions, canonical URLs, social metadata, language, single H1 headings, structured data, sitemap membership and robots rules. Six representative private routes returned both noindex metadata and X-Robots-Tag headers. The social preview rendered at 1200x630. Browser review confirmed the guide opens without authentication, has no console errors and fits a 390px viewport without horizontal overflow. Live Google indexing, rankings and deployed Core Web Vitals are not verified by these local checks.
