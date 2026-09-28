@@ -6,7 +6,7 @@ if (siteUrl.protocol !== "https:" || siteUrl.username || siteUrl.password || sit
   throw new Error("NEXT_PUBLIC_SITE_URL must be an HTTPS origin, for example https://getneba.app.");
 }
 export const indexPublicPages = process.env.NODE_ENV === "production" && process.env.SEO_INDEXABLE !== "false" && (!process.env.VERCEL_ENV || process.env.VERCEL_ENV === "production");
-export const publicSearchPaths = ["/", "/local-help", "/about", "/help", "/community-guidelines", "/privacy", "/terms"];
+export const publicSearchPaths = ["/", "/local-help", "/about", "/stories", "/help", "/community-guidelines", "/privacy", "/terms"];
 export const siteDescription = "Find local help and paid tasks in Nigeria. Post errands, moving, tutoring, tech and event tasks, or offer your skills to people in your city.";
 
 export function publicPageMetadata(title: string, description: string, path: string): Metadata {
