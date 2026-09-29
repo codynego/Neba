@@ -50,7 +50,7 @@ class TrustFlowTests(APITestCase):
 
     def test_incomplete_accounts_cannot_work_but_can_add_an_unverified_phone(self):
         task = self.task()
-        self.assertEqual(self.client.post("/api/tasks/", {"title": "A task", "description": "A task description", "category": "moving", "city": "Abuja", "state": "FCT", "reward_amount": "5000"}).status_code, 403)
+        self.assertEqual(self.client.post("/api/tasks/", {"title": "A task", "description": "A task description", "category": "moving", "city": "Abuja", "state": "FCT", "reward_amount": "5000", "policy_confirmed": True}).status_code, 403)
         self.assertEqual(self.client.post("/api/applications/", {"task": task.pk, "message": "Hello"}).status_code, 403)
         response = self.client.patch("/api/auth/me/", {"identity_verified": True, "phone_verified": True, "phone": "08012345671"}, format="json")
         self.assertEqual(response.status_code, 200)

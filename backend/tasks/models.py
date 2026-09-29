@@ -14,6 +14,21 @@ class Task(models.Model):
         TUTORING = "tutoring", "Tutoring"
         TECH = "tech", "Tech help"
         OTHER = "other", "Other"
+    class RiskLevel(models.TextChoices):
+        LOW = "low", "Low"
+        MEDIUM = "medium", "Medium"
+        HIGH = "high", "High"
+    class ItemType(models.TextChoices):
+        DOCUMENTS = "documents", "Documents"
+        FOOD = "food", "Food or groceries"
+        CLOTHING = "clothing", "Clothing"
+        ELECTRONICS = "electronics", "Electronics"
+        FURNITURE = "furniture", "Furniture"
+        OTHER = "other", "Other"
+    class ModerationStatus(models.TextChoices):
+        APPROVED = "approved", "Approved"
+        HELD = "held", "Needs review"
+        REJECTED = "rejected", "Rejected"
     requester = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="tasks")
     target_helper = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="direct_requests")
     requested_offer = models.ForeignKey("offers.Offer", on_delete=models.SET_NULL, null=True, blank=True)
@@ -27,6 +42,14 @@ class Task(models.Model):
     reward_amount = models.DecimalField(max_digits=10, decimal_places=2)
     reward_note = models.CharField(max_length=160, blank=True)
     scheduled_for = models.DateTimeField(null=True, blank=True)
+    involves_item = models.BooleanField(default=False)
+    item_type = models.CharField(max_length=20, choices=ItemType.choices, blank=True)
+    item_value = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    item_already_paid = models.BooleanField(default=False)
+    risk_level = models.CharField(max_length=12, choices=RiskLevel.choices, default=RiskLevel.LOW)
+    moderation_status = models.CharField(max_length=12, choices=ModerationStatus.choices, default=ModerationStatus.APPROVED)
+    moderation_reason = models.CharField(max_length=300, blank=True)
+    policy_version = models.CharField(max_length=20, default="mvp-v1")
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.OPEN)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

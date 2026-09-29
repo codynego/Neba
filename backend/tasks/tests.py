@@ -21,7 +21,7 @@ class TaskFlowTests(APITestCase):
         self.payload = {
             "title": "Move a table", "description": "Carry one table upstairs",
             "category": "moving", "city": "Abuja", "state": "FCT",
-            "reward_amount": "5000.00"
+            "reward_amount": "5000.00", "policy_confirmed": True,
         }
 
     def test_post_apply_accept_complete_and_city_filter(self):
@@ -57,7 +57,7 @@ class TaskFlowTests(APITestCase):
     def test_browsing_requires_authentication_on_list_and_detail(self):
         from tasks.models import Task
         from offers.models import Offer
-        task = Task.objects.create(requester=self.requester, **self.payload)
+        task = Task.objects.create(requester=self.requester, **{key: value for key, value in self.payload.items() if key != "policy_confirmed"})
         offer = Offer.objects.create(provider=self.helper, title="Moving help", description="Help moving", category="moving", city="Abuja", state="FCT", starting_price=5000)
         self.client.force_authenticate(user=None)
         for path in ("/api/tasks/", f"/api/tasks/{task.pk}/", "/api/offers/", f"/api/offers/{offer.pk}/"):
@@ -68,4 +68,27 @@ class TaskFlowTests(APITestCase):
         task_id = self.client.post("/api/tasks/", self.payload, format="json").data["id"]
         self.client.force_authenticate(self.helper)
         self.assertEqual(self.client.post(f"/api/tasks/{task_id}/complete/").status_code, 403)
+
+    def test_task_policy_blocks_cash_unpaid_and_high_value_items(self):
+        self.client.force_authenticate(self.requester)
+        cash = {**self.payload, "title": "Collect cash for me", "description": "Collect some cash from a customer and bring it back."}
+        self.assertEqual(self.client.post("/api/tasks/", cash, format="json").status_code, 400)
+        item = {**self.payload, "involves_item": True, "item_type": "food", "item_value": "15000", "item_already_paid": False}
+        self.assertEqual(self.client.post("/api/tasks/", item, format="json").status_code, 400)
+        item["item_already_paid"] = True; item["item_value"] = "50001"
+        self.assertEqual(self.client.post("/api/tasks/", item, format="json").status_code, 400)
+
+    def test_allowed_item_is_classified_and_suspicious_task_is_held(self):
+        self.client.force_authenticate(self.requester)
+        item = {**self.payload, "involves_item": True, "item_type": "food", "item_value": "15000", "item_already_paid": True}
+        allowed = self.client.post("/api/tasks/", item, format="json")
+        self.assertEqual(allowed.status_code, 201)
+        self.assertEqual(allowed.data["risk_level"], "medium")
+        self.assertEqual(allowed.data["moderation_status"], "approved")
+        held = self.client.post("/api/tasks/", {**self.payload, "title": "Carry a sealed package", "description": "Please carry this sealed package across town."}, format="json")
+        self.assertEqual(held.status_code, 201)
+        self.assertEqual(held.data["moderation_status"], "held")
+        self.client.force_authenticate(self.helper)
+        self.assertNotIn(held.data["id"], [task["id"] for task in self.client.get("/api/tasks/").data["results"]])
+        self.assertEqual(self.client.get(f"/api/tasks/{held.data['id']}/").status_code, 404)
 

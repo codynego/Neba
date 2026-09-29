@@ -6,8 +6,10 @@ from rest_framework.response import Response
 from .models import Task
 from accounts.trust import require_profile, blocked_user_ids
 from accounts.safety_views import trust_summary
+from .policy import apply_task_policy
 
 class TaskSerializer(serializers.ModelSerializer):
+    policy_confirmed = serializers.BooleanField(write_only=True, required=False)
     requester_trust = serializers.SerializerMethodField()
     def get_requester_trust(self, task):
         return trust_summary(task.requester)
@@ -17,12 +19,19 @@ class TaskSerializer(serializers.ModelSerializer):
         model = Task
         fields = ("id", "requester", "requester_name", "title", "description", "category", "city",
                   "state", "neighborhood", "reward_amount", "reward_note", "scheduled_for",
+                  "involves_item", "item_type", "item_value", "item_already_paid", "risk_level",
+                  "moderation_status", "moderation_reason", "policy_version", "policy_confirmed",
                   "status", "application_count", "created_at", "updated_at", "requester_trust")
-        read_only_fields = ("id", "requester", "requester_name", "status", "application_count", "created_at", "updated_at")
+        read_only_fields = ("id", "requester", "requester_name", "risk_level", "moderation_status", "moderation_reason", "policy_version", "status", "application_count", "created_at", "updated_at")
     def validate_reward_amount(self, value):
         if value <= 0:
             raise serializers.ValidationError("Enter an amount greater than zero.")
         return value
+    def validate(self, attrs):
+        confirmed = attrs.pop("policy_confirmed", False)
+        if self.instance is None and not confirmed:
+            raise serializers.ValidationError({"policy_confirmed": "Confirm that this task follows Neba’s task policy."})
+        return apply_task_policy(attrs, self.instance)
 
 class TaskViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]

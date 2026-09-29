@@ -147,7 +147,7 @@ class ProductFlowTests(APITestCase):
 
     def test_direct_requests_are_private_and_only_target_can_accept(self):
         self.client.force_authenticate(self.owner)
-        data={"title":"Please move a sofa","description":"One sofa upstairs","city":"Abuja","state":"FCT","reward_amount":"6000"}
+        data={"title":"Please move a sofa","description":"One sofa upstairs","city":"Abuja","state":"FCT","reward_amount":"6000","policy_confirmed":True}
         result=self.client.post(f"/api/offers/{self.offer.pk}/request/",data)
         self.assertEqual(result.status_code,201,result.data)
         task_id=result.data["id"]
@@ -163,7 +163,7 @@ class ProductFlowTests(APITestCase):
     def test_unavailable_helper_cannot_receive_request_and_notification_access_is_private(self):
         self.helper.availability="unavailable"; self.helper.save()
         self.client.force_authenticate(self.owner)
-        data={"title":"Move sofa","description":"One sofa upstairs","city":"Abuja","state":"FCT","reward_amount":"6000"}
+        data={"title":"Move sofa","description":"One sofa upstairs","city":"Abuja","state":"FCT","reward_amount":"6000","policy_confirmed":True}
         self.assertEqual(self.client.post(f"/api/offers/{self.offer.pk}/request/",data).status_code,400)
         notification=Notification.objects.create(recipient=self.helper,title="Private alert",path="/activity")
         self.assertEqual(self.client.get("/api/notifications/unread/").data["count"],0)

@@ -29,6 +29,8 @@ class ApplicationSerializer(serializers.ModelSerializer):
     def validate_task(self, task):
         user = self.context["request"].user
         require_helper(user)
+        if task.moderation_status != Task.ModerationStatus.APPROVED:
+            raise PermissionDenied("This task is awaiting review and cannot receive applications.")
         if not task.requester.is_active or are_blocked(user, task.requester):
             raise PermissionDenied("This task is unavailable.")
         if task.requester_id == user.id:

@@ -71,9 +71,10 @@ class TaskViewSet(BaseTaskViewSet):
         helper = Q(applications__applicant=user, applications__status="accepted")
         if self.request.query_params.get("mine") == "true": return queryset.filter(owner).distinct().order_by("-created_at")
         if self.request.query_params.get("bookings") == "true": return queryset.filter(owner | helper).exclude(status="open").distinct().order_by("-updated_at")
-        if self.request.query_params.get("invitations") == "true": return queryset.filter(target_helper=user, status="open", is_private=True).order_by("-created_at")
-        discover = Q(is_private=False, status="open", requester__is_active=True) & ~Q(requester_id__in=blocked_user_ids(user))
-        if self.action != "list": return queryset.filter(owner | helper | Q(target_helper=user) | discover).distinct()
+        if self.request.query_params.get("invitations") == "true": return queryset.filter(target_helper=user, status="open", is_private=True, moderation_status=Task.ModerationStatus.APPROVED).order_by("-created_at")
+        discover = Q(is_private=False, status="open", moderation_status=Task.ModerationStatus.APPROVED, requester__is_active=True) & ~Q(requester_id__in=blocked_user_ids(user))
+        target = Q(target_helper=user, moderation_status=Task.ModerationStatus.APPROVED)
+        if self.action != "list": return queryset.filter(owner | helper | target | discover).distinct()
         queryset = queryset.filter(discover)
         for key, lookup in (("city", "city__iexact"), ("neighborhood", "neighborhood__icontains"), ("category", "category")):
             value = self.request.query_params.get(key, "").strip()

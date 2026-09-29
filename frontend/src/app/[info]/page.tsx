@@ -14,6 +14,7 @@ const pages = {
   "community-guidelines": { title: "Look out for each other.", label: "COMMUNITY GUIDELINES", intro: "Treat your neighbors with respect. Identity checks help establish who someone is; they do not guarantee safe behaviour.", sections: [
     ["Be honest and respectful", "Use your own identity and accurate skills. Do not impersonate another person, harass, discriminate, threaten, or pressure someone to do work they did not agree to."],
     ["Keep tasks safe", "Offer lawful work you can do safely. Do not request dangerous or exploitative tasks. This pilot is for adults aged 18 and over. Explain the task and agree on the reward before work begins."],
+    ["Use the MVP item limits", "Item pickup is limited to already-paid goods with a declared value of ₦50,000 or less. Helpers must not be asked to use their own money. Cash collection, financial transactions, high-value goods, weapons, illegal drugs, stolen goods, fraudulent documents, sexual services, and unsupervised childcare are not allowed."],
     ["Protect personal information", "Keep phone numbers, identity documents, and exact addresses out of task descriptions and reviews. Share coordination details only with your selected participant."],
     ["Report worrying behaviour", "Send a private report and block unwanted interactions. Admins can review reports, hide abusive reviews, and suspend accounts. The moderation queue is not an emergency service; contact local emergency services if you are in immediate danger."],
   ] },
@@ -27,6 +28,7 @@ const pages = {
   terms: { title: "Using the Neba pilot.", label: "PILOT TERMS", intro: "Operating rules for the current pilot. Read the community guidelines and privacy information before taking part.", sections: [
     ["Accounts and eligibility", "Use your own account and keep its information accurate. Posting, applying, and offering help require a phone number, profile photo, and location. Phone OTP and identity review are not part of this MVP."],
     ["Agree before starting", "Participants agree directly on the work, timing, location, reward, and payment method. Neba does not process payments or provide escrow in this pilot. Only accept work you understand and can perform safely."],
+    ["Task and item policy", "Tasks involving an item must declare its type and estimated value, and the item must already be paid for. NEBA may reject prohibited or over-limit tasks and hold suspicious tasks for manual review before they become visible."],
     ["Verification and reviews", "A badge confirms the stated checks were completed. Manual review is not automated document-authenticity testing, certified liveness, or a background check. Reviews are limited to participants in completed tasks."],
     ["Community standards", "Follow the community guidelines. Report fraud, harassment, or unsafe conduct using the reporting controls. Admins can moderate reviews and suspend accounts. Blocking prevents new interactions; it does not resolve an existing work agreement."],
   ] },
