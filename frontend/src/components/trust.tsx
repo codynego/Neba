@@ -10,7 +10,7 @@ export function TrustBadges({ trust }: { trust?: Trust }) {
   return <div className="trust-badges">{trust.identity_verified ? <span title="An admin reviewed the submitted ID and camera photos. This is not a background check."><ShieldCheck size={14} />Identity manually reviewed</span> : trust.phone_verified ? <span><Phone size={13} />Phone verified</span> : trust.profile_complete ? <span><CheckCircle2 size={14} />Profile complete</span> : <span className="trust-unverified">Profile incomplete</span>}{!!trust.review_count && <span><Star size={13} />{trust.rating?.toFixed(1)} ({trust.review_count} {trust.review_count === 1 ? "review" : "reviews"})</span>}</div>;
 }
 
-export function MemberPhoto({ id, name, available }: { id: number; name: string; available?: boolean }) {
+export function MemberPhoto({ id, name, available }: { id: number | string; name: string; available?: boolean }) {
   const [url, setUrl] = useState("");
   useEffect(() => {
     const token = getToken();
