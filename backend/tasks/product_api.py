@@ -152,35 +152,35 @@ class TaskViewSet(BaseTaskViewSet):
 
     @action(detail=True, methods=["post"])
     def changes(self, request, pk=None):
-        self.get_object()
+        target = self.get_object()
         serializer = ChangeInput(data=request.data); serializer.is_valid(raise_exception=True)
         with transaction.atomic():
-            task = Task.objects.select_for_update().get(pk=pk)
+            task = Task.objects.select_for_update().get(pk=target.pk)
             change = propose_change(task, request.user, **serializer.validated_data)
         return Response(ChangeSerializer(change).data, status=201)
 
     @action(detail=True, methods=["post"], url_path="changes/(?P<change_id>[0-9]+)/respond")
     def respond_change(self, request, pk=None, change_id=None):
-        self.get_object()
+        target = self.get_object()
         with transaction.atomic():
-            task = Task.objects.select_for_update().get(pk=pk)
+            task = Task.objects.select_for_update().get(pk=target.pk)
             change = get_object_or_404(TaskChange.objects.select_for_update(), pk=change_id, task=task)
             change = decide_change(change, request.user, request.data.get("decision"))
         return Response(ChangeSerializer(change).data)
 
     @action(detail=True, methods=["post"])
     def complete(self, request, pk=None):
-        self.get_object()
+        target = self.get_object()
         with transaction.atomic():
-            task = Task.objects.select_for_update().get(pk=pk)
+            task = Task.objects.select_for_update().get(pk=target.pk)
             propose_change(task, request.user, "complete")
         return Response({"detail": "Completion requested. The other participant must confirm."}, status=201)
 
     @action(detail=True, methods=["post"])
     def cancel(self, request, pk=None):
-        self.get_object()
+        target = self.get_object()
         with transaction.atomic():
-            task = Task.objects.select_for_update().get(pk=pk)
+            task = Task.objects.select_for_update().get(pk=target.pk)
             if task.requester_id != request.user.pk or task.status != "open": raise PermissionDenied("Use a cancellation request for an accepted task.")
             task.status = "cancelled"; task.save(update_fields=("status", "updated_at"))
             task.applications.filter(status="pending").update(status="declined")
@@ -191,10 +191,10 @@ class TaskViewSet(BaseTaskViewSet):
 
     @action(detail=True, methods=["post"])
     def issues(self, request, pk=None):
-        self.get_object()
+        target = self.get_object()
         serializer = IssueInput(data=request.data); serializer.is_valid(raise_exception=True)
         with transaction.atomic():
-            task = Task.objects.select_for_update().get(pk=pk); other = participants(task, request.user)
+            task = Task.objects.select_for_update().get(pk=target.pk); other = participants(task, request.user)
             if task.status != "assigned": raise ValidationError("Only assigned tasks can have a task issue.")
             if task.issues.filter(status__in=("open", "reviewing")).exists(): raise ValidationError("This task already has an open issue.")
             data = serializer.validated_data
@@ -206,10 +206,10 @@ class TaskViewSet(BaseTaskViewSet):
 
     @action(detail=True, methods=["post"], url_path="respond-invitation")
     def respond_invitation(self, request, pk=None):
-        self.get_object()
+        target = self.get_object()
         decision = serializers.ChoiceField(choices=("accept", "decline")).run_validation(request.data.get("decision"))
         with transaction.atomic():
-            task = Task.objects.select_for_update().get(pk=pk)
+            task = Task.objects.select_for_update().get(pk=target.pk)
             if not task.is_private or task.target_helper_id != request.user.pk: raise PermissionDenied("This request is for another helper.")
             if task.status != "open": raise ValidationError("This request has already been decided.")
             if decision == "accept":

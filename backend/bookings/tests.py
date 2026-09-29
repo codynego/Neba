@@ -157,7 +157,8 @@ class ProductFlowTests(APITestCase):
         self.assertNotIn(task_id,[task["id"] for task in self.client.get("/api/tasks/").data["results"]])
         self.client.force_authenticate(self.helper)
         self.assertEqual(self.client.get("/api/tasks/?invitations=true").data["count"],1)
-        self.assertEqual(self.client.post(f"/api/tasks/{task_id}/respond-invitation/",{"decision":"accept"}).status_code,200)
+        task_public_id=result.data["public_id"]
+        self.assertEqual(self.client.post(f"/api/tasks/{task_public_id}/respond-invitation/",{"decision":"accept"}).status_code,200)
         self.assertEqual(Task.objects.get(pk=task_id).status,"assigned")
 
     def test_unavailable_helper_cannot_receive_request_and_notification_access_is_private(self):

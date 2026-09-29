@@ -4,6 +4,7 @@ import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import { Camera, CheckCircle2, LocateFixed, MapPin, Phone } from "lucide-react";
 import { api } from "@/lib/api";
 import { User, categories, availabilityLabels } from "@/lib/types";
+import { compressImage } from "@/lib/image-compression";
 
 type UploadTicket = { upload_url: string; key: string; content_type: string };
 
@@ -11,6 +12,7 @@ export function ProfileEditor({ user, onSaved }: { user: User; onSaved: (user: U
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState("");
   const [photo, setPhoto] = useState<File | null>(null);
+  const [compressing, setCompressing] = useState(false);
   const [preview, setPreview] = useState("");
   const [coordinates, setCoordinates] = useState({ latitude: user.latitude || "", longitude: user.longitude || "" });
 
@@ -21,16 +23,36 @@ export function ProfileEditor({ user, onSaved }: { user: User; onSaved: (user: U
     return () => URL.revokeObjectURL(url);
   }, [photo]);
 
-  function choosePhoto(event: ChangeEvent<HTMLInputElement>) {
-    const next = event.target.files?.[0] || null;
+  async function choosePhoto(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] || null;
     setFeedback("");
-    if (next && (!(["image/jpeg", "image/png", "image/webp"].includes(next.type)) || next.size > 5 * 1024 * 1024)) {
-      event.target.value = "";
+    if (!file) {
       setPhoto(null);
-      setFeedback("Choose a JPEG, PNG, or WebP photo under 5 MB.");
       return;
     }
-    setPhoto(next);
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      event.target.value = "";
+      setPhoto(null);
+      setFeedback("Choose a JPEG, PNG, or WebP photo.");
+      return;
+    }
+    if (file.size > 20 * 1024 * 1024) {
+      event.target.value = "";
+      setPhoto(null);
+      setFeedback("Choose a photo under 20 MB.");
+      return;
+    }
+    setCompressing(true);
+    try {
+      const compressed = await compressImage(file);
+      setPhoto(compressed);
+    } catch (error) {
+      event.target.value = "";
+      setPhoto(null);
+      setFeedback((error as Error).message || "Could not process this photo.");
+    } finally {
+      setCompressing(false);
+    }
   }
 
   function useCurrentLocation() {
@@ -63,11 +85,12 @@ export function ProfileEditor({ user, onSaved }: { user: User; onSaved: (user: U
         }),
       });
       if (photo) {
+        const fileToUpload = photo.size > 2 * 1024 * 1024 ? await compressImage(photo) : photo;
         const ticket = await api<UploadTicket>("/auth/profile-photo/upload/", {
           method: "POST",
-          body: JSON.stringify({ content_type: photo.type, size: photo.size }),
+          body: JSON.stringify({ content_type: fileToUpload.type, size: fileToUpload.size }),
         });
-        const upload = await fetch(ticket.upload_url, { method: "PUT", headers: { "Content-Type": ticket.content_type }, body: photo });
+        const upload = await fetch(ticket.upload_url, { method: "PUT", headers: { "Content-Type": ticket.content_type }, body: fileToUpload });
         if (!upload.ok) throw new Error("The photo upload did not finish. Check your R2 CORS settings and try again.");
         updated = await api<User>("/auth/profile-photo/confirm/", { method: "POST", body: JSON.stringify({ key: ticket.key }) });
         setPhoto(null);
@@ -91,8 +114,8 @@ export function ProfileEditor({ user, onSaved }: { user: User; onSaved: (user: U
     <form className="stack-form" onSubmit={save}>
       <label className="profile-photo-field">Profile picture
         <span className="photo-upload-row">
-          <span className="photo-preview">{preview ? <img src={preview} alt="Selected profile preview" /> : <Camera size={24} />}</span>
-          <span><input name="profile_photo" type="file" accept="image/jpeg,image/png,image/webp" required={!user.photo_available} onChange={choosePhoto} /><small>Use a clear photo of yourself. JPEG, PNG, or WebP under 5 MB.</small></span>
+          <span className="photo-preview">{compressing ? <small style={{ fontSize: "10px", textAlign: "center", lineHeight: "1.2" }}>Optimizing…</small> : preview ? <img src={preview} alt="Selected profile preview" /> : <Camera size={24} />}</span>
+          <span><input name="profile_photo" type="file" accept="image/jpeg,image/png,image/webp" required={!user.photo_available} onChange={choosePhoto} disabled={busy || compressing} /><small>Use a clear photo of yourself. JPEG, PNG, or WebP under 20 MB (compressed automatically).</small></span>
         </span>
       </label>
       <label>Display name<input name="display_name" defaultValue={user.display_name} required maxLength={80} /></label>
@@ -106,7 +129,7 @@ export function ProfileEditor({ user, onSaved }: { user: User; onSaved: (user: U
       <label>Availability<select name="availability" defaultValue={user.availability}>{Object.entries(availabilityLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
       <fieldset className="skill-checkboxes"><legend>Your skills</legend>{categories.filter((category) => category.value).map((category) => <label className="check-label" key={category.value}><input type="checkbox" name="skills" value={category.value} defaultChecked={user.skills?.includes(category.value as User["skills"][number])} />{category.label}</label>)}</fieldset>
       <p className="form-note">“Not taking work” pauses new applications and direct requests. Existing bookings remain yours to manage.</p>
-      <button className="button button-dark compact" disabled={busy}>{busy ? "Saving profile…" : "Save profile"}</button>
+      <button className="button button-dark compact" disabled={busy || compressing}>{compressing ? "Optimizing photo…" : busy ? "Saving profile…" : "Save profile"}</button>
       {feedback && <p role="status" className="profile-feedback">{feedback}</p>}
     </form>
   </details>;
