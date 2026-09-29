@@ -23,7 +23,7 @@ export function NearbyList({ people = false }: { people?: boolean }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
-  const [filtersOpen, setFiltersOpen] = useState(true);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   useEffect(() => { const value = { ...defaults }; (Object.keys(value) as (keyof Filters)[]).forEach((key) => { value[key] = params.get(key) || (key === "city" && !params.has("city") ? localStorage.getItem("neba_city") || "" : defaults[key]); }); setFilters(value); setPage(1); setReady(true); }, [params]);
   useEffect(() => {
     if (!ready) return;
