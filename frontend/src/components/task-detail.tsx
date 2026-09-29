@@ -48,7 +48,7 @@ export function TaskDetail({ id }: { id: string }) {
         <div className="detail-meta"><span><MapPin size={18} />{[task.neighborhood, task.city, task.state].filter(Boolean).join(", ")}</span><span><CalendarDays size={18} />{task.scheduled_for ? new Date(task.scheduled_for).toLocaleString("en-NG") : "Flexible timing"}</span>{!task.is_private && <span><Users size={18} />{task.application_count} applicants</span>}</div>
         <div className="detail-body"><h2>What needs doing</h2><p>{task.description}</p></div>
         {task.involves_item && <section className="task-item-summary"><PackageCheck size={20} /><div><span>ITEM INVOLVED</span><strong>{task.item_type ? itemTypeLabels[task.item_type] : "Item"} · {task.item_value ? naira(task.item_value) : "Value not supplied"}</strong><p>Requester confirmed that the item is already paid for.</p></div></section>}
-        <div className="posted-by">Posted by <Link href={`/members/${task.requester_public_id || task.requester}`}><strong>{task.requester_name || "Community member"}</strong></Link></div>
+        <div className="posted-by">Posted by <Link href={`/members/${task.requester_username || task.requester_public_id || task.requester}`}><strong>{task.requester_name || "Community member"}</strong></Link></div>
         <TrustBadges trust={task.requester_trust} />
         <SafetyActions member={task.requester} name={task.requester_name} task={task.id} />
       </article>

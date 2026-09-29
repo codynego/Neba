@@ -1,10 +1,10 @@
 export type Category = "errands" | "moving" | "events" | "tutoring" | "tech" | "other";
-export type Trust = { phone_verified: boolean; identity_verified: boolean; public_id?: string; photo_available?: boolean; profile_complete?: boolean; review_count?: number; rating?: number | null };
+export type Trust = { phone_verified: boolean; identity_verified: boolean; public_id?: string; username?: string; photo_available?: boolean; profile_complete?: boolean; review_count?: number; rating?: number | null };
 export type Availability = "flexible" | "weekdays" | "evenings" | "weekends" | "unavailable";
 export type ItemType = "documents" | "food" | "clothing" | "electronics" | "furniture" | "other";
 export type User = Trust & { id: number; public_id: string; username: string; display_name: string; city: string; state: string; phone?: string; photo_visible?: boolean; bio: string; skills: Category[]; neighborhood: string; address: string; latitude: string | null; longitude: string | null; availability: Availability };
 export type Task = {
-  id: number; public_id: string; requester: number; requester_public_id?: string; requester_name: string; title: string; description: string;
+  id: number; public_id: string; requester: number; requester_public_id?: string; requester_username?: string; requester_name: string; title: string; description: string;
   category: Category; city: string; state: string; neighborhood: string;
   reward_amount: string; reward_note: string; scheduled_for: string | null;
   involves_item: boolean; item_type: ItemType | ""; item_value: string | null; item_already_paid: boolean;
@@ -13,12 +13,12 @@ export type Task = {
   is_private: boolean; target_helper: number | null; target_helper_name: string; requested_offer: number | null; has_booking: boolean;
 };
 export type Offer = {
-  id: number; public_id: string; provider: number; provider_public_id?: string; provider_name: string; title: string; description: string;
+  id: number; public_id: string; provider: number; provider_public_id?: string; provider_username?: string; provider_name: string; title: string; description: string;
   category: Category; city: string; state: string; starting_price: string; active: boolean; created_at: string; provider_trust?: Trust;
   provider_availability?: Availability; provider_neighborhood?: string;
 };
 export type Application = {
-  id: number; task: number; task_public_id?: string; task_title: string; applicant: number; applicant_public_id?: string; applicant_name: string;
+  id: number; task: number; task_public_id?: string; task_title: string; applicant: number; applicant_public_id?: string; applicant_username?: string; applicant_name: string;
   message: string; contact_phone: string; status: "pending" | "accepted" | "declined" | "withdrawn"; created_at: string; applicant_trust?: Trust;
 };
 export type TaskChange = { id: number; proposer: number; kind: "complete" | "cancel" | "reschedule"; reason: string; scheduled_for: string | null; status: "pending" | "accepted" | "declined" | "withdrawn"; created_at: string };
@@ -27,7 +27,7 @@ export type TaskMessage = { id: number; sender: number; sender_name: string; tex
 export type Workspace = { task: Task; my_role: "helper" | "requester"; member: Trust & { id: number; display_name: string }; can_message: boolean; contact_phone: string; pending_change: TaskChange | null; active_issue: TaskIssue | null; changes: TaskChange[]; issues: TaskIssue[] };
 export type Notification = { id: number; title: string; detail: string; path: string; read_at: string | null; created_at: string };
 export type Conversation = { task_id: number; task_public_id?: string; title: string; status: Task["status"]; member: Trust & { id: number; display_name: string }; last_message: string; last_message_at: string | null; updated_at: string };
-export type MemberProfile = Trust & { id: number; public_id: string; display_name: string; city: string; state: string; neighborhood: string; bio: string; skills: Category[]; availability: Availability; completed_tasks: number; offers: Offer[]; reviews: { rating: number; comment: string; created_at: string }[] };
+export type MemberProfile = Trust & { id: number; public_id: string; username: string; display_name: string; city: string; state: string; neighborhood: string; bio: string; skills: Category[]; availability: Availability; completed_tasks: number; offers: Offer[]; reviews: { rating: number; comment: string; created_at: string }[] };
 export const availabilityLabels: Record<Availability, string> = { flexible: "Flexible", weekdays: "Weekdays", evenings: "Evenings", weekends: "Weekends", unavailable: "Not taking work" };
 export const itemTypeLabels: Record<ItemType, string> = { documents: "Documents", food: "Food or groceries", clothing: "Clothing", electronics: "Electronics", furniture: "Furniture", other: "Other" };
 export type Page<T> = { count: number; next: string | null; previous: string | null; results: T[] };

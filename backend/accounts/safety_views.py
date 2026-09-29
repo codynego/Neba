@@ -19,7 +19,7 @@ from . import r2
 
 def trust_summary(user):
     reviews = user.reviews_received.filter(visible=True, reviewer__is_active=True)
-    return {"public_id": str(user.public_id), "phone_verified": bool(user.is_active and user.phone and user.phone_verified_at),
+    return {"public_id": str(user.public_id), "username": user.username, "phone_verified": bool(user.is_active and user.phone and user.phone_verified_at),
             "identity_verified": bool(user.is_active and user.phone and user.phone_verified_at and user.identity_verified_at),
             "photo_available": bool(user.is_active and user.photo_visible and (user.profile_photo_key or user.profile_photo)),
             "profile_complete": bool(user.is_active and user.profile_complete),
@@ -198,7 +198,10 @@ def resolve_user_identifier(identifier):
     try:
         return User.objects.get(public_id=uuid.UUID(str(identifier)), is_active=True)
     except (ValueError, TypeError, AttributeError, User.DoesNotExist):
-        return get_object_or_404(User, pk=identifier, is_active=True)
+        try:
+            return User.objects.get(username__iexact=str(identifier), is_active=True)
+        except User.DoesNotExist:
+            return get_object_or_404(User, pk=identifier, is_active=True)
 
 
 class ProfilePhoto(PrivateView):
@@ -225,7 +228,7 @@ class PublicProfile(PrivateView):
         reviews = user.reviews_received.filter(visible=True, reviewer__is_active=True)[:20]
         from offers.product_api import OfferSerializer
         offers = user.offers.filter(active=True) if user.profile_complete else user.offers.none()
-        return Response({"id": user.pk, "public_id": str(user.public_id), "display_name": user.display_name, "city": user.city, "state": user.state,
+        return Response({"id": user.pk, "public_id": str(user.public_id), "username": user.username, "display_name": user.display_name, "city": user.city, "state": user.state,
             "bio": user.bio, "skills": user.skills, "neighborhood": user.neighborhood, "availability": user.availability,
             "offers": OfferSerializer(offers, many=True).data, **trust_summary(user),
             "completed_tasks": Application.objects.filter(applicant=user, status="accepted", task__status="completed").count(),

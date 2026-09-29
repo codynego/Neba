@@ -10,10 +10,11 @@ class OfferSerializer(serializers.ModelSerializer):
     def get_provider_trust(self, offer):
         return trust_summary(offer.provider)
     provider_name = serializers.CharField(source="provider.display_name", read_only=True)
+    provider_username = serializers.CharField(source="provider.username", read_only=True)
     provider_public_id = serializers.UUIDField(source="provider.public_id", read_only=True)
     class Meta:
         model = Offer
-        fields = ("id", "public_id", "provider", "provider_public_id", "provider_name", "title", "description", "category",
+        fields = ("id", "public_id", "provider", "provider_public_id", "provider_username", "provider_name", "title", "description", "category",
                   "city", "state", "starting_price", "active", "created_at", "provider_trust")
         read_only_fields = ("id", "public_id", "provider", "provider_name", "created_at")
     def validate_starting_price(self, value):

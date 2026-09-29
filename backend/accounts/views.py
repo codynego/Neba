@@ -40,7 +40,7 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ("id", "public_id", "username", "display_name", "city", "state", "date_joined", "phone", "phone_verified", "identity_verified", "photo_visible", "photo_available", "profile_complete", "bio", "skills", "neighborhood", "address", "latitude", "longitude", "availability")
-        read_only_fields = ("id", "public_id", "date_joined", "phone_verified", "identity_verified", "photo_visible", "photo_available", "profile_complete")
+        read_only_fields = ("id", "public_id", "username", "date_joined", "phone_verified", "identity_verified", "photo_visible", "photo_available", "profile_complete")
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[validate_password])

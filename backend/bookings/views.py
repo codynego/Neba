@@ -14,12 +14,13 @@ class ApplicationSerializer(serializers.ModelSerializer):
     def get_applicant_trust(self, application):
         return trust_summary(application.applicant)
     applicant_name = serializers.CharField(source="applicant.display_name", read_only=True)
+    applicant_username = serializers.CharField(source="applicant.username", read_only=True)
     applicant_public_id = serializers.UUIDField(source="applicant.public_id", read_only=True)
     task_title = serializers.CharField(source="task.title", read_only=True)
     task_public_id = serializers.UUIDField(source="task.public_id", read_only=True)
     class Meta:
         model = Application
-        fields = ("id", "task", "task_public_id", "task_title", "applicant", "applicant_public_id", "applicant_name", "message", "contact_phone", "status", "created_at", "applicant_trust")
+        fields = ("id", "task", "task_public_id", "task_title", "applicant", "applicant_public_id", "applicant_username", "applicant_name", "message", "contact_phone", "status", "created_at", "applicant_trust")
         read_only_fields = ("id", "task_title", "applicant", "applicant_name", "status", "created_at")
         extra_kwargs = {"contact_phone": {"read_only": True}}
     def to_representation(self, instance):

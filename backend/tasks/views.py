@@ -14,11 +14,12 @@ class TaskSerializer(serializers.ModelSerializer):
     def get_requester_trust(self, task):
         return trust_summary(task.requester)
     requester_name = serializers.CharField(source="requester.display_name", read_only=True)
+    requester_username = serializers.CharField(source="requester.username", read_only=True)
     requester_public_id = serializers.UUIDField(source="requester.public_id", read_only=True)
     application_count = serializers.IntegerField(read_only=True)
     class Meta:
         model = Task
-        fields = ("id", "public_id", "requester", "requester_name", "requester_public_id", "title", "description", "category", "city",
+        fields = ("id", "public_id", "requester", "requester_name", "requester_username", "requester_public_id", "title", "description", "category", "city",
                   "state", "neighborhood", "reward_amount", "reward_note", "scheduled_for",
                   "involves_item", "item_type", "item_value", "item_already_paid", "risk_level",
                   "moderation_status", "moderation_reason", "policy_version", "policy_confirmed",
