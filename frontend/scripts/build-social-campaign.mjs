@@ -116,6 +116,9 @@ async function renderPost(day) {
   const muted = dark ? '#D8E8E1' : '#68736E';
   const card = dark ? '#0B513D' : '#FFFFFF';
   const titleY = lines.length === 1 ? 360 : 314;
+  const longest = Math.max(...lines.map((line) => line.length));
+  const titleSize = longest > 28 ? 46 : longest > 23 ? 52 : longest > 18 ? 60 : 70;
+  const titleLineHeight = titleSize + 10;
   const svg = `
   <svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1080" viewBox="0 0 1080 1080">
     <defs>
@@ -126,15 +129,14 @@ async function renderPost(day) {
     <circle cx="1018" cy="65" r="210" fill="${dark ? '#087F5B' : '#F2C14E'}" opacity="${dark ? '.34' : '.18'}"/>
     <circle cx="40" cy="1040" r="180" fill="#087F5B" opacity=".10"/>
     <rect x="54" y="48" width="312" height="96" rx="24" fill="${dark ? '#FFFFFF' : '#FFFFFF'}" ${dark ? '' : 'stroke="#E5EAE7"'} />
-    <image href="data:image/svg+xml;base64,${logo}" x="82" y="70" width="255" height="55" preserveAspectRatio="xMidYMid meet"/>
     <text x="1016" y="97" text-anchor="end" fill="${dark ? '#9ED8C4' : '#087F5B'}" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="700" letter-spacing="2">DAY ${String(day).padStart(2, '0')} / 30</text>
     <rect x="54" y="180" width="972" height="706" rx="42" fill="${card}" filter="url(#shadow)"/>
     <rect x="676" y="218" width="310" height="548" rx="34" fill="#07563F"/>
     <image href="data:image/png;base64,${visual}" x="676" y="218" width="310" height="548" preserveAspectRatio="xMidYMid slice" clip-path="url(#visualClip)"/>
     <rect x="676" y="218" width="310" height="548" rx="34" fill="#063D2E" opacity="${photoDays.has(day) ? '.08' : '.18'}"/>
     <rect x="106" y="246" width="88" height="8" rx="4" fill="#F2C14E"/>
-    ${titleSvg(lines, 106, titleY, text)}
-    <text x="106" y="${titleY + lines.length * 79 + 50}" fill="${muted}" font-family="Segoe UI, Arial, sans-serif" font-size="27" font-weight="450">
+    ${titleSvg(lines, 106, titleY, text, titleSize, titleLineHeight)}
+    <text x="106" y="${titleY + lines.length * titleLineHeight + 50}" fill="${muted}" font-family="Segoe UI, Arial, sans-serif" font-size="27" font-weight="450">
       ${supporting.length > 48 ? `<tspan x="106" dy="0">${xml(supporting.slice(0, supporting.lastIndexOf(' ', 48)))}</tspan><tspan x="106" dy="38">${xml(supporting.slice(supporting.lastIndexOf(' ', 48) + 1))}</tspan>` : xml(supporting)}
     </text>
     <rect x="106" y="742" width="${Math.min(430, 150 + cta.length * 13)}" height="70" rx="35" fill="#087F5B"/>
@@ -143,7 +145,11 @@ async function renderPost(day) {
     <text x="1026" y="956" text-anchor="end" fill="${dark ? '#FFFFFF' : '#07563F'}" font-family="Segoe UI, Arial, sans-serif" font-size="23" font-weight="700">getneba.app</text>
     <line x1="54" y1="990" x2="1026" y2="990" stroke="${dark ? '#FFFFFF' : '#07563F'}" opacity=".20"/>
   </svg>`;
-  await sharp(Buffer.from(svg)).png().toFile(path.join(outputDir, `day-${String(day).padStart(2, '0')}.png`));
+  const logoPng = await sharp(logoPath).resize({ width: 255, height: 55, fit: 'contain' }).png().toBuffer();
+  await sharp(Buffer.from(svg))
+    .composite([{ input: logoPng, left: 82, top: 70 }])
+    .png()
+    .toFile(path.join(outputDir, `day-${String(day).padStart(2, '0')}.png`));
 }
 
 await ensureSources();
