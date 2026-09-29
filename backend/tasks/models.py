@@ -1,7 +1,9 @@
 ﻿from django.conf import settings
 from django.db import models
+import uuid
 
 class Task(models.Model):
+    public_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False, db_index=True)
     class Status(models.TextChoices):
         OPEN = "open", "Open"
         ASSIGNED = "assigned", "Assigned"

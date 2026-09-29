@@ -71,7 +71,7 @@ export default function NewTaskPage() {
         item_already_paid: draft.involves_item && draft.item_already_paid,
       };
       const task = await api<Task>("/tasks/", { method: "POST", body: JSON.stringify(data) });
-      router.push(`/tasks/${task.id}?posted=1`);
+      router.push(`/tasks/${task.public_id || task.id}?posted=1`);
     } catch (error) {
       setError((error as Error).message);
       setBusy(false);

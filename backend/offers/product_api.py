@@ -47,5 +47,5 @@ class OfferViewSet(BaseOfferViewSet):
             if Task.objects.filter(requester=request.user, requested_offer=offer, is_private=True, status="open").exists(): raise ValidationError("You already have a pending request for this offer. Manage it in Activity.")
             task = serializer.save(requester=request.user, target_helper=provider, requested_offer=offer, is_private=True, category=offer.category)
             if task.moderation_status == Task.ModerationStatus.APPROVED:
-                notify(provider, "Someone requested your skills", f"/tasks/{task.pk}", task.title)
+                notify(provider, "Someone requested your skills", f"/tasks/{task.public_id}", task.title)
         return Response(TaskSerializer(task, context={"request": request}).data, status=201)

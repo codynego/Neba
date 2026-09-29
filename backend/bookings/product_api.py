@@ -18,7 +18,7 @@ class ApplicationViewSet(BaseApplicationViewSet):
         if self.request.user.availability == "unavailable": raise ValidationError("Update your availability before applying.")
         if task.applications.filter(applicant=self.request.user).exists(): raise ValidationError("You already applied to this task.")
         serializer.save(applicant=self.request.user, contact_phone=self.request.user.phone)
-        notify(task.requester, "New task application", f"/tasks/{task.pk}", self.request.user.display_name or self.request.user.username)
+        notify(task.requester, "New task application", f"/tasks/{task.public_id}", self.request.user.display_name or self.request.user.username)
     @action(detail=True, methods=["post"])
     @transaction.atomic
     def accept(self, request, pk=None):
@@ -29,7 +29,7 @@ class ApplicationViewSet(BaseApplicationViewSet):
         if candidate.applicant.availability == "unavailable": raise ValidationError("This helper is not currently taking work.")
         response = super().accept(request, pk)
         if response.status_code == 200:
-            notify(candidate.applicant, "Your application was accepted", f"/tasks/{task.pk}", task.title)
+            notify(candidate.applicant, "Your application was accepted", f"/tasks/{task.public_id}", task.title)
             for other in task.applications.filter(status="declined").select_related("applicant"):
                 notify(other.applicant, "A helper was selected", "/activity", task.title)
         return response
@@ -41,7 +41,7 @@ class ApplicationViewSet(BaseApplicationViewSet):
             application = Application.objects.select_for_update().get(pk=candidate.pk)
             if application.status != "pending" or task.status != "open": raise ValidationError("An accepted booking needs a cancellation request, not withdrawal.")
             application.status = "withdrawn"; application.save(update_fields=("status",))
-            notify(task.requester, "Application withdrawn", f"/tasks/{task.pk}", request.user.display_name)
+            notify(task.requester, "Application withdrawn", f"/tasks/{task.public_id}", request.user.display_name)
         return Response(self.get_serializer(application).data)
     @action(detail=True, methods=["post"])
     def decline(self, request, pk=None):

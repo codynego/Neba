@@ -112,8 +112,8 @@ class TaskViewSet(BaseTaskViewSet):
         rows = []
         for task in page if page is not None else queryset:
             other = task.accepted_helpers[0].applicant if task.requester_id == request.user.pk else task.requester
-            rows.append({"task_id": task.pk, "title": task.title, "status": task.status,
-                "member": {"id": other.pk, "display_name": other.display_name, **trust_summary(other)},
+            rows.append({"task_id": task.pk, "task_public_id": str(task.public_id), "title": task.title, "status": task.status,
+                "member": {"id": other.pk, "public_id": str(other.public_id), "display_name": other.display_name, **trust_summary(other)},
                 "last_message": task.last_text or "", "last_message_at": task.last_sent,
                 "updated_at": task.updated_at})
         return self.get_paginated_response(rows) if page is not None else Response(rows)
@@ -125,7 +125,7 @@ class TaskViewSet(BaseTaskViewSet):
         active_issue = task.issues.filter(status__in=("open", "reviewing")).first()
         pending = task.changes.filter(status="pending").first()
         return Response({"task": self.get_serializer(task).data, "my_role": "requester" if request.user.pk == task.requester_id else "helper",
-            "member": {"id": other.pk, "display_name": other.display_name, **trust_summary(other)},
+            "member": {"id": other.pk, "public_id": str(other.public_id), "display_name": other.display_name, **trust_summary(other)},
             "can_message": bool(other.is_active and not are_blocked(request.user, other) and task.status not in ("completed", "cancelled")),
             "contact_phone": other.phone if other.is_active and not are_blocked(request.user, other) else "",
             "pending_change": ChangeSerializer(pending).data if pending else None,
@@ -147,7 +147,7 @@ class TaskViewSet(BaseTaskViewSet):
             if task.status in ("completed", "cancelled"): raise ValidationError("This conversation is archived because the task has ended.")
             message, created = TaskMessage.objects.get_or_create(task=task, sender=request.user, client_id=serializer.validated_data["client_id"], defaults={"text": serializer.validated_data["text"]})
             if not created and message.text != serializer.validated_data["text"]: raise ValidationError("This message identifier has already been used.")
-            if created: notify(other, "New task message", f"/messages/{task.pk}", task.title)
+            if created: notify(other, "New task message", f"/messages/{task.public_id}", task.title)
         return Response(MessageSerializer(message).data, status=201 if created else 200)
 
     @action(detail=True, methods=["post"])
@@ -201,7 +201,7 @@ class TaskViewSet(BaseTaskViewSet):
             if data["kind"] == "no_show" and (not task.scheduled_for or task.scheduled_for>timezone.now()): raise ValidationError("A no-show can be reported after the agreed scheduled time. Use a dispute for other problems.")
             issue = TaskIssue.objects.create(task=task, reporter=request.user, **data)
             task.changes.filter(status="pending").update(status="withdrawn", decided_by=request.user, decided_at=timezone.now())
-            notify(other, "A task issue needs review", f"/tasks/{task.pk}", task.title)
+            notify(other, "A task issue needs review", f"/tasks/{task.public_id}", task.title)
         return Response(IssueSerializer(issue).data, status=201)
 
     @action(detail=True, methods=["post"], url_path="respond-invitation")
@@ -220,5 +220,5 @@ class TaskViewSet(BaseTaskViewSet):
                 task.status = "assigned"
             else: task.status = "cancelled"
             task.save(update_fields=("status", "updated_at"))
-            notify(task.requester, f"Helper request {'accepted' if decision=='accept' else 'declined'}", f"/tasks/{task.pk}", task.title)
+            notify(task.requester, f"Helper request {'accepted' if decision=='accept' else 'declined'}", f"/tasks/{task.public_id}", task.title)
         return Response(self.get_serializer(task).data)

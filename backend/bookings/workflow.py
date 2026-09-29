@@ -36,7 +36,7 @@ def propose_change(task, user, kind, reason="", scheduled_for=None):
         raise ValidationError("Choose a new time in the future.")
     change = TaskChange.objects.create(task=task, proposer=user, kind=kind, reason=reason, scheduled_for=scheduled_for if kind == "reschedule" else None)
     label = {"complete": "completion", "cancel": "cancellation", "reschedule": "a new schedule"}[kind]
-    notify(other, f"{user.display_name or user.username} requested {label}", f"/tasks/{task.pk}", task.title)
+    notify(other, f"{user.display_name or user.username} requested {label}", f"/tasks/{task.public_id}", task.title)
     return change
 
 def decide_change(change, user, decision):
@@ -66,7 +66,7 @@ def decide_change(change, user, decision):
                 task.scheduled_for = change.scheduled_for
             task.save(update_fields=("status", "scheduled_for", "updated_at"))
     change.decided_by = user; change.decided_at = timezone.now(); change.save()
-    notify(other, f"Task request {change.status}", f"/tasks/{task.pk}", task.title)
+    notify(other, f"Task request {change.status}", f"/tasks/{task.public_id}", task.title)
     TrustAudit.objects.create(actor=user, subject=other, action=f"task_{change.kind}_{change.status}", note=f"task {task.pk}")
     return change
 
@@ -86,6 +86,6 @@ def resolve_issue(issue, actor, outcome, resolution):
     issue.status = "resolved"; issue.outcome = outcome; issue.resolution = resolution; issue.reviewed_by = actor; issue.resolved_at = timezone.now(); issue.save()
     users = [task.requester] + [application.applicant for application in task.applications.filter(status="accepted").select_related("applicant")]
     for user in users:
-        notify(user, "Task issue resolved", f"/tasks/{task.pk}", resolution)
+        notify(user, "Task issue resolved", f"/tasks/{task.public_id}", resolution)
     TrustAudit.objects.create(actor=actor, subject=task.requester, action="task_issue_resolved", note=f"issue {issue.pk}: {outcome}")
     return issue

@@ -14,15 +14,16 @@ class TaskSerializer(serializers.ModelSerializer):
     def get_requester_trust(self, task):
         return trust_summary(task.requester)
     requester_name = serializers.CharField(source="requester.display_name", read_only=True)
+    requester_public_id = serializers.UUIDField(source="requester.public_id", read_only=True)
     application_count = serializers.IntegerField(read_only=True)
     class Meta:
         model = Task
-        fields = ("id", "requester", "requester_name", "title", "description", "category", "city",
+        fields = ("id", "public_id", "requester", "requester_name", "requester_public_id", "title", "description", "category", "city",
                   "state", "neighborhood", "reward_amount", "reward_note", "scheduled_for",
                   "involves_item", "item_type", "item_value", "item_already_paid", "risk_level",
                   "moderation_status", "moderation_reason", "policy_version", "policy_confirmed",
                   "status", "application_count", "created_at", "updated_at", "requester_trust")
-        read_only_fields = ("id", "requester", "requester_name", "risk_level", "moderation_status", "moderation_reason", "policy_version", "status", "application_count", "created_at", "updated_at")
+        read_only_fields = ("id", "public_id", "requester", "requester_name", "risk_level", "moderation_status", "moderation_reason", "policy_version", "status", "application_count", "created_at", "updated_at")
     def validate_reward_amount(self, value):
         if value <= 0:
             raise serializers.ValidationError("Enter an amount greater than zero.")
@@ -36,6 +37,20 @@ class TaskSerializer(serializers.ModelSerializer):
 class TaskViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = TaskSerializer
+    def get_object(self):
+        identifier = self.kwargs.get(self.lookup_url_kwarg or self.lookup_field)
+        queryset = self.filter_queryset(self.get_queryset())
+        try:
+            import uuid
+            lookup = {"public_id": uuid.UUID(str(identifier))}
+        except (ValueError, TypeError, AttributeError):
+            lookup = {"pk": identifier}
+        obj = queryset.filter(**lookup).first()
+        if obj is None:
+            from rest_framework.exceptions import NotFound
+            raise NotFound()
+        self.check_object_permissions(self.request, obj)
+        return obj
     def get_queryset(self):
         queryset = Task.objects.select_related("requester").annotate(application_count=Count("applications")).order_by("-created_at")
         if self.request.query_params.get("mine") == "true":

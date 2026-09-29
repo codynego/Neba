@@ -33,7 +33,7 @@ export function HelperRequestForm({ offer }: { offer: Offer }) {
           policy_confirmed: data.get("policy_confirmed") === "on",
         }),
       });
-      router.push(`/tasks/${task.id}?posted=1`);
+      router.push(`/tasks/${task.public_id || task.id}?posted=1`);
     } catch (err) {
       setError((err as Error).message);
       setBusy(false);

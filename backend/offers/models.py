@@ -1,8 +1,10 @@
 ﻿from django.conf import settings
 from django.db import models
+import uuid
 from tasks.models import Task
 
 class Offer(models.Model):
+    public_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False, db_index=True)
     provider = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="offers")
     title = models.CharField(max_length=140)
     description = models.TextField()

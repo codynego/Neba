@@ -10,10 +10,10 @@ class TaskAdmin(admin.ModelAdmin):
         previous = Task.objects.filter(pk=obj.pk).values_list("moderation_status", flat=True).first() if change else None
         super().save_model(request, obj, form, change)
         if previous == Task.ModerationStatus.HELD and obj.moderation_status == Task.ModerationStatus.APPROVED:
-            notify(obj.requester, "Task review approved", f"/tasks/{obj.pk}", obj.title)
+            notify(obj.requester, "Task review approved", f"/tasks/{obj.public_id}", obj.title)
             if obj.target_helper:
-                notify(obj.target_helper, "Someone requested your skills", f"/tasks/{obj.pk}", obj.title)
+                notify(obj.target_helper, "Someone requested your skills", f"/tasks/{obj.public_id}", obj.title)
         elif previous == Task.ModerationStatus.HELD and obj.moderation_status == Task.ModerationStatus.REJECTED:
-            notify(obj.requester, "Task review declined", f"/tasks/{obj.pk}", obj.moderation_reason or obj.title)
+            notify(obj.requester, "Task review declined", f"/tasks/{obj.public_id}", obj.moderation_reason or obj.title)
     def has_add_permission(self, request): return False
     def has_delete_permission(self, request, obj=None): return False

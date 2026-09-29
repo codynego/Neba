@@ -10,11 +10,12 @@ class OfferSerializer(serializers.ModelSerializer):
     def get_provider_trust(self, offer):
         return trust_summary(offer.provider)
     provider_name = serializers.CharField(source="provider.display_name", read_only=True)
+    provider_public_id = serializers.UUIDField(source="provider.public_id", read_only=True)
     class Meta:
         model = Offer
-        fields = ("id", "provider", "provider_name", "title", "description", "category",
+        fields = ("id", "public_id", "provider", "provider_public_id", "provider_name", "title", "description", "category",
                   "city", "state", "starting_price", "active", "created_at", "provider_trust")
-        read_only_fields = ("id", "provider", "provider_name", "created_at")
+        read_only_fields = ("id", "public_id", "provider", "provider_name", "created_at")
     def validate_starting_price(self, value):
         if value <= 0:
             raise serializers.ValidationError("Enter an amount greater than zero.")
@@ -23,6 +24,20 @@ class OfferSerializer(serializers.ModelSerializer):
 class OfferViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = OfferSerializer
+    def get_object(self):
+        identifier = self.kwargs.get(self.lookup_url_kwarg or self.lookup_field)
+        queryset = self.filter_queryset(self.get_queryset())
+        try:
+            import uuid
+            lookup = {"public_id": uuid.UUID(str(identifier))}
+        except (ValueError, TypeError, AttributeError):
+            lookup = {"pk": identifier}
+        obj = queryset.filter(**lookup).first()
+        if obj is None:
+            from rest_framework.exceptions import NotFound
+            raise NotFound()
+        self.check_object_permissions(self.request, obj)
+        return obj
     def get_queryset(self):
         queryset = Offer.objects.select_related("provider")
         if self.request.query_params.get("mine") == "true":

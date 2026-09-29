@@ -3,6 +3,7 @@ from django.contrib.auth.models import AbstractUser
 from django.db import models
 
 class User(AbstractUser):
+    public_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False, db_index=True)
     display_name = models.CharField(max_length=80)
     city = models.CharField(max_length=120, blank=True)
     state = models.CharField(max_length=120, blank=True)
