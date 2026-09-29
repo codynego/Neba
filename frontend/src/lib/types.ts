@@ -1,7 +1,7 @@
 export type Category = "errands" | "moving" | "events" | "tutoring" | "tech" | "other";
-export type Trust = { phone_verified: boolean; identity_verified: boolean; photo_available?: boolean; review_count?: number; rating?: number | null };
+export type Trust = { phone_verified: boolean; identity_verified: boolean; photo_available?: boolean; profile_complete?: boolean; review_count?: number; rating?: number | null };
 export type Availability = "flexible" | "weekdays" | "evenings" | "weekends" | "unavailable";
-export type User = Trust & { id: number; username: string; display_name: string; city: string; state: string; phone?: string; photo_visible?: boolean; bio: string; skills: Category[]; neighborhood: string; availability: Availability };
+export type User = Trust & { id: number; username: string; display_name: string; city: string; state: string; phone?: string; photo_visible?: boolean; bio: string; skills: Category[]; neighborhood: string; address: string; latitude: string | null; longitude: string | null; availability: Availability };
 export type Task = {
   id: number; requester: number; requester_name: string; title: string; description: string;
   category: Category; city: string; state: string; neighborhood: string;

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { LoaderCircle } from "lucide-react";
 import { api, ApiError, clearToken, getToken } from "@/lib/api";
 import { User } from "@/lib/types";
 export function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -24,6 +25,6 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
     check(); window.addEventListener("nearwork_auth", check); window.addEventListener("storage", check);
     return () => { controller?.abort(); window.removeEventListener("nearwork_auth", check); window.removeEventListener("storage", check); };
   }, [router, retry]);
-  if (!ready) return <main className="listing-page container">{error ? <div className="load-error" role="alert"><p>{error}</p><button className="button button-outline" onClick={() => setRetry((value) => value + 1)}>Try again</button></div> : <p role="status">Checking your account...</p>}</main>;
+  if (!ready) return <main className="listing-page container">{error ? <div className="load-error" role="alert"><p>{error}</p><button className="button button-outline" onClick={() => setRetry((value) => value + 1)}>Try again</button></div> : <div className="account-check" role="status" aria-label="Checking your account"><span aria-hidden="true"><LoaderCircle size={24} strokeWidth={1.75} /></span></div>}</main>;
   return children;
 }

@@ -8,7 +8,7 @@ from rest_framework import serializers
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied, ValidationError
-from accounts.trust import blocked_user_ids, require_helper, require_phone, are_blocked
+from accounts.trust import blocked_user_ids, require_helper, require_profile, are_blocked
 from accounts.notifications import notify
 from accounts.safety_views import trust_summary
 from bookings.models import Application, TaskMessage, TaskChange, TaskIssue
@@ -212,7 +212,7 @@ class TaskViewSet(BaseTaskViewSet):
             if not task.is_private or task.target_helper_id != request.user.pk: raise PermissionDenied("This request is for another helper.")
             if task.status != "open": raise ValidationError("This request has already been decided.")
             if decision == "accept":
-                require_helper(request.user); require_phone(task.requester)
+                require_helper(request.user); require_profile(task.requester)
                 if are_blocked(request.user, task.requester): raise PermissionDenied("You cannot accept requests from a blocked member.")
                 if request.user.availability == "unavailable": raise ValidationError("Update your availability before accepting work.")
                 Application.objects.create(task=task, applicant=request.user, message="Accepted direct helper request.", contact_phone=request.user.phone, status="accepted")

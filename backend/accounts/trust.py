@@ -103,13 +103,15 @@ def are_blocked(first, second):
     return Block.objects.filter(Q(blocker=first, blocked=second) | Q(blocker=second, blocked=first)).exists()
 
 def require_phone(user):
-    if not user.is_active or not user.phone_verified_at or not user.phone:
-        raise PermissionDenied("Verify your phone number before posting a task.")
+    if not user.is_active or not user.phone:
+        raise PermissionDenied("Add a phone number to your profile before continuing.")
+
+def require_profile(user):
+    if not user.is_active or not user.profile_complete:
+        raise PermissionDenied("Complete your profile photo, phone number, and location before continuing.")
 
 def require_helper(user):
-    require_phone(user)
-    if not user.identity_verified_at:
-        raise PermissionDenied("Complete your identity and camera-photo review before offering or accepting work.")
+    require_profile(user)
 
 @transaction.atomic
 def review_identity(submission, actor, approve, note=""):
@@ -128,15 +130,17 @@ def review_identity(submission, actor, approve, note=""):
             raise ValidationError("All private evidence must be present before approval.")
         submission.status = IdentityVerification.Status.APPROVED
         user.identity_verified_at = timezone.now()
-        user.profile_photo = submission.portrait_image if submission.publish_photo else b""
-        user.photo_visible = submission.publish_photo
+        if not user.profile_photo_key:
+            user.profile_photo = submission.portrait_image if submission.publish_photo else b""
+            user.photo_visible = submission.publish_photo
     else:
         if not note.strip():
             raise ValidationError("Give the member a reason and a way to correct the submission.")
         submission.status = IdentityVerification.Status.REJECTED
         user.identity_verified_at = None
-        user.profile_photo = b""
-        user.photo_visible = False
+        if not user.profile_photo_key:
+            user.profile_photo = b""
+            user.photo_visible = False
     user.save(update_fields=("identity_verified_at", "profile_photo", "photo_visible"))
     submission.reviewed_at = timezone.now()
     submission.reviewed_by = actor

@@ -53,7 +53,21 @@ Provision pooled PostgreSQL and Redis integrations, then configure these Product
 - `DJANGO_ALLOWED_HOSTS`: the custom API domain, if one is configured
 - `CORS_ALLOWED_ORIGINS`: `https://getneba.app,https://www.getneba.app`
 - `CSRF_TRUSTED_ORIGINS`: `https://getneba.app,https://www.getneba.app`
-- the Twilio and verification values documented in `backend/.env.example`
+- the Cloudflare R2 values documented in `backend/.env.example`
+
+Profile photos use a private Cloudflare R2 bucket. Create an R2 API token with object read/write access to that bucket and set `R2_ENDPOINT_URL`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, and `R2_BUCKET_NAME`. Browser uploads use short-lived signed `PUT` URLs, so add this CORS policy to the bucket:
+
+```json
+[
+  {
+    "AllowedOrigins": ["https://getneba.app", "https://www.getneba.app", "http://localhost:3000"],
+    "AllowedMethods": ["PUT"],
+    "AllowedHeaders": ["Content-Type"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
 
 Run migrations against the production database before sending traffic to a new schema. From the repository root, link the Vercel project and run:
 

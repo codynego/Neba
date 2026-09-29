@@ -9,8 +9,8 @@ from .trust import review_identity
 @admin.register(User)
 class MemberAdmin(UserAdmin):
     list_display = ("username", "display_name", "is_active", "phone_verified_at", "identity_verified_at")
-    readonly_fields = ("phone", "phone_verified_at", "identity_verified_at", "photo_visible")
-    fieldsets = UserAdmin.fieldsets + (("Neba profile", {"fields": ("display_name", "city", "state", "phone", "phone_verified_at", "identity_verified_at", "photo_visible")}),)
+    readonly_fields = ("phone_verified_at", "identity_verified_at")
+    fieldsets = UserAdmin.fieldsets + (("Neba profile", {"fields": ("display_name", "phone", "address", "neighborhood", "city", "state", "latitude", "longitude", "profile_photo_key", "profile_photo_content_type", "phone_verified_at", "identity_verified_at", "photo_visible")}),)
     actions = ("suspend_members",)
     @admin.action(description="Suspend selected members and revoke their login tokens")
     def suspend_members(self, request, queryset):

@@ -10,14 +10,23 @@ class User(AbstractUser):
     phone_verified_at = models.DateTimeField(null=True, blank=True)
     identity_verified_at = models.DateTimeField(null=True, blank=True)
     profile_photo = models.BinaryField(blank=True, default=bytes)
+    profile_photo_key = models.CharField(max_length=255, blank=True)
+    profile_photo_content_type = models.CharField(max_length=40, blank=True)
     photo_visible = models.BooleanField(default=False)
     bio = models.TextField(max_length=600, blank=True)
     skills = models.JSONField(default=list, blank=True)
     neighborhood = models.CharField(max_length=120, blank=True)
+    address = models.CharField(max_length=240, blank=True)
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     availability = models.CharField(max_length=20, default="flexible", choices=[("flexible", "Flexible"), ("weekdays", "Weekdays"), ("evenings", "Evenings"), ("weekends", "Weekends"), ("unavailable", "Not taking work")])
 
     def __str__(self):
         return self.display_name or self.username
+
+    @property
+    def profile_complete(self):
+        return bool(self.phone and self.profile_photo_key and self.address and self.neighborhood and self.city and self.state)
 
 class PhoneChallenge(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)

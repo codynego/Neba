@@ -14,13 +14,15 @@ from bookings.models import Application
 from tasks.models import Task
 from .models import User, PhoneChallenge, PhoneSendAttempt, CaptureChallenge, IdentityVerification, Block, SafetyReport, Review, TrustAudit
 from .trust import normalize_phone, destination_hash, twilio_request, phone_configured, encrypt_image, decrypt_image, require_phone, are_blocked
+from . import r2
 
 
 def trust_summary(user):
     reviews = user.reviews_received.filter(visible=True, reviewer__is_active=True)
     return {"phone_verified": bool(user.is_active and user.phone and user.phone_verified_at),
             "identity_verified": bool(user.is_active and user.phone and user.phone_verified_at and user.identity_verified_at),
-            "photo_available": bool(user.is_active and user.identity_verified_at and user.photo_visible and user.profile_photo),
+            "photo_available": bool(user.is_active and user.photo_visible and (user.profile_photo_key or user.profile_photo)),
+            "profile_complete": bool(user.is_active and user.profile_complete),
             "review_count": reviews.count(), "rating": reviews.aggregate(value=Avg("rating"))["value"]}
 
 
@@ -160,8 +162,9 @@ class WithdrawIdentity(PrivateView):
         with transaction.atomic():
             user = User.objects.select_for_update().get(pk=request.user.pk)
             user.identity_verified_at = None
-            user.profile_photo = b""
-            user.photo_visible = False
+            if not user.profile_photo_key:
+                user.profile_photo = b""
+                user.photo_visible = False
             user.save(update_fields=("identity_verified_at", "profile_photo", "photo_visible"))
             user.identity_submissions.update(status="revoked", full_name="", document_image=b"", portrait_image=b"", challenge_image=b"")
             CaptureChallenge.objects.filter(user=user).update(consumed=True)
@@ -192,8 +195,14 @@ class EvidenceImage(PrivateView):
 
 class ProfilePhoto(PrivateView):
     def get(self, request, pk):
-        user = get_object_or_404(User, pk=pk, is_active=True, photo_visible=True, identity_verified_at__isnull=False)
-        if not user.profile_photo or are_blocked(request.user, user):
+        user = get_object_or_404(User, pk=pk, is_active=True, photo_visible=True)
+        if are_blocked(request.user, user):
+            return Response(status=404)
+        if user.profile_photo_key:
+            if not r2.configured():
+                return Response({"detail": "Profile photos are temporarily unavailable."}, status=503)
+            return Response({"url": r2.download_url(user.profile_photo_key)})
+        if not user.profile_photo:
             return Response(status=404)
         return private_image_response(user.profile_photo)
 
@@ -205,7 +214,7 @@ class PublicProfile(PrivateView):
             return Response(status=404)
         reviews = user.reviews_received.filter(visible=True, reviewer__is_active=True)[:20]
         from offers.product_api import OfferSerializer
-        offers = user.offers.filter(active=True) if user.identity_verified_at and user.phone_verified_at else user.offers.none()
+        offers = user.offers.filter(active=True) if user.profile_complete else user.offers.none()
         return Response({"id": user.pk, "display_name": user.display_name, "city": user.city, "state": user.state,
             "bio": user.bio, "skills": user.skills, "neighborhood": user.neighborhood, "availability": user.availability,
             "offers": OfferSerializer(offers, many=True).data, **trust_summary(user),

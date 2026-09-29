@@ -18,6 +18,14 @@ class ProductFlowTests(APITestCase):
         self.owner = User.objects.create_user(username="owner", display_name="Owner", phone="+2348012345610", phone_verified_at=timezone.now())
         self.helper = User.objects.create_user(username="helper", display_name="Helper", phone="+2348012345611", phone_verified_at=timezone.now(), identity_verified_at=timezone.now())
         self.stranger = User.objects.create_user(username="stranger", display_name="Stranger", phone="+2348012345612", phone_verified_at=timezone.now(), identity_verified_at=timezone.now())
+        for user in (self.owner, self.helper, self.stranger):
+            user.profile_photo_key = f"profile-photos/{user.pk}/test.jpg"
+            user.photo_visible = True
+            user.address = "12 Test Street"
+            user.neighborhood = "Garki"
+            user.city = "Abuja"
+            user.state = "FCT"
+            user.save()
         self.admin = User.objects.create_superuser(username="admin", password="test-only-password", email="admin@example.test")
         self.task = Task.objects.create(requester=self.owner, title="Carry a table", description="Carry one table upstairs", city="Abuja", state="FCT", neighborhood="Garki", reward_amount=5000)
         self.offer = Offer.objects.create(provider=self.helper, title="Moving help", description="Carry and assemble", category="moving", city="Abuja", state="FCT", starting_price=4000)

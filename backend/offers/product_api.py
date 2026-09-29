@@ -4,7 +4,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError, PermissionDenied
 from accounts.models import User
-from accounts.trust import require_phone, require_helper, are_blocked
+from accounts.trust import require_profile, require_helper, are_blocked
 from accounts.notifications import notify
 from tasks.models import Task
 from tasks.product_api import TaskSerializer
@@ -35,7 +35,7 @@ class OfferViewSet(BaseOfferViewSet):
         return queryset.order_by(orders[sort], "-id")
     @action(detail=True, methods=["post"])
     def request(self, request, pk=None):
-        offer = self.get_object(); require_phone(request.user)
+        offer = self.get_object(); require_profile(request.user)
         if offer.provider_id == request.user.pk: raise ValidationError("You cannot request your own offer.")
         serializer = TaskSerializer(data=request.data, context={"request": request}); serializer.is_valid(raise_exception=True)
         with transaction.atomic():

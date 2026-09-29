@@ -31,7 +31,7 @@ class TrustFlowTests(APITestCase):
     def setUp(self):
         cache.clear()  # Throttling state must not leak between independently reset test databases.
         self.member = User.objects.create_user(username="member", display_name="Member", password="test-password-123")
-        self.other = User.objects.create_user(username="other", display_name="Other", password="test-password-123", phone="+2348012345670", phone_verified_at=timezone.now(), identity_verified_at=timezone.now())
+        self.other = User.objects.create_user(username="other", display_name="Other", password="test-password-123", phone="+2348012345670", phone_verified_at=timezone.now(), identity_verified_at=timezone.now(), profile_photo_key="profile-photos/2/test.jpg", photo_visible=True, address="12 Test Street", neighborhood="Garki", city="Abuja", state="FCT")
         self.admin = User.objects.create_superuser(username="reviewer", email="review@example.test", password="test-password-123")
         self.client.force_authenticate(self.member)
 
@@ -48,15 +48,34 @@ class TrustFlowTests(APITestCase):
         return self.client.post("/api/auth/verification/identity/", {"full_name": "Test Member", "document_type": "national_id", "challenge_id": str(challenge_id),
             "consent": "true", "adult_confirmed": "true", "publish_photo": "true", "document_image": photo(), "portrait_image": photo(), "challenge_image": photo()}, format="multipart")
 
-    def test_unverified_accounts_cannot_post_offer_or_apply_and_cannot_self_approve(self):
+    def test_incomplete_accounts_cannot_work_but_can_add_an_unverified_phone(self):
         task = self.task()
         self.assertEqual(self.client.post("/api/tasks/", {"title": "A task", "description": "A task description", "category": "moving", "city": "Abuja", "state": "FCT", "reward_amount": "5000"}).status_code, 403)
         self.assertEqual(self.client.post("/api/applications/", {"task": task.pk, "message": "Hello"}).status_code, 403)
-        response = self.client.patch("/api/auth/me/", {"identity_verified": True, "phone_verified": True, "phone": self.other.phone}, format="json")
+        response = self.client.patch("/api/auth/me/", {"identity_verified": True, "phone_verified": True, "phone": "08012345671"}, format="json")
         self.assertEqual(response.status_code, 200)
         self.member.refresh_from_db()
         self.assertIsNone(self.member.identity_verified_at)
-        self.assertIsNone(self.member.phone)
+        self.assertEqual(self.member.phone, "+2348012345671")
+        self.assertIsNone(self.member.phone_verified_at)
+
+    def test_profile_becomes_complete_after_private_r2_photo_confirmation(self):
+        profile = self.client.patch("/api/auth/me/", {
+            "phone": "08012345671", "address": "12 Test Street", "neighborhood": "Garki",
+            "city": "Abuja", "state": "FCT", "latitude": "9.076500", "longitude": "7.398600",
+        }, format="json")
+        self.assertEqual(profile.status_code, 200)
+        self.assertFalse(profile.data["profile_complete"])
+        with patch("accounts.views.r2.configured", return_value=True), patch("accounts.views.r2.upload_url", return_value="https://upload.example.test/signed"):
+            ticket = self.client.post("/api/auth/profile-photo/upload/", {"content_type": "image/jpeg", "size": 2048}, format="json")
+        self.assertEqual(ticket.status_code, 200)
+        key = ticket.data["key"]
+        image_bytes = photo().read()
+        with patch("accounts.views.r2.object_metadata", return_value={"ContentLength": len(image_bytes), "ContentType": "image/jpeg"}), patch("accounts.views.r2.object_bytes", return_value=image_bytes):
+            confirmed = self.client.post("/api/auth/profile-photo/confirm/", {"key": key}, format="json")
+        self.assertEqual(confirmed.status_code, 200)
+        self.assertTrue(confirmed.data["photo_available"])
+        self.assertTrue(confirmed.data["profile_complete"])
 
     @override_settings(TWILIO_ACCOUNT_SID="", TWILIO_AUTH_TOKEN="", TWILIO_VERIFY_SERVICE_SID="")
     def test_sms_without_provider_fails_closed(self):

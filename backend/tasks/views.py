@@ -4,7 +4,7 @@ from rest_framework.decorators import action
 from rest_framework import permissions
 from rest_framework.response import Response
 from .models import Task
-from accounts.trust import require_phone, blocked_user_ids
+from accounts.trust import require_profile, blocked_user_ids
 from accounts.safety_views import trust_summary
 
 class TaskSerializer(serializers.ModelSerializer):
@@ -45,7 +45,7 @@ class TaskViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(title__icontains=search)
         return queryset
     def perform_create(self, serializer):
-        require_phone(self.request.user)
+        require_profile(self.request.user)
         serializer.save(requester=self.request.user)
     def update(self, request, *args, **kwargs):
         task = self.get_object()

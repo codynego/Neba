@@ -27,7 +27,7 @@ class OfferViewSet(viewsets.ModelViewSet):
         queryset = Offer.objects.select_related("provider")
         if self.request.query_params.get("mine") == "true":
             return queryset.filter(provider=self.request.user) if self.request.user.is_authenticated else queryset.none()
-        queryset = queryset.filter(provider__is_active=True, provider__identity_verified_at__isnull=False, provider__phone_verified_at__isnull=False).exclude(provider_id__in=blocked_user_ids(self.request.user))
+        queryset = queryset.filter(provider__is_active=True).exclude(provider__phone__isnull=True).exclude(provider__profile_photo_key="").exclude(provider__address="").exclude(provider__neighborhood="").exclude(provider__city="").exclude(provider__state="").exclude(provider_id__in=blocked_user_ids(self.request.user))
         if self.action == "list":
             queryset = queryset.filter(active=True)
         city = self.request.query_params.get("city", "").strip()

@@ -11,6 +11,12 @@ class TaskFlowTests(APITestCase):
             user.phone = f"+234801234567{index}"
             user.phone_verified_at = timezone.now()
             user.identity_verified_at = timezone.now()
+            user.profile_photo_key = f"profile-photos/{user.pk}/test.jpg"
+            user.photo_visible = True
+            user.address = "12 Test Street"
+            user.neighborhood = "Garki"
+            user.city = "Abuja"
+            user.state = "FCT"
             user.save()
         self.payload = {
             "title": "Move a table", "description": "Carry one table upstairs",

@@ -4,7 +4,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404
-from accounts.trust import require_helper, require_phone, are_blocked
+from accounts.trust import require_helper, require_profile, are_blocked
 from accounts.safety_views import trust_summary
 from tasks.models import Task
 from .models import Application
@@ -58,7 +58,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             application = get_object_or_404(Application.objects.select_related("task", "applicant").select_for_update(),
                 pk=pk, task__requester=request.user
             )
-            require_phone(request.user)
+            require_profile(request.user)
             require_helper(application.applicant)
             if are_blocked(request.user, application.applicant):
                 raise PermissionDenied("You cannot accept work from a blocked member.")
