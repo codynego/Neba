@@ -6,5 +6,5 @@ import { isPublicPath } from "@/lib/routes";
 export function AppShell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   const publicRoute = isPublicPath(path);
-  return <div className={publicRoute ? "public-content" : "app-content"} id="main-content">{publicRoute ? children : <RequireAuth key={path}>{children}</RequireAuth>}<Footer /></div>;
+  return <div className={publicRoute ? "public-content" : "app-content"} id="main-content">{publicRoute ? children : <RequireAuth key={path}>{children}</RequireAuth>}{publicRoute && <Footer />}</div>;
 }

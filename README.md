@@ -40,6 +40,30 @@ npm run dev
 
 Open http://localhost:3000. The frontend defaults to http://localhost:8000/api. Set `NEXT_PUBLIC_API_URL` to change that. Django uses SQLite locally; set `DATABASE_URL` for PostgreSQL. See `backend/.env.example` for supported environment values. Environment values must be set in your shell or deployment service; Django does not automatically load the example file.
 
+## Deploy the backend to Vercel
+
+Create a separate Vercel project for the Django API and select `backend` as its Root Directory. Vercel detects `manage.py` and the configured WSGI application automatically.
+
+Provision pooled PostgreSQL and Redis integrations, then configure these Production and Preview environment variables:
+
+- `DJANGO_SECRET_KEY`: a long random value that stays unchanged
+- `DJANGO_DEBUG`: `false`
+- `DATABASE_URL`: the pooled PostgreSQL connection URL
+- `REDIS_URL`: the Redis connection URL used for shared API throttling and caching
+- `DJANGO_ALLOWED_HOSTS`: the custom API domain, if one is configured
+- `CORS_ALLOWED_ORIGINS`: `https://getneba.app,https://www.getneba.app`
+- `CSRF_TRUSTED_ORIGINS`: `https://getneba.app,https://www.getneba.app`
+- the Twilio and verification values documented in `backend/.env.example`
+
+Run migrations against the production database before sending traffic to a new schema. From the repository root, link the Vercel project and run:
+
+```powershell
+vercel link --project neba
+cmd.exe /d /s /c "vercel env run -e production -- python backend/manage.py migrate --noinput"
+```
+
+Deploy with the Vercel Git integration or run `vercel deploy --prod` from the repository root. Verify the deployment at `/api/health/`, then set the frontend's `NEXT_PUBLIC_API_URL` to the deployed backend URL plus `/api`.
+
 ## API
 
 - `/api/auth/register/`, `login/`, `logout/`, `me/`

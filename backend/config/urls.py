@@ -1,4 +1,6 @@
 from django.contrib import admin
+from django.db import connection
+from django.http import JsonResponse
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 from locations.views import CityViewSet
@@ -14,8 +16,16 @@ router.register("offers", OfferViewSet, basename="offer")
 router.register("applications", ApplicationViewSet, basename="application")
 router.register("notifications", NotificationViewSet, basename="notification")
 
+
+def health(request):
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT 1")
+        cursor.fetchone()
+    return JsonResponse({"status": "ok"})
+
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path("api/health/", health),
     path("api/auth/", include("accounts.urls")),
     path("api/", include(router.urls)),
 ]
