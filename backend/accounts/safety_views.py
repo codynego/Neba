@@ -3,7 +3,7 @@ from datetime import timedelta
 from django.conf import settings
 from django.db import IntegrityError, transaction
 from django.db.models import Avg
-from django.http import HttpResponse
+from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import permissions, serializers
@@ -201,15 +201,19 @@ def resolve_user_identifier(identifier):
         try:
             return User.objects.get(username__iexact=str(identifier), is_active=True)
         except User.DoesNotExist:
-            return get_object_or_404(User, pk=identifier, is_active=True)
+            if str(identifier).isdigit():
+                return get_object_or_404(User, pk=identifier, is_active=True)
+            raise Http404
 
 
-class ProfilePhoto(PrivateView):
+class ProfilePhoto(APIView):
+    permission_classes = [permissions.AllowAny]
+
     def get(self, request, identifier):
         user = resolve_user_identifier(identifier)
         if not user.photo_visible:
             return Response(status=404)
-        if are_blocked(request.user, user):
+        if request.user.is_authenticated and are_blocked(request.user, user):
             return Response(status=404)
         if user.profile_photo_key:
             if not r2.configured():
@@ -220,19 +224,23 @@ class ProfilePhoto(PrivateView):
         return private_image_response(user.profile_photo)
 
 
-class PublicProfile(PrivateView):
+class PublicProfile(APIView):
+    permission_classes = [permissions.AllowAny]
+
     def get(self, request, identifier):
         user = resolve_user_identifier(identifier)
-        if are_blocked(request.user, user):
+        if request.user.is_authenticated and are_blocked(request.user, user):
             return Response(status=404)
-        reviews = user.reviews_received.filter(visible=True, reviewer__is_active=True)[:20]
+        reviews = user.reviews_received.filter(visible=True, reviewer__is_active=True).select_related("reviewer")[:20]
         from offers.product_api import OfferSerializer
         offers = user.offers.filter(active=True) if user.profile_complete else user.offers.none()
         return Response({"id": user.pk, "public_id": str(user.public_id), "username": user.username, "display_name": user.display_name, "city": user.city, "state": user.state,
             "bio": user.bio, "skills": user.skills, "neighborhood": user.neighborhood, "availability": user.availability,
             "offers": OfferSerializer(offers, many=True).data, **trust_summary(user),
             "completed_tasks": Application.objects.filter(applicant=user, status="accepted", task__status="completed").count(),
-            "reviews": [{"rating": review.rating, "comment": review.comment, "created_at": review.created_at} for review in reviews]})
+            "reviews": [{"rating": review.rating, "comment": review.comment, "created_at": review.created_at,
+                "reviewer_username": review.reviewer.username, "reviewer_public_id": str(review.reviewer.public_id),
+                "reviewer_photo_available": bool(review.reviewer.photo_visible and (review.reviewer.profile_photo_key or review.reviewer.profile_photo))} for review in reviews]})
 
 
 class Blocks(PrivateView):

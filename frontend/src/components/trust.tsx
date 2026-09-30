@@ -14,10 +14,10 @@ export function MemberPhoto({ id, name, available }: { id: number | string; name
   const [url, setUrl] = useState("");
   useEffect(() => {
     const token = getToken();
-    if (!available || !token) return;
+    if (!available) return;
     const controller = new AbortController();
     let objectUrl = "";
-    fetch(`${BASE}/auth/members/${id}/photo/`, { headers: { Authorization: `Token ${token}` }, signal: controller.signal, cache: "no-store" })
+    fetch(`${BASE}/auth/members/${id}/photo/`, { headers: token ? { Authorization: `Token ${token}` } : {}, signal: controller.signal, cache: "no-store" })
       .then(async (response) => {
         if (!response.ok) return;
         if (response.headers.get("content-type")?.includes("application/json")) {

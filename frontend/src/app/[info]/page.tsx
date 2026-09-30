@@ -21,8 +21,8 @@ const pages = {
   privacy: { title: "Your information, handled with care.", label: "PRIVACY IN THE PILOT", intro: "How the current Neba pilot uses information you provide.", sections: [
     ["Account and task information", "Neba stores account details, cities, tasks, offers, applications, and reviews to operate the service. Task and offer information is visible to signed-in members. Keep private contact details and exact addresses out of descriptions."],
     ["Phone number", "Your number is stored privately and shared only with the selected task participant after acceptance. SMS verification is not required in the MVP."],
-    ["Profile photos", "Your required profile picture is stored in a private Cloudflare R2 bucket and shown to signed-in members through short-lived access links."],
-    ["Location", "Neba stores the address or landmark and optional coordinates privately for local matching. Other members see your area, city, and state—not your saved private address."],
+    ["Profile photos", "Your required profile picture is stored in a private Cloudflare R2 bucket. If you choose to make it visible, it appears on your public member profile through short-lived access links."],
+    ["Location", "Neba stores the address or landmark and optional coordinates privately for local matching. Public profiles show your area, city, and state—not your saved private address."],
     ["Reports and blocks", "Reports are available to the reporting member and authorized moderators. Members can manage blocks in their safety center. Verification and moderation decisions are recorded to support accountability."],
   ] },
   terms: { title: "Using the Neba pilot.", label: "PILOT TERMS", intro: "Operating rules for the current pilot. Read the community guidelines and privacy information before taking part.", sections: [

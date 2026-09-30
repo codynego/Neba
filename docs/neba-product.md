@@ -8,7 +8,7 @@
 - Completion, cancellation after acceptance, and rescheduling require a proposal and the other participant's agreement. The proposer can withdraw a pending proposal. Reviews unlock after confirmed completion. An open task can be cancelled by its requester.
 - Participants can report disputes or a no-show. No-shows require a scheduled time that has passed. An active issue pauses change decisions until moderation resolves it.
 - `/notifications` provides a private, paginated inbox and read controls. Notifications and activity refresh every 20 seconds while visible. Delivery is in-app; email, SMS alerts and push notifications are not enabled.
-- `/profile` edits a member's introduction, skills, neighborhood and availability. `/u/{username}` shows opted-in approved portraits, verification status, completed helper jobs, visible reviews and active offers to signed-in members. Legacy `/members/{username}` links redirect here. Skills and availability are self-reported.
+- `/profile` edits a member's introduction, skills, neighborhood and availability. Public, indexable `/u/{username}` pages show opted-in approved portraits, verification status, completed helper jobs, visible reviews and active offers without exposing phone numbers or street addresses. Reviews show the reviewer's username and opted-in profile photo without linking to that reviewer's profile. Legacy `/members/{username}` links redirect here. Skills and availability are self-reported.
 - Discovery supports city, neighborhood, category and text filters. Tasks support timing, reward range and reward/date sorting. Offers support availability, price and rating sorting. Neighborhood filtering uses supplied text, not GPS distance.
 
 ## Access and safety

@@ -128,7 +128,7 @@ class TrustFlowTests(APITestCase):
         self.assertIsNotNone(self.member.identity_verified_at)
         self.assertEqual(self.client.get(f"/api/auth/members/{self.member.pk}/photo/").status_code, 200)
         self.client.force_authenticate(None)
-        self.assertEqual(self.client.get(f"/api/auth/members/{self.member.pk}/photo/").status_code, 401)
+        self.assertEqual(self.client.get(f"/api/auth/members/{self.member.pk}/photo/").status_code, 200)
         self.client.force_authenticate(self.admin)
         evidence = self.client.get(f"/api/auth/verification/{submission.pk}/evidence/document/")
         self.assertEqual(evidence.status_code, 200)
@@ -173,6 +173,20 @@ class TrustFlowTests(APITestCase):
         self.assertEqual(self.client.post("/api/auth/reviews/", {"task": task.pk, "rating": 5}).status_code, 400)
         open_task = self.task()
         self.assertEqual(self.client.post("/api/auth/reviews/", {"task": open_task.pk, "rating": 5}).status_code, 404)
+
+    def test_profile_and_reviewer_identity_are_public_without_private_fields(self):
+        task = self.task(status="completed")
+        Review.objects.create(task=task, reviewer=self.member, subject=self.other, rating=5, comment="Reliable and helpful.")
+        self.client.force_authenticate(None)
+        response = self.client.get(f"/api/auth/members/{self.other.username}/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["username"], self.other.username)
+        self.assertNotIn("phone", response.data)
+        self.assertNotIn("address", response.data)
+        self.assertEqual(response.data["reviews"][0]["reviewer_username"], self.member.username)
+        self.assertEqual(response.data["reviews"][0]["reviewer_public_id"], str(self.member.public_id))
+        self.assertFalse(response.data["reviews"][0]["reviewer_photo_available"])
+        self.assertEqual(self.client.get("/api/auth/members/not-a-real-member/").status_code, 404)
 
     def test_contact_hidden_until_acceptance_and_suspended_helpers_cannot_be_accepted(self):
         self.verify_member_phone()
