@@ -31,6 +31,8 @@ def _post(path, payload, idempotency_key):
         headers={
             "Authorization": f"Bearer {settings.RESEND_API_KEY}",
             "Content-Type": "application/json",
+            "Accept": "application/json",
+            "User-Agent": "GetNeba/1.0 (transactional-email)",
             "Idempotency-Key": idempotency_key[:256],
         },
         method="POST",
