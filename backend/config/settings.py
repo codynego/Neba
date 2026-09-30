@@ -28,7 +28,7 @@ INSTALLED_APPS = [
     "django.contrib.admin", "django.contrib.auth", "django.contrib.contenttypes",
     "django.contrib.sessions", "django.contrib.messages", "django.contrib.staticfiles",
     "rest_framework", "rest_framework.authtoken", "corsheaders",
-    "accounts", "locations", "tasks", "offers", "bookings",
+    "accounts.apps.AccountsConfig", "locations", "tasks", "offers", "bookings",
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -100,6 +100,13 @@ if redis_url:
             "OPTIONS": {"CLIENT_CLASS": "django_redis.client.DefaultClient"},
         }
     }
+
+API_CACHE_TTLS = {
+    "cities": int(os.getenv("CITY_CACHE_TTL_SECONDS", "3600")),
+    "tasks": int(os.getenv("TASK_LIST_CACHE_TTL_SECONDS", "60")),
+    "offers": int(os.getenv("OFFER_LIST_CACHE_TTL_SECONDS", "60")),
+    "profiles": int(os.getenv("PUBLIC_PROFILE_CACHE_TTL_SECONDS", "120")),
+}
 
 if IS_VERCEL and not DEBUG:
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")

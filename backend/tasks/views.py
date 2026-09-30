@@ -6,6 +6,7 @@ from rest_framework.response import Response
 from .models import Task
 from accounts.trust import require_profile, blocked_user_ids
 from accounts.safety_views import trust_summary
+from config.api_cache import CachedListMixin, cache_ttl
 from .policy import apply_task_policy
 
 class TaskSerializer(serializers.ModelSerializer):
@@ -51,9 +52,14 @@ class TaskSerializer(serializers.ModelSerializer):
             attrs["photo_keys"] = validate_photo_keys(self.context["request"].user, "task-photos", attrs["photo_keys"])
         return apply_task_policy(attrs, self.instance)
 
-class TaskViewSet(viewsets.ModelViewSet):
+class TaskViewSet(CachedListMixin, viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = TaskSerializer
+    cache_namespace = "tasks"
+    cache_timeout = cache_ttl("tasks", 60)
+    def should_cache_list(self):
+        params = self.request.query_params
+        return params.get("mine") != "true" and params.get("bookings") != "true" and params.get("invitations") != "true"
     def get_object(self):
         identifier = self.kwargs.get(self.lookup_url_kwarg or self.lookup_field)
         queryset = self.filter_queryset(self.get_queryset())

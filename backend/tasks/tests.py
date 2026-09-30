@@ -1,9 +1,11 @@
 ﻿from django.contrib.auth import get_user_model
 from rest_framework.test import APITestCase
+from django.core.cache import cache
 from django.utils import timezone
 
 class TaskFlowTests(APITestCase):
     def setUp(self):
+        cache.clear()
         User = get_user_model()
         self.requester = User.objects.create_user(username="requester", password="strong-password-123", display_name="Requester")
         self.helper = User.objects.create_user(username="helper", password="strong-password-123", display_name="Helper")
@@ -23,6 +25,44 @@ class TaskFlowTests(APITestCase):
             "category": "moving", "city": "Abuja", "state": "FCT",
             "reward_amount": "5000.00", "policy_confirmed": True,
         }
+
+    def test_discovery_cache_hits_and_task_writes_invalidate_it(self):
+        from tasks.models import Task
+
+        Task.objects.create(requester=self.requester, **{key: value for key, value in self.payload.items() if key != "policy_confirmed"})
+        self.client.force_authenticate(self.helper)
+
+        first = self.client.get("/api/tasks/?city=Abuja")
+        second = self.client.get("/api/tasks/?city=Abuja")
+        self.assertEqual(first["X-Neba-Cache"], "MISS")
+        self.assertEqual(second["X-Neba-Cache"], "HIT")
+
+        Task.objects.create(
+            requester=self.requester,
+            title="Move another table",
+            description="Carry a second table upstairs",
+            category="moving",
+            city="Abuja",
+            state="FCT",
+            reward_amount=6000,
+        )
+        refreshed = self.client.get("/api/tasks/?city=Abuja")
+        self.assertEqual(refreshed["X-Neba-Cache"], "MISS")
+        self.assertEqual(refreshed.data["count"], 2)
+
+    def test_discovery_cache_is_scoped_to_the_authenticated_user(self):
+        from accounts.models import Block
+        from tasks.models import Task
+
+        Task.objects.create(requester=self.requester, **{key: value for key, value in self.payload.items() if key != "policy_confirmed"})
+        third = get_user_model().objects.create_user(username="third", password="strong-password-123", display_name="Third")
+
+        self.client.force_authenticate(third)
+        self.assertEqual(self.client.get("/api/tasks/").data["count"], 1)
+        Block.objects.create(blocker=self.helper, blocked=self.requester)
+        self.client.force_authenticate(self.helper)
+        hidden = self.client.get("/api/tasks/")
+        self.assertEqual(hidden.data["count"], 0)
 
     def test_post_apply_accept_complete_and_city_filter(self):
         self.client.force_authenticate(self.requester)

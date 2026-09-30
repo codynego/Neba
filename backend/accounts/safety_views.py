@@ -15,6 +15,8 @@ from tasks.models import Task
 from .models import User, PhoneChallenge, PhoneSendAttempt, CaptureChallenge, IdentityVerification, Block, SafetyReport, Review, TrustAudit
 from .trust import normalize_phone, destination_hash, twilio_request, phone_configured, encrypt_image, decrypt_image, require_phone, are_blocked
 from . import r2
+from config.api_cache import cache_ttl, request_cache_key
+from django.core.cache import cache
 
 
 def trust_summary(user):
@@ -231,16 +233,29 @@ class PublicProfile(APIView):
         user = resolve_user_identifier(identifier)
         if request.user.is_authenticated and are_blocked(request.user, user):
             return Response(status=404)
+        cache_key = None
+        if not request.user.is_authenticated:
+            cache_key = request_cache_key("profiles", request, f"member:{user.pk}")
+            cached = cache.get(cache_key)
+            if cached is not None:
+                response = Response(cached)
+                response["X-Neba-Cache"] = "HIT"
+                return response
         reviews = user.reviews_received.filter(visible=True, reviewer__is_active=True).select_related("reviewer")[:20]
         from offers.product_api import OfferSerializer
         offers = user.offers.filter(active=True) if user.profile_complete else user.offers.none()
-        return Response({"id": user.pk, "public_id": str(user.public_id), "username": user.username, "display_name": user.display_name, "city": user.city, "state": user.state,
+        data = {"id": user.pk, "public_id": str(user.public_id), "username": user.username, "display_name": user.display_name, "city": user.city, "state": user.state,
             "bio": user.bio, "skills": user.skills, "neighborhood": user.neighborhood, "availability": user.availability,
             "offers": OfferSerializer(offers, many=True).data, **trust_summary(user),
             "completed_tasks": Application.objects.filter(applicant=user, status="accepted", task__status="completed").count(),
             "reviews": [{"rating": review.rating, "comment": review.comment, "created_at": review.created_at,
                 "reviewer_username": review.reviewer.username, "reviewer_public_id": str(review.reviewer.public_id),
-                "reviewer_photo_available": bool(review.reviewer.photo_visible and (review.reviewer.profile_photo_key or review.reviewer.profile_photo))} for review in reviews]})
+                "reviewer_photo_available": bool(review.reviewer.photo_visible and (review.reviewer.profile_photo_key or review.reviewer.profile_photo))} for review in reviews]}
+        response = Response(data)
+        if cache_key:
+            cache.set(cache_key, data, timeout=cache_ttl("profiles", 120))
+            response["X-Neba-Cache"] = "MISS"
+        return response
 
 
 class Blocks(PrivateView):

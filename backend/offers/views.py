@@ -5,6 +5,7 @@ from django.db.models import Q
 from .models import Offer
 from accounts.trust import require_helper, blocked_user_ids
 from accounts.safety_views import trust_summary
+from config.api_cache import CachedListMixin, cache_ttl
 
 class OfferSerializer(serializers.ModelSerializer):
     photos = serializers.ListField(child=serializers.CharField(max_length=255), source="photo_keys", write_only=True, required=False)
@@ -32,9 +33,13 @@ class OfferSerializer(serializers.ModelSerializer):
             attrs["photo_keys"] = validate_photo_keys(self.context["request"].user, "offer-photos", attrs["photo_keys"])
         return attrs
 
-class OfferViewSet(viewsets.ModelViewSet):
+class OfferViewSet(CachedListMixin, viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = OfferSerializer
+    cache_namespace = "offers"
+    cache_timeout = cache_ttl("offers", 60)
+    def should_cache_list(self):
+        return self.request.query_params.get("mine") != "true"
     def get_object(self):
         identifier = self.kwargs.get(self.lookup_url_kwarg or self.lookup_field)
         queryset = self.filter_queryset(self.get_queryset())

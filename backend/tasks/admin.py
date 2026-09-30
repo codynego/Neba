@@ -16,4 +16,3 @@ class TaskAdmin(admin.ModelAdmin):
         elif previous == Task.ModerationStatus.HELD and obj.moderation_status == Task.ModerationStatus.REJECTED:
             notify(obj.requester, "Task review declined", f"/tasks/{obj.public_id}", obj.moderation_reason or obj.title)
     def has_add_permission(self, request): return False
-    def has_delete_permission(self, request, obj=None): return False

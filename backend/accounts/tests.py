@@ -194,12 +194,19 @@ class TrustFlowTests(APITestCase):
         self.client.force_authenticate(None)
         response = self.client.get(f"/api/auth/members/{self.other.username}/")
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["X-Neba-Cache"], "MISS")
+        self.assertEqual(self.client.get(f"/api/auth/members/{self.other.username}/")["X-Neba-Cache"], "HIT")
         self.assertEqual(response.data["username"], self.other.username)
         self.assertNotIn("phone", response.data)
         self.assertNotIn("address", response.data)
         self.assertEqual(response.data["reviews"][0]["reviewer_username"], self.member.username)
         self.assertEqual(response.data["reviews"][0]["reviewer_public_id"], str(self.member.public_id))
         self.assertFalse(response.data["reviews"][0]["reviewer_photo_available"])
+        self.other.bio = "Updated public profile"
+        self.other.save(update_fields=("bio",))
+        refreshed = self.client.get(f"/api/auth/members/{self.other.username}/")
+        self.assertEqual(refreshed["X-Neba-Cache"], "MISS")
+        self.assertEqual(refreshed.data["bio"], "Updated public profile")
         self.assertEqual(self.client.get("/api/auth/members/not-a-real-member/").status_code, 404)
 
     def test_contact_hidden_until_acceptance_and_suspended_helpers_cannot_be_accepted(self):
