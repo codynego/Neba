@@ -91,11 +91,15 @@ class TaskViewSet(BaseTaskViewSet):
             value = self.request.query_params.get(key)
             if value: queryset = queryset.filter(**{lookup: serializers.DecimalField(max_digits=10, decimal_places=2, min_value=0).run_validation(value)})
         sort = self.request.query_params.get("sort", "newest")
-        orders = {"newest": ("-created_at", "-id"), "reward_high": ("-reward_amount", "-id"), "reward_low": ("reward_amount", "-id"), "soonest": ("scheduled_for", "-id")}
-        if sort not in orders: raise ValidationError("Unknown task sorting option.")
+        orders = {"newest": ("-created_at", "-id"), "soonest": ("scheduled_for", "-id")}
+        if sort not in (*orders, "reward_high", "reward_low"): raise ValidationError("Unknown task sorting option.")
         if sort == "soonest":
             from django.db.models import F
             return queryset.order_by(F("scheduled_for").asc(nulls_last=True), "-id")
+        if sort in ("reward_high", "reward_low"):
+            from django.db.models import F
+            direction = F("reward_amount").desc if sort == "reward_high" else F("reward_amount").asc
+            return queryset.order_by(direction(nulls_last=True), "-id")
         return queryset.order_by(*orders[sort])
 
     @action(detail=False, methods=["get"])

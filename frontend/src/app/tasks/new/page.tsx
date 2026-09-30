@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, Check, MapPin, PackageCheck, ShieldCheck } from "lucide-react";
 import { api, getToken } from "@/lib/api";
-import { categories, Category, itemTypeLabels, ItemType, naira, Task } from "@/lib/types";
+import { categories, Category, itemTypeLabels, ItemType, rewardLabel, rewardTypeLabels, RewardType, Task } from "@/lib/types";
 import { VerificationGate } from "@/components/trust";
 
 type Draft = {
@@ -15,6 +15,7 @@ type Draft = {
   state: string;
   neighborhood: string;
   scheduled_for: string;
+  reward_type: RewardType;
   reward_amount: string;
   reward_note: string;
   involves_item: boolean;
@@ -26,7 +27,7 @@ type Draft = {
 
 const emptyDraft: Draft = {
   title: "", description: "", category: "other", city: "", state: "", neighborhood: "",
-  scheduled_for: "", reward_amount: "", reward_note: "", involves_item: false,
+  scheduled_for: "", reward_type: "money", reward_amount: "", reward_note: "", involves_item: false,
   item_type: "", item_value: "", item_already_paid: false, policy_confirmed: false,
 };
 
@@ -65,6 +66,7 @@ export default function NewTaskPage() {
         description: draft.description.trim(),
         city: draft.city.trim(),
         state: draft.state.trim(),
+        reward_amount: draft.reward_amount || null,
         scheduled_for: draft.scheduled_for ? new Date(draft.scheduled_for).toISOString() : null,
         item_type: draft.involves_item ? draft.item_type : "",
         item_value: draft.involves_item ? draft.item_value : null,
@@ -106,12 +108,13 @@ export default function NewTaskPage() {
         <div className="form-row"><label>City<input name="city" required maxLength={120} value={draft.city} onChange={(event) => update("city", event.target.value)} placeholder="e.g. Benin City" /></label><label>State<input name="state" required maxLength={120} value={draft.state} onChange={(event) => update("state", event.target.value)} placeholder="e.g. Edo" /></label></div>
         <div className="form-row"><label>Neighborhood (optional)<input name="neighborhood" maxLength={120} value={draft.neighborhood} onChange={(event) => update("neighborhood", event.target.value)} placeholder="e.g. GRA" /></label><label>When? (optional)<input name="scheduled_for" type="datetime-local" value={draft.scheduled_for} onChange={(event) => update("scheduled_for", event.target.value)} /></label></div>
         <p className="form-note"><MapPin size={13} /> Only your city and neighborhood are public. Share an exact task address after choosing a helper.</p>
-        <div className="reward-choice"><span>₦</span><div>Reward their time<small>Agree on payment directly with your helper.</small></div></div>
-        <label>Task reward (₦)<input name="reward_amount" type="number" min="1" max="99999999.99" step="0.01" required value={draft.reward_amount} onChange={(event) => update("reward_amount", event.target.value)} placeholder="e.g. 4000" /></label>
-        <label>Anything extra? (optional)<input name="reward_note" maxLength={160} value={draft.reward_note} onChange={(event) => update("reward_note", event.target.value)} placeholder="e.g. Lunch and transport fare included" /></label>
+        <div className="reward-choice"><span>↔</span><div>What will you give in return?<small>NEBA supports any clear, lawful exchange of value.</small></div></div>
+        <label>Reward type<select name="reward_type" value={draft.reward_type} onChange={(event) => update("reward_type", event.target.value as RewardType)}>{Object.entries(rewardTypeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+        {(draft.reward_type === "money" || draft.reward_type === "combination") && <label>Money amount (₦){draft.reward_type === "combination" && <small className="label-hint">Optional</small>}<input name="reward_amount" type="number" min="1" max="99999999.99" step="0.01" required={draft.reward_type === "money"} value={draft.reward_amount} onChange={(event) => update("reward_amount", event.target.value)} placeholder="e.g. 4000" /></label>}
+        <label>Describe the reward{draft.reward_type === "money" && <small className="label-hint">Optional</small>}<input name="reward_note" maxLength={160} required={draft.reward_type !== "money"} value={draft.reward_note} onChange={(event) => update("reward_note", event.target.value)} placeholder={draft.reward_type === "money" ? "e.g. Transport fare included" : draft.reward_type === "food" ? "e.g. Pizza and a drink" : draft.reward_type === "skill" ? "e.g. A 1-hour coding lesson" : draft.reward_type === "combination" ? "e.g. Lunch and transport" : "Be specific about what you will give"} /></label>
       </>}
       {step === 2 && <>
-        <div className="review-block"><span className="category-pill">{categories.find((item) => item.value === draft.category)?.label}</span><h2 style={{ marginTop: 24 }}>{draft.title}</h2><p>{draft.description}</p><dl className="review-list"><div><dt>Where</dt><dd>{[draft.neighborhood, draft.city, draft.state].filter(Boolean).join(", ")}</dd></div><div><dt>When</dt><dd>{draft.scheduled_for ? new Date(draft.scheduled_for).toLocaleString("en-NG") : "Flexible timing"}</dd></div><div><dt>Reward</dt><dd>{naira(draft.reward_amount)}</dd></div>{draft.involves_item && <div><dt>Item</dt><dd>{itemTypeLabels[draft.item_type as ItemType]} · {naira(draft.item_value)} · already paid</dd></div>}{draft.reward_note && <div><dt>Also included</dt><dd>{draft.reward_note}</dd></div>}</dl></div>
+        <div className="review-block"><span className="category-pill">{categories.find((item) => item.value === draft.category)?.label}</span><h2 style={{ marginTop: 24 }}>{draft.title}</h2><p>{draft.description}</p><dl className="review-list"><div><dt>Where</dt><dd>{[draft.neighborhood, draft.city, draft.state].filter(Boolean).join(", ")}</dd></div><div><dt>When</dt><dd>{draft.scheduled_for ? new Date(draft.scheduled_for).toLocaleString("en-NG") : "Flexible timing"}</dd></div><div><dt>Reward</dt><dd>{rewardLabel({ reward_type: draft.reward_type, reward_amount: draft.reward_amount || null, reward_note: draft.reward_note })}</dd></div>{draft.involves_item && <div><dt>Item</dt><dd>{itemTypeLabels[draft.item_type as ItemType]} · {draft.item_value ? `₦${Number(draft.item_value).toLocaleString("en-NG")}` : "Value not supplied"} · already paid</dd></div>}</dl></div>
         <label className="policy-confirmation"><input type="checkbox" required checked={draft.policy_confirmed} onChange={(event) => update("policy_confirmed", event.target.checked)} /><ShieldCheck size={19} /><span><strong>This task follows NEBA’s task policy.</strong><small>It does not involve cash collection, financial-account access, illegal or dangerous goods, high-value property, or another prohibited service.</small></span></label>
       </>}
       {error && <p className="error-box" role="alert">{error}</p>}

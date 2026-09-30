@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { PackageCheck, ShieldCheck } from "lucide-react";
 import { api } from "@/lib/api";
-import { ItemType, Offer, Task, availabilityLabels, itemTypeLabels } from "@/lib/types";
+import { ItemType, Offer, RewardType, Task, availabilityLabels, itemTypeLabels, rewardTypeLabels } from "@/lib/types";
 import { VerificationGate } from "./trust";
 
 export function HelperRequestForm({ offer }: { offer: Offer }) {
@@ -13,6 +13,7 @@ export function HelperRequestForm({ offer }: { offer: Offer }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [involvesItem, setInvolvesItem] = useState(false);
+  const [rewardType, setRewardType] = useState<RewardType>("money");
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -25,6 +26,7 @@ export function HelperRequestForm({ offer }: { offer: Offer }) {
         body: JSON.stringify({
           ...Object.fromEntries(data),
           category: offer.category,
+          reward_amount: data.get("reward_amount") || null,
           scheduled_for: data.get("scheduled_for") ? new Date(String(data.get("scheduled_for"))).toISOString() : null,
           involves_item: involvesItem,
           item_type: involvesItem ? data.get("item_type") : "",
@@ -58,7 +60,9 @@ export function HelperRequestForm({ offer }: { offer: Offer }) {
         <label>State<input name="state" defaultValue={offer.state} required maxLength={120} /></label>
         <label>Neighborhood<input name="neighborhood" maxLength={120} /></label>
         <label>Preferred date and time<input name="scheduled_for" type="datetime-local" /></label>
-        <label>Offered reward (₦)<input name="reward_amount" type="number" min={1} step="0.01" defaultValue={offer.starting_price} required /></label>
+        <label>Reward type<select name="reward_type" value={rewardType} onChange={(event) => setRewardType(event.target.value as RewardType)}>{Object.entries(rewardTypeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+        {(rewardType === "money" || rewardType === "combination") && <label>Money amount (₦)<input name="reward_amount" type="number" min={1} step="0.01" defaultValue={offer.starting_price} required={rewardType === "money"} /></label>}
+        <label>Describe the reward<input name="reward_note" maxLength={160} required={rewardType !== "money"} placeholder={rewardType === "money" ? "Optional extras, e.g. lunch" : "What exactly will you give in return?"} /></label>
         <label className="policy-confirmation"><input name="policy_confirmed" type="checkbox" required /><ShieldCheck size={18} /><span><strong>This request follows NEBA’s task policy.</strong><small>No cash collection, account access, prohibited goods, or high-value property.</small></span></label>
         {error && <p className="error-box" role="alert">{error}</p>}
         <button className="button button-dark full-width" disabled={busy}>{busy ? "Checking request…" : "Send private request"}</button>

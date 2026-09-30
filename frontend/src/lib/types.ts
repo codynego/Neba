@@ -2,11 +2,12 @@ export type Category = "errands" | "moving" | "events" | "tutoring" | "tech" | "
 export type Trust = { phone_verified: boolean; identity_verified: boolean; public_id?: string; username?: string; photo_available?: boolean; profile_complete?: boolean; review_count?: number; rating?: number | null };
 export type Availability = "flexible" | "weekdays" | "evenings" | "weekends" | "unavailable";
 export type ItemType = "documents" | "food" | "clothing" | "electronics" | "furniture" | "other";
+export type RewardType = "money" | "food" | "item" | "skill" | "service" | "exchange" | "combination" | "other";
 export type User = Trust & { id: number; public_id: string; username: string; display_name: string; city: string; state: string; phone?: string; photo_visible?: boolean; bio: string; skills: Category[]; neighborhood: string; address: string; latitude: string | null; longitude: string | null; availability: Availability };
 export type Task = {
   id: number; public_id: string; requester: number; requester_public_id?: string; requester_username?: string; requester_name: string; title: string; description: string;
   category: Category; city: string; state: string; neighborhood: string;
-  reward_amount: string; reward_note: string; scheduled_for: string | null;
+  reward_type: RewardType; reward_amount: string | null; reward_note: string; scheduled_for: string | null;
   involves_item: boolean; item_type: ItemType | ""; item_value: string | null; item_already_paid: boolean;
   risk_level: "low" | "medium" | "high"; moderation_status: "approved" | "held" | "rejected"; moderation_reason: string;
   status: "open" | "assigned" | "completed" | "cancelled"; application_count: number; created_at: string; requester_trust?: Trust;
@@ -30,6 +31,7 @@ export type Conversation = { task_id: number; task_public_id?: string; title: st
 export type MemberProfile = Trust & { id: number; public_id: string; username: string; display_name: string; city: string; state: string; neighborhood: string; bio: string; skills: Category[]; availability: Availability; completed_tasks: number; offers: Offer[]; reviews: { rating: number; comment: string; created_at: string }[] };
 export const availabilityLabels: Record<Availability, string> = { flexible: "Flexible", weekdays: "Weekdays", evenings: "Evenings", weekends: "Weekends", unavailable: "Not taking work" };
 export const itemTypeLabels: Record<ItemType, string> = { documents: "Documents", food: "Food or groceries", clothing: "Clothing", electronics: "Electronics", furniture: "Furniture", other: "Other" };
+export const rewardTypeLabels: Record<RewardType, string> = { money: "Money", food: "Food", item: "Item / goods", skill: "Skill / knowledge", service: "Service", exchange: "Exchange / barter", combination: "Combination", other: "Other" };
 export type Page<T> = { count: number; next: string | null; previous: string | null; results: T[] };
 export const categories: { value: Category | ""; label: string }[] = [
   { value: "", label: "All categories" },
@@ -41,4 +43,10 @@ export const categories: { value: Category | ""; label: string }[] = [
   { value: "other", label: "Other" },
 ];
 export const naira = (value: string | number) => "₦" + Number(value).toLocaleString("en-NG", { maximumFractionDigits: 0 });
+export function rewardLabel(reward: Pick<Task, "reward_type" | "reward_amount" | "reward_note">) {
+  const cash = reward.reward_amount ? naira(reward.reward_amount) : "";
+  if (reward.reward_type === "money") return cash;
+  if (reward.reward_type === "combination" && cash) return `${cash} + ${reward.reward_note}`;
+  return reward.reward_note;
+}
 

@@ -29,14 +29,14 @@ Use the existing tokens when extending the interface. Green signals actions and 
 - Desktop has a sidebar and a secondary neighborhood introduction. Mobile has Home, Nearby, Post, Activity, and Profile navigation.
 - City selection is saved locally; task and people views use the existing API. “Browse all cities” clears the filter.
 - Nearby switches between tasks and people. Search and category filtering apply to tasks.
-- Task cards show real task details, public neighborhood/city, scheduling, cash reward, and requester.
+- Task cards show real task details, public neighborhood/city, scheduling, reward, and requester.
 - Posting has three steps: task, location/reward details, and review. It sends the existing API payload and preserves the entered state when moving between steps or retrying a failed submission.
 - Profile uses real account information and API totals for posted tasks and skill offers.
 - Skeletons, actionable empty states, retry controls, and a task-posted confirmation cover loading and feedback.
 
 ## Product boundaries
 
-The backend currently supports positive cash rewards and an optional reward note. Extras such as food can be described in that note. Standalone non-cash rewards require a backend change.
+Tasks support money, food, items/goods, skill/knowledge, services, exchange/barter, combinations, and other clearly described rewards. Money rewards require a positive amount; every non-cash reward requires a description. Cash range filters and cash sorting apply only where a money amount is present.
 
 There is no location coordinate/distance service, ratings, identity verification, messaging, payment processing, or automatic matching. Do not invent distances, ratings, verified badges, helper availability, or matching states. The neighborhood illustration is decorative, not a map.
 

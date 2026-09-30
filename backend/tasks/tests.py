@@ -78,6 +78,44 @@ class TaskFlowTests(APITestCase):
         item["item_already_paid"] = True; item["item_value"] = "50001"
         self.assertEqual(self.client.post("/api/tasks/", item, format="json").status_code, 400)
 
+    def test_non_cash_and_combination_rewards(self):
+        self.client.force_authenticate(self.requester)
+        food = self.client.post("/api/tasks/", {
+            **self.payload,
+            "title": "Set up event chairs",
+            "reward_type": "food",
+            "reward_amount": None,
+            "reward_note": "Dinner and a soft drink",
+        }, format="json")
+        self.assertEqual(food.status_code, 201, food.data)
+        self.assertEqual(food.data["reward_type"], "food")
+        self.assertIsNone(food.data["reward_amount"])
+
+        missing_description = self.client.post("/api/tasks/", {
+            **self.payload,
+            "reward_type": "skill",
+            "reward_amount": None,
+            "reward_note": "",
+        }, format="json")
+        self.assertEqual(missing_description.status_code, 400)
+        self.assertIn("reward_note", missing_description.data)
+
+        combination = self.client.post("/api/tasks/", {
+            **self.payload,
+            "title": "Help move boxes",
+            "reward_type": "combination",
+            "reward_amount": "3000.00",
+            "reward_note": "Lunch and transport",
+        }, format="json")
+        self.assertEqual(combination.status_code, 201, combination.data)
+        self.assertEqual(combination.data["reward_amount"], "3000.00")
+
+        money_without_amount = self.client.post("/api/tasks/", {
+            **self.payload,
+            "reward_amount": None,
+        }, format="json")
+        self.assertEqual(money_without_amount.status_code, 400)
+        self.assertIn("reward_amount", money_without_amount.data)
     def test_allowed_item_is_classified_and_suspicious_task_is_held(self):
         self.client.force_authenticate(self.requester)
         item = {**self.payload, "involves_item": True, "item_type": "food", "item_value": "15000", "item_already_paid": True}

@@ -27,6 +27,15 @@ class Task(models.Model):
         ELECTRONICS = "electronics", "Electronics"
         FURNITURE = "furniture", "Furniture"
         OTHER = "other", "Other"
+    class RewardType(models.TextChoices):
+        MONEY = "money", "Money"
+        FOOD = "food", "Food"
+        ITEM = "item", "Item or goods"
+        SKILL = "skill", "Skill or knowledge"
+        SERVICE = "service", "Service"
+        EXCHANGE = "exchange", "Exchange or barter"
+        COMBINATION = "combination", "Combination"
+        OTHER = "other", "Other"
     class ModerationStatus(models.TextChoices):
         APPROVED = "approved", "Approved"
         HELD = "held", "Needs review"
@@ -41,7 +50,8 @@ class Task(models.Model):
     city = models.CharField(max_length=120)
     state = models.CharField(max_length=120)
     neighborhood = models.CharField(max_length=120, blank=True)
-    reward_amount = models.DecimalField(max_digits=10, decimal_places=2)
+    reward_type = models.CharField(max_length=20, choices=RewardType.choices, default=RewardType.MONEY)
+    reward_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     reward_note = models.CharField(max_length=160, blank=True)
     scheduled_for = models.DateTimeField(null=True, blank=True)
     involves_item = models.BooleanField(default=False)

@@ -90,4 +90,4 @@ Run `python manage.py test tasks` to verify the core task flow.
 
 ## Pilot boundaries
 
-Payment is arranged directly between participants. Nearwork does not hold money, verify identity, insure work, or provide in-app messaging yet. Applicants share a phone number with the task requester for coordination. The Django admin is available for manual operations. Add moderation, verification, dispute handling, and secure payments before an open public launch.
+Rewards are arranged directly between participants. Neba records the agreed reward but does not hold money or goods, enforce exchanges, or insure work. The Django admin is available for manual operations. Add stronger moderation, dispute handling, and secure payment support before an open public launch.
