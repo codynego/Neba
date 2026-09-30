@@ -1,7 +1,7 @@
 "use client";
 
 import { ChangeEvent, FormEvent, useEffect, useState } from "react";
-import { Camera, CheckCircle2, LocateFixed, MapPin, Phone } from "lucide-react";
+import { Camera, CheckCircle2, LocateFixed, MailCheck, MapPin, Phone, Send, ShieldCheck } from "lucide-react";
 import { api } from "@/lib/api";
 import { User, categories, availabilityLabels } from "@/lib/types";
 import { compressImage } from "@/lib/image-compression";
@@ -11,6 +11,8 @@ type UploadTicket = { upload_url: string; key: string; content_type: string };
 export function ProfileEditor({ user, onSaved }: { user: User; onSaved: (user: User) => void }) {
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState("");
+  const [verificationFeedback, setVerificationFeedback] = useState("");
+  const [verificationBusy, setVerificationBusy] = useState(false);
   const [photo, setPhoto] = useState<File | null>(null);
   const [compressing, setCompressing] = useState(false);
   const [preview, setPreview] = useState("");
@@ -106,6 +108,19 @@ export function ProfileEditor({ user, onSaved }: { user: User; onSaved: (user: U
     }
   }
 
+  async function resendVerification() {
+    setVerificationBusy(true);
+    setVerificationFeedback("");
+    try {
+      const result = await api<{ detail: string }>("/auth/email/resend/", { method: "POST", body: "{}" });
+      setVerificationFeedback(result.detail);
+    } catch (error) {
+      setVerificationFeedback((error as Error).message);
+    } finally {
+      setVerificationBusy(false);
+    }
+  }
+
   return <details className="profile-editor profile-completion" open={!user.profile_complete}>
     <summary>{user.profile_complete ? "Edit your profile & availability" : "Complete your profile"}</summary>
     <div className="profile-requirements" aria-label="Profile requirements">
@@ -114,7 +129,15 @@ export function ProfileEditor({ user, onSaved }: { user: User; onSaved: (user: U
       <span className={user.address && user.neighborhood && user.city && user.state ? "done" : ""}><MapPin size={15} />Location{user.address && user.neighborhood && user.city && user.state && <CheckCircle2 size={13} />}</span>
     </div>
     <form className="stack-form" onSubmit={save}>
-      {user.email_verified ? <p className="form-note"><CheckCircle2 size={14} /> Email verified: {user.email}</p> : <div className="error-box"><p>Verify {user.email} to secure your account and enable email notifications.</p><button className="text-button" type="button" onClick={async () => { setFeedback(""); try { const result = await api<{ detail: string }>("/auth/email/resend/", { method: "POST", body: "{}" }); setFeedback(result.detail); } catch (error) { setFeedback((error as Error).message); } }}>Resend verification email</button></div>}
+      <section className={`email-verification-card ${user.email_verified ? "is-verified" : ""}`} aria-live="polite">
+        <div className="email-verification-icon" aria-hidden="true">{user.email_verified ? <MailCheck size={21} /> : <ShieldCheck size={21} />}</div>
+        <div className="email-verification-content">
+          <div className="email-verification-heading"><span className="email-verification-label">Account email</span><span className="email-verification-status">{user.email_verified ? "Verified" : "Action needed"}</span></div>
+          <strong>{user.email}</strong>
+          {user.email_verified ? <p>Your email is confirmed and ready for account notifications.</p> : <><p>Verify your email to secure your account and enable email notifications.</p><button className="email-verification-button" type="button" onClick={resendVerification} disabled={verificationBusy}><Send size={14} />{verificationBusy ? "Sending…" : "Resend verification email"}</button></>}
+          {verificationFeedback && <p className={`email-verification-feedback ${verificationFeedback.toLowerCase().includes("temporarily") ? "is-error" : ""}`} role="status"><CheckCircle2 size={15} />{verificationFeedback}</p>}
+        </div>
+      </section>
       <label className="profile-photo-field">Profile picture
         <span className="photo-upload-row">
           <span className="photo-preview">{compressing ? <small style={{ fontSize: "10px", textAlign: "center", lineHeight: "1.2" }}>Optimizing…</small> : preview ? <img src={preview} alt="Selected profile preview" /> : <Camera size={24} />}</span>
