@@ -39,7 +39,8 @@ def _post(path, payload, idempotency_key):
         with urlopen(request, timeout=settings.EMAIL_HTTP_TIMEOUT_SECONDS) as response:
             return json.load(response)
     except HTTPError as error:
-        logger.error("Resend rejected an email request with status %s.", error.code)
+        detail = error.read(1000).decode("utf-8", errors="replace")
+        logger.error("Resend rejected an email request with status %s: %s", error.code, detail)
         raise EmailUnavailable("Email delivery failed.") from None
     except (URLError, TimeoutError, ValueError):
         logger.exception("Resend could not be reached.")
