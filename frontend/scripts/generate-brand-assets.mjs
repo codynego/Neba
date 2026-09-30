@@ -15,12 +15,14 @@ function svg(viewBox, selectedPaths) {
 // The generated source contains a horizontal lockup and a separate compact mark.
 // Keep these crops reproducible so every browser and PWA asset uses the same artwork.
 const wordmark = svg("340 730 1380 320", [...paths.slice(5, 21), ...paths.slice(23, 25)]);
-const mark = svg("850 1360 340 340", [...paths.slice(1, 5), ...paths.slice(21, 23)]);
+// A snug square viewBox prevents the mark from looking undersized after the
+// platform applies its own icon safe area.
+const mark = svg("875 1375 300 300", [...paths.slice(1, 5), ...paths.slice(21, 23)]);
 
 await writeFile(path.join(brandDir, "getneba-wordmark.svg"), wordmark);
 await writeFile(path.join(brandDir, "getneba-mark.svg"), mark);
 
-async function squareIcon(size, filename, markScale, background = "#f8faf8") {
+async function squareIcon(size, filename, markScale, background = "#edf8f2") {
   const markSize = Math.round(size * markScale);
   const renderedMark = await sharp(Buffer.from(mark)).resize(markSize, markSize).png().toBuffer();
   await sharp({ create: { width: size, height: size, channels: 4, background } })
@@ -30,11 +32,13 @@ async function squareIcon(size, filename, markScale, background = "#f8faf8") {
 }
 
 await Promise.all([
-  squareIcon(32, "getneba-32.png", 0.78),
-  squareIcon(180, "getneba-apple-180.png", 0.72),
-  squareIcon(192, "getneba-192.png", 0.72),
-  squareIcon(512, "getneba-512.png", 0.72),
-  squareIcon(512, "getneba-maskable-512.png", 0.56, "#087f5b"),
+  squareIcon(32, "getneba-32.png", 0.72),
+  squareIcon(180, "getneba-apple-180.png", 0.68),
+  squareIcon(192, "getneba-192.png", 0.68),
+  squareIcon(512, "getneba-512.png", 0.68),
+  // Maskable artwork must stay inside the central 80% safe zone. The pale
+  // field also keeps the green half of the mark visible on every launcher.
+  squareIcon(512, "getneba-maskable-512.png", 0.64),
   sharp(path.join(brandDir, "getneba-social-preview.png"))
     .resize(1200, 630, { fit: "contain", background: "#f8faf8" })
     .png()

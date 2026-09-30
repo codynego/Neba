@@ -151,6 +151,24 @@ h1,h2,h3,h4{font-weight:600;letter-spacing:-.035em;line-height:1.25}
 .bottom-nav{display:none}
 .app-content{margin-left:var(--sidebar-width);min-height:calc(100vh - var(--header-height));display:flex;flex-direction:column}
 .app-content>main{flex:1;animation:appear .2s ease-out}
+.app-launch{position:fixed;inset:0;z-index:90;min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px;background:radial-gradient(circle at 50% 44%,#fff 0,#edf8f2 42%,var(--background) 74%);overflow:hidden}
+.app-launch-orbit{position:relative;width:240px;height:240px;display:grid;place-items:center;margin-bottom:24px}
+.app-launch-ring{position:absolute;border:1px solid #087f5b24;border-radius:50%}
+.app-launch-ring-outer{inset:0;animation:launch-ring 2.4s ease-in-out infinite}
+.app-launch-ring-inner{inset:36px;border-style:dashed;animation:launch-ring 2.4s .4s ease-in-out infinite}
+.app-launch-mark{position:relative;z-index:1;width:144px;height:144px;display:grid;place-items:center;border:1px solid #087f5b1f;border-radius:42px;background:#edf8f2;box-shadow:0 24px 60px #07563f14}
+.app-launch-mark img{display:block;width:118px;height:118px}
+.app-launch-dot{position:absolute;width:12px;height:12px;border-radius:50%;background:#f2c14e;box-shadow:0 0 0 7px #f2c14e26}
+.app-launch-dot-one{top:25px;right:34px}
+.app-launch-dot-two{bottom:42px;left:22px;width:8px;height:8px}
+.app-launch-wordmark{display:block;width:174px;height:auto}
+.app-launch>p{margin:12px 0 24px;color:var(--muted);font-size:13px;letter-spacing:.01em}
+.app-launch-progress{width:80px;height:3px;border-radius:99px;background:#087f5b1a;overflow:hidden}
+.app-launch-progress i{display:block;width:34px;height:100%;border-radius:inherit;background:var(--primary);animation:launch-progress 1.3s ease-in-out infinite}
+@keyframes launch-ring{0%,100%{transform:scale(.94);opacity:.42}50%{transform:scale(1.03);opacity:1}}
+@keyframes launch-progress{0%{transform:translateX(-36px)}50%{transform:translateX(42px)}100%{transform:translateX(-36px)}}
+@media(max-width:760px){.app-launch{padding-bottom:calc(32px + env(safe-area-inset-bottom))}}
+@media(prefers-reduced-motion:reduce){.app-launch-ring,.app-launch-progress i{animation:none}.app-launch-progress i{width:100%}}
 .button{display:inline-flex;justify-content:center;align-items:center;gap:12px;min-height:48px;padding:12px 20px;border:1px solid transparent;border-radius:var(--radius-control);font-size:14px;font-weight:600;transition:background .18s,transform .18s}
 .button-dark,.small-button{background:var(--primary);color:var(--surface)}
 .button-dark:hover,.small-button:hover{background:var(--primary-dark)}

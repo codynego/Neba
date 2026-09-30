@@ -16,3 +16,5 @@ frontend/next-env.d.ts
 .writer.py
 frontend/*.tsbuildinfo
 .env.local
+
+.env*

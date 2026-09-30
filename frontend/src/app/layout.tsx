@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   appleWebApp: { capable: true, title: "GetNeba", statusBarStyle: "default" },
   icons: { icon: [{ url: "/icons/getneba-32.png", sizes: "32x32", type: "image/png" }, { url: "/icons/getneba-192.png", sizes: "192x192", type: "image/png" }], shortcut: "/icons/getneba-32.png", apple: [{ url: "/icons/getneba-apple-180.png", sizes: "180x180", type: "image/png" }] },
 };
-export const viewport: Viewport = { themeColor: "#087f5b", width: "device-width", initialScale: 1, viewportFit: "cover" };
+export const viewport: Viewport = { themeColor: "#edf8f2", width: "device-width", initialScale: 1, viewportFit: "cover" };
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return <html lang="en-NG" data-scroll-behavior="smooth"><body className={geist.variable}><a className="skip-link" href="#main-content">Skip to content</a><Header /><AppShell>{children}</AppShell><PwaInstall /></body></html>;
 }
