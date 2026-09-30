@@ -2,6 +2,7 @@ export const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/ap
 export class ApiError extends Error {
   constructor(message: string, public status: number) { super(message); this.name = "ApiError"; }
 }
+const publicAuthPaths = new Set(["/auth/login/", "/auth/register/", "/auth/password-reset/", "/auth/password-reset/confirm/", "/auth/email/verify/"]);
 export function getToken() {
   return typeof window === "undefined" ? null : localStorage.getItem("nearwork_token");
 }
@@ -14,7 +15,7 @@ export function clearToken() {
   window.dispatchEvent(new Event("nearwork_auth"));
 }
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = path === "/auth/login/" || path === "/auth/register/" ? null : getToken();
+  const token = publicAuthPaths.has(path) ? null : getToken();
   const response = await fetch(BASE + path, {
     ...options,
     headers: {

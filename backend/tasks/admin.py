@@ -1,6 +1,8 @@
 from django.contrib import admin
 from .models import Task
 from accounts.notifications import notify
+from accounts.emailing import safely, send_nearby_task_emails, send_task_approved_email
+from django.db import transaction
 @admin.register(Task)
 class TaskAdmin(admin.ModelAdmin):
     list_display = ("title", "requester", "moderation_status", "risk_level", "status", "is_private", "city")
@@ -11,6 +13,9 @@ class TaskAdmin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
         if previous == Task.ModerationStatus.HELD and obj.moderation_status == Task.ModerationStatus.APPROVED:
             notify(obj.requester, "Task review approved", f"/tasks/{obj.public_id}", obj.title)
+            transaction.on_commit(lambda: safely(send_task_approved_email, obj))
+            if not obj.is_private:
+                transaction.on_commit(lambda: safely(send_nearby_task_emails, obj))
             if obj.target_helper:
                 notify(obj.target_helper, "Someone requested your skills", f"/tasks/{obj.public_id}", obj.title)
         elif previous == Task.ModerationStatus.HELD and obj.moderation_status == Task.ModerationStatus.REJECTED:

@@ -10,6 +10,7 @@ from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from accounts.trust import blocked_user_ids, require_helper, require_profile, are_blocked
 from accounts.notifications import notify
+from accounts.emailing import safely, send_direct_request_decision_email
 from accounts.safety_views import trust_summary
 from accounts import r2
 from accounts.listing_photos import upload_ticket, PhotoUploadsUnavailable
@@ -243,4 +244,5 @@ class TaskViewSet(BaseTaskViewSet):
             else: task.status = "cancelled"
             task.save(update_fields=("status", "updated_at"))
             notify(task.requester, f"Helper request {'accepted' if decision=='accept' else 'declined'}", f"/tasks/{task.public_id}", task.title)
+            transaction.on_commit(lambda: safely(send_direct_request_decision_email, task, decision == "accept"))
         return Response(self.get_serializer(task).data)

@@ -23,6 +23,8 @@ class User(AbstractUser):
     availability = models.CharField(max_length=20, default="flexible", choices=[("flexible", "Flexible"), ("weekdays", "Weekdays"), ("evenings", "Evenings"), ("weekends", "Weekends"), ("unavailable", "Not taking work")])
     terms_accepted_at = models.DateTimeField(null=True, blank=True)
     legal_policy_version = models.CharField(max_length=20, blank=True)
+    email_verified_at = models.DateTimeField(null=True, blank=True)
+    nearby_task_emails = models.BooleanField(default=False)
 
     def __str__(self):
         return self.display_name or self.username

@@ -81,6 +81,7 @@ export function ProfileEditor({ user, onSaved }: { user: User; onSaved: (user: U
           ...Object.fromEntries(data),
           skills: data.getAll("skills"),
           photo_visible: data.get("photo_visible") === "on",
+          nearby_task_emails: data.get("nearby_task_emails") === "on",
           latitude: coordinates.latitude || null,
           longitude: coordinates.longitude || null,
         }),
@@ -113,6 +114,7 @@ export function ProfileEditor({ user, onSaved }: { user: User; onSaved: (user: U
       <span className={user.address && user.neighborhood && user.city && user.state ? "done" : ""}><MapPin size={15} />Location{user.address && user.neighborhood && user.city && user.state && <CheckCircle2 size={13} />}</span>
     </div>
     <form className="stack-form" onSubmit={save}>
+      {user.email_verified ? <p className="form-note"><CheckCircle2 size={14} /> Email verified: {user.email}</p> : <div className="error-box"><p>Verify {user.email} to secure your account and enable email notifications.</p><button className="text-button" type="button" onClick={async () => { setFeedback(""); try { const result = await api<{ detail: string }>("/auth/email/resend/", { method: "POST", body: "{}" }); setFeedback(result.detail); } catch (error) { setFeedback((error as Error).message); } }}>Resend verification email</button></div>}
       <label className="profile-photo-field">Profile picture
         <span className="photo-upload-row">
           <span className="photo-preview">{compressing ? <small style={{ fontSize: "10px", textAlign: "center", lineHeight: "1.2" }}>Optimizing…</small> : preview ? <img src={preview} alt="Selected profile preview" /> : <Camera size={24} />}</span>
@@ -129,6 +131,7 @@ export function ProfileEditor({ user, onSaved }: { user: User; onSaved: (user: U
       {(coordinates.latitude && coordinates.longitude) && <p className="coordinate-note">Location coordinates added privately.</p>}
       <label>About you<textarea name="bio" defaultValue={user.bio} maxLength={600} rows={4} placeholder="Tell neighbors what you can help with and your experience." /></label>
       <label>Availability<select name="availability" defaultValue={user.availability}>{Object.entries(availabilityLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+      <label className="legal-consent"><input name="nearby_task_emails" type="checkbox" defaultChecked={user.nearby_task_emails} disabled={!user.email_verified} /><span>Email me when a new task in my city matches one of my selected skills.</span></label>
       <fieldset className="skill-checkboxes"><legend>Your skills</legend>{categories.filter((category) => category.value).map((category) => <label className="check-label" key={category.value}><input type="checkbox" name="skills" value={category.value} defaultChecked={user.skills?.includes(category.value as User["skills"][number])} />{category.label}</label>)}</fieldset>
       <p className="form-note">“Not taking work” pauses new applications and direct requests. Existing bookings remain yours to manage.</p>
       <button className="button button-dark compact" disabled={busy || compressing}>{compressing ? "Optimizing photo…" : busy ? "Saving profile…" : "Save profile"}</button>

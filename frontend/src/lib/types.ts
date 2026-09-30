@@ -3,7 +3,7 @@ export type Trust = { phone_verified: boolean; identity_verified: boolean; publi
 export type Availability = "flexible" | "weekdays" | "evenings" | "weekends" | "unavailable";
 export type ItemType = "documents" | "food" | "clothing" | "electronics" | "furniture" | "other";
 export type RewardType = "money" | "food" | "item" | "skill" | "service" | "exchange" | "combination" | "other";
-export type User = Trust & { id: number; public_id: string; username: string; display_name: string; city: string; state: string; phone?: string; photo_visible?: boolean; bio: string; skills: Category[]; neighborhood: string; address: string; latitude: string | null; longitude: string | null; availability: Availability };
+export type User = Trust & { id: number; public_id: string; username: string; email: string; email_verified: boolean; nearby_task_emails: boolean; display_name: string; city: string; state: string; phone?: string; photo_visible?: boolean; bio: string; skills: Category[]; neighborhood: string; address: string; latitude: string | null; longitude: string | null; availability: Availability };
 export type Task = {
   id: number; public_id: string; requester: number; requester_public_id?: string; requester_username?: string; requester_name: string; title: string; description: string;
   category: Category; city: string; state: string; neighborhood: string;

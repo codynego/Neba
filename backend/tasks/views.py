@@ -1,5 +1,6 @@
 ﻿from django.db.models import Count
 from rest_framework import serializers, viewsets
+from django.db import transaction
 from rest_framework.decorators import action
 from rest_framework import permissions
 from rest_framework.response import Response
@@ -8,6 +9,7 @@ from accounts.trust import require_profile, blocked_user_ids
 from accounts.safety_views import trust_summary
 from config.api_cache import CachedListMixin, cache_ttl
 from .policy import apply_task_policy
+from accounts.emailing import safely, send_nearby_task_emails
 
 class TaskSerializer(serializers.ModelSerializer):
     photos = serializers.ListField(child=serializers.CharField(max_length=255), source="photo_keys", write_only=True, required=False)
@@ -93,7 +95,9 @@ class TaskViewSet(CachedListMixin, viewsets.ModelViewSet):
         return queryset
     def perform_create(self, serializer):
         require_profile(self.request.user)
-        serializer.save(requester=self.request.user)
+        task = serializer.save(requester=self.request.user)
+        if not task.is_private and task.moderation_status == Task.ModerationStatus.APPROVED:
+            transaction.on_commit(lambda: safely(send_nearby_task_emails, task))
     def update(self, request, *args, **kwargs):
         task = self.get_object()
         if task.requester_id != request.user.id or task.status != Task.Status.OPEN:

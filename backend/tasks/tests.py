@@ -2,6 +2,7 @@
 from rest_framework.test import APITestCase
 from django.core.cache import cache
 from django.utils import timezone
+from unittest.mock import patch
 
 class TaskFlowTests(APITestCase):
     def setUp(self):
@@ -63,6 +64,24 @@ class TaskFlowTests(APITestCase):
         self.client.force_authenticate(self.helper)
         hidden = self.client.get("/api/tasks/")
         self.assertEqual(hidden.data["count"], 0)
+
+    @patch("accounts.emailing.send_batch")
+    def test_nearby_task_email_only_targets_verified_opted_in_matching_helpers(self, send_batch):
+        from accounts.emailing import send_nearby_task_emails
+        from tasks.models import Task
+
+        self.helper.email = "helper@example.test"
+        self.helper.email_verified_at = timezone.now()
+        self.helper.nearby_task_emails = True
+        self.helper.skills = ["moving"]
+        self.helper.save(update_fields=("email", "email_verified_at", "nearby_task_emails", "skills"))
+        task = Task.objects.create(requester=self.requester, **{key: value for key, value in self.payload.items() if key != "policy_confirmed"})
+
+        self.assertEqual(send_nearby_task_emails(task), 1)
+        send_batch.assert_called_once()
+        task.refresh_from_db()
+        self.assertIsNotNone(task.nearby_email_sent_at)
+        self.assertEqual(send_nearby_task_emails(task), 0)
 
     def test_post_apply_accept_complete_and_city_filter(self):
         self.client.force_authenticate(self.requester)

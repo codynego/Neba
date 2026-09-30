@@ -5,6 +5,7 @@ from rest_framework.exceptions import ValidationError, PermissionDenied
 from rest_framework.response import Response
 from accounts.trust import require_helper, are_blocked
 from accounts.notifications import notify
+from accounts.emailing import safely, send_application_accepted_email
 from tasks.models import Task
 from .models import Application
 from .views import ApplicationViewSet as BaseApplicationViewSet
@@ -30,6 +31,7 @@ class ApplicationViewSet(BaseApplicationViewSet):
         response = super().accept(request, pk)
         if response.status_code == 200:
             notify(candidate.applicant, "Your application was accepted", f"/tasks/{task.public_id}", task.title)
+            transaction.on_commit(lambda: safely(send_application_accepted_email, candidate))
             for other in task.applications.filter(status="declined").select_related("applicant"):
                 notify(other.applicant, "A helper was selected", "/activity", task.title)
         return response

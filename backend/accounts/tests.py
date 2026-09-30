@@ -14,6 +14,10 @@ from .models import User, PhoneChallenge, IdentityVerification, Block, SafetyRep
 from .trust import review_identity
 from tasks.models import Task
 from bookings.models import Application
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.encoding import force_bytes
+from django.utils.http import urlsafe_base64_encode
+from rest_framework.authtoken.models import Token
 
 
 def photo():
@@ -80,7 +84,8 @@ class TrustFlowTests(APITestCase):
         visible = self.client.patch("/api/auth/me/", {"photo_visible": True}, format="json")
         self.assertTrue(visible.data["photo_visible"])
 
-    def test_registration_requires_and_records_current_legal_acceptance(self):
+    @patch("accounts.views.send_verification_email")
+    def test_registration_requires_and_records_current_legal_acceptance(self, send_verification):
         self.client.force_authenticate(None)
         payload = {"username": "new-member", "email": "new@example.test", "display_name": "New Member", "password": "safe-example-password-394"}
         rejected = self.client.post("/api/auth/register/", payload, format="json")
@@ -90,6 +95,45 @@ class TrustFlowTests(APITestCase):
         member = User.objects.get(username="new-member")
         self.assertIsNotNone(member.terms_accepted_at)
         self.assertEqual(member.legal_policy_version, "2026-09-30")
+        send_verification.assert_called_once_with(member)
+
+    def test_email_verification_and_password_reset_revoke_existing_tokens(self):
+        self.member.email = "member@example.test"
+        self.member.save(update_fields=("email",))
+        uid = urlsafe_base64_encode(force_bytes(self.member.pk))
+        verification_token = default_token_generator.make_token(self.member)
+
+        self.client.force_authenticate(None)
+        verified = self.client.post("/api/auth/email/verify/", {"uid": uid, "token": verification_token}, format="json")
+        self.assertEqual(verified.status_code, 200, verified.data)
+        self.member.refresh_from_db()
+        self.assertIsNotNone(self.member.email_verified_at)
+
+        auth_token = Token.objects.create(user=self.member)
+        reset_token = default_token_generator.make_token(self.member)
+        reset = self.client.post("/api/auth/password-reset/confirm/", {
+            "uid": uid,
+            "token": reset_token,
+            "password": "new-safe-password-583",
+        }, format="json")
+        self.assertEqual(reset.status_code, 200, reset.data)
+        self.member.refresh_from_db()
+        self.assertTrue(self.member.check_password("new-safe-password-583"))
+        self.assertFalse(Token.objects.filter(pk=auth_token.pk).exists())
+        self.assertEqual(self.client.post("/api/auth/password-reset/confirm/", {
+            "uid": uid, "token": reset_token, "password": "another-safe-password-864",
+        }, format="json").status_code, 400)
+
+    @patch("accounts.views.send_password_reset_email")
+    def test_password_reset_request_is_enumeration_safe(self, send_reset):
+        self.member.email = "member@example.test"
+        self.member.save(update_fields=("email",))
+        self.client.force_authenticate(None)
+        known = self.client.post("/api/auth/password-reset/", {"email": "MEMBER@example.test"}, format="json")
+        unknown = self.client.post("/api/auth/password-reset/", {"email": "missing@example.test"}, format="json")
+        self.assertEqual(known.status_code, 200)
+        self.assertEqual(known.data, unknown.data)
+        send_reset.assert_called_once_with(self.member)
 
     @override_settings(TWILIO_ACCOUNT_SID="", TWILIO_AUTH_TOKEN="", TWILIO_VERIFY_SERVICE_SID="")
     def test_sms_without_provider_fails_closed(self):

@@ -79,6 +79,8 @@ REST_FRAMEWORK = {
         "phone_send": "5/hour", "phone_check": "15/hour", "identity_submit": "3/day",
         "capture_challenge": "10/hour", "safety_report": "10/hour", "block_user": "30/hour",
         "task_messages": "120/hour",
+        "register": "5/hour", "login": "10/hour", "password_reset": "5/hour",
+        "email_verification": "5/hour",
     },
 }
 CORS_ALLOWED_ORIGINS = env_list("CORS_ALLOWED_ORIGINS", "http://localhost:3000")
@@ -128,5 +130,10 @@ R2_ACCESS_KEY_ID = os.getenv("R2_ACCESS_KEY_ID", "")
 R2_SECRET_ACCESS_KEY = os.getenv("R2_SECRET_ACCESS_KEY", "")
 R2_BUCKET_NAME = os.getenv("R2_BUCKET_NAME", "")
 TASK_ITEM_VALUE_LIMIT = int(os.getenv("TASK_ITEM_VALUE_LIMIT", "50000"))
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+DEFAULT_FROM_EMAIL = os.getenv("EMAIL_FROM", "GetNeba <notifications@getneba.app>")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "https://www.getneba.app").rstrip("/")
+EMAIL_HTTP_TIMEOUT_SECONDS = int(os.getenv("EMAIL_HTTP_TIMEOUT_SECONDS", "10"))
+NEARBY_EMAIL_BATCH_LIMIT = min(int(os.getenv("NEARBY_EMAIL_BATCH_LIMIT", "50")), 100)
 DATA_UPLOAD_MAX_MEMORY_SIZE = 12 * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 3 * 1024 * 1024

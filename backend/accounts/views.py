@@ -1,7 +1,11 @@
 import io
 import uuid
 from django.contrib.auth import authenticate
+from django.contrib.auth.tokens import default_token_generator
 from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.utils.encoding import force_str
+from django.utils.http import urlsafe_base64_decode
 from django.utils import timezone
 from PIL import Image, UnidentifiedImageError
 from botocore.exceptions import BotoCoreError, ClientError
@@ -13,6 +17,7 @@ from rest_framework.views import APIView
 from .models import User
 from . import r2
 from .trust import normalize_phone
+from .emailing import EmailUnavailable, safely, send_password_reset_email, send_verification_email
 
 class UserSerializer(serializers.ModelSerializer):
     skills = serializers.ListField(child=serializers.ChoiceField(choices=("errands", "moving", "events", "tutoring", "tech", "other")), max_length=6, required=False)
@@ -22,12 +27,15 @@ class UserSerializer(serializers.ModelSerializer):
     identity_verified = serializers.SerializerMethodField()
     photo_available = serializers.SerializerMethodField()
     profile_complete = serializers.BooleanField(read_only=True)
+    email_verified = serializers.SerializerMethodField()
     def get_phone_verified(self, user):
         return bool(user.phone and user.phone_verified_at)
     def get_identity_verified(self, user):
         return bool(user.identity_verified_at and self.get_phone_verified(user))
     def get_photo_available(self, user):
         return bool(user.profile_photo_key or user.profile_photo)
+    def get_email_verified(self, user):
+        return bool(user.email and user.email_verified_at)
     def validate_phone(self, value):
         return normalize_phone(value) if value else None
     def validate_latitude(self, value):
@@ -40,8 +48,8 @@ class UserSerializer(serializers.ModelSerializer):
         return value
     class Meta:
         model = User
-        fields = ("id", "public_id", "username", "display_name", "city", "state", "date_joined", "phone", "phone_verified", "identity_verified", "photo_visible", "photo_available", "profile_complete", "bio", "skills", "neighborhood", "address", "latitude", "longitude", "availability")
-        read_only_fields = ("id", "public_id", "username", "date_joined", "phone_verified", "identity_verified", "photo_available", "profile_complete")
+        fields = ("id", "public_id", "username", "email", "email_verified", "display_name", "city", "state", "date_joined", "phone", "phone_verified", "identity_verified", "photo_visible", "photo_available", "profile_complete", "bio", "skills", "neighborhood", "address", "latitude", "longitude", "availability", "nearby_task_emails")
+        read_only_fields = ("id", "public_id", "username", "email", "email_verified", "date_joined", "phone_verified", "identity_verified", "photo_available", "profile_complete")
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[validate_password])
@@ -64,14 +72,17 @@ class RegisterSerializer(serializers.ModelSerializer):
 class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
     permission_classes = [permissions.AllowAny]
+    throttle_scope = "register"
     def create(self, request, *args, **kwargs):
         response = super().create(request, *args, **kwargs)
         user = User.objects.get(username=response.data["username"])
+        safely(send_verification_email, user)
         token, _ = Token.objects.get_or_create(user=user)
         return Response({"token": token.key, "user": UserSerializer(user).data}, status=201)
 
 class LoginView(APIView):
     permission_classes = [permissions.AllowAny]
+    throttle_scope = "login"
     def post(self, request):
         user = authenticate(username=request.data.get("username"), password=request.data.get("password"))
         if not user:
@@ -90,6 +101,75 @@ class LogoutView(APIView):
     def post(self, request):
         Token.objects.filter(user=request.user).delete()
         return Response(status=204)
+
+
+class PasswordResetRequestView(APIView):
+    permission_classes = [permissions.AllowAny]
+    throttle_scope = "password_reset"
+
+    def post(self, request):
+        email = serializers.EmailField().run_validation(request.data.get("email"))
+        user = User.objects.filter(email__iexact=email, is_active=True).first()
+        if user:
+            safely(send_password_reset_email, user)
+        return Response({"detail": "If an active account uses that email, a reset link has been sent."})
+
+
+class PasswordResetConfirmView(APIView):
+    permission_classes = [permissions.AllowAny]
+    throttle_scope = "password_reset"
+
+    def post(self, request):
+        try:
+            user_id = force_str(urlsafe_base64_decode(request.data.get("uid", "")))
+            user = User.objects.get(pk=user_id, is_active=True)
+        except (ValueError, TypeError, OverflowError, UnicodeDecodeError, User.DoesNotExist):
+            user = None
+        token = str(request.data.get("token", ""))
+        if not user or not default_token_generator.check_token(user, token):
+            raise ValidationError("This password reset link is invalid or has expired.")
+        password = serializers.CharField(write_only=True).run_validation(request.data.get("password"))
+        try:
+            validate_password(password, user=user)
+        except DjangoValidationError as error:
+            raise ValidationError(error.messages) from None
+        user.set_password(password)
+        user.save(update_fields=("password",))
+        Token.objects.filter(user=user).delete()
+        return Response({"detail": "Password updated. Sign in with your new password."})
+
+
+class VerifyEmailView(APIView):
+    permission_classes = [permissions.AllowAny]
+    throttle_scope = "email_verification"
+
+    def post(self, request):
+        try:
+            user_id = force_str(urlsafe_base64_decode(request.data.get("uid", "")))
+            user = User.objects.get(pk=user_id, is_active=True)
+        except (ValueError, TypeError, OverflowError, UnicodeDecodeError, User.DoesNotExist):
+            user = None
+        token = str(request.data.get("token", ""))
+        if not user or not default_token_generator.check_token(user, token):
+            raise ValidationError("This verification link is invalid or has expired.")
+        if not user.email_verified_at:
+            user.email_verified_at = timezone.now()
+            user.save(update_fields=("email_verified_at",))
+        return Response({"detail": "Email verified. Your account is now more secure."})
+
+
+class ResendVerificationView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    throttle_scope = "email_verification"
+
+    def post(self, request):
+        if request.user.email_verified_at:
+            return Response({"detail": "Your email is already verified."})
+        try:
+            send_verification_email(request.user)
+        except EmailUnavailable:
+            return Response({"detail": "Verification email is temporarily unavailable. Try again shortly."}, status=503)
+        return Response({"detail": "Verification email sent."})
 
 
 class R2Unavailable(APIException):

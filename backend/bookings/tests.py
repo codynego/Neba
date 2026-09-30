@@ -10,6 +10,7 @@ from tasks.models import Task
 from offers.models import Offer
 from .models import Application, TaskMessage, TaskChange, TaskIssue
 from .workflow import resolve_issue
+from unittest.mock import patch
 
 @override_settings(PASSWORD_HASHERS=["django.contrib.auth.hashers.MD5PasswordHasher"])
 class ProductFlowTests(APITestCase):
@@ -37,14 +38,17 @@ class ProductFlowTests(APITestCase):
     def propose(self, kind, **extra): return self.client.post(self.path("changes"), {"kind": kind, **extra}, format="json")
     def respond(self, change, decision): return self.client.post(f"/api/tasks/{self.task.pk}/changes/{change}/respond/", {"decision": decision})
 
-    def test_acceptance_creates_notifications_and_private_conversation(self):
+    @patch("bookings.product_api.send_application_accepted_email")
+    def test_acceptance_creates_notifications_and_private_conversation(self, send_accepted_email):
         applied = self.client.post("/api/applications/", {"task": self.task.pk, "message": "I can help"})
         self.assertEqual(applied.status_code,201)
         self.assertEqual(Notification.objects.filter(recipient=self.owner).count(),1)
         self.assertEqual(self.client.get(self.path("messages")).status_code,403)
         self.client.force_authenticate(self.owner)
-        self.assertEqual(self.client.post(f"/api/applications/{applied.data['id']}/accept/").status_code,200)
+        with self.captureOnCommitCallbacks(execute=True):
+            self.assertEqual(self.client.post(f"/api/applications/{applied.data['id']}/accept/").status_code,200)
         self.assertEqual(Notification.objects.filter(recipient=self.helper).count(),1)
+        send_accepted_email.assert_called_once()
         self.assertEqual(self.client.get(self.path("workspace")).data["contact_phone"],self.helper.phone)
 
     def test_messages_are_participant_only_and_retries_do_not_duplicate(self):
