@@ -173,6 +173,19 @@ class ProductFlowTests(APITestCase):
         self.assertEqual(self.client.post(f"/api/notifications/{notification.pk}/read/").status_code,200)
         self.assertEqual(self.client.get("/api/notifications/unread/").data["count"],0)
 
+    def test_activity_sections_have_independent_server_side_search(self):
+        self.assign()
+        invitation = Task.objects.create(requester=self.owner, target_helper=self.helper, is_private=True,
+            title="Assemble a bookshelf", description="Put the shelf together", city="Abuja", state="FCT", reward_amount=6500)
+        self.assertEqual(self.client.get("/api/tasks/?bookings=true&search=table").data["count"], 1)
+        self.assertEqual(self.client.get("/api/tasks/?bookings=true&search=bookshelf").data["count"], 0)
+        self.assertEqual(self.client.get("/api/tasks/?invitations=true&search=bookshelf").data["results"][0]["id"], invitation.pk)
+        self.assertEqual(self.client.get("/api/offers/?mine=true&search=moving").data["results"][0]["id"], self.offer.pk)
+        self.assertEqual(self.client.get("/api/applications/?search=table").data["count"], 1)
+        self.client.force_authenticate(self.owner)
+        self.assertEqual(self.client.get("/api/tasks/?mine=true&search=table").data["count"], 1)
+        self.assertEqual(self.client.get("/api/applications/?received=true&search=helper").data["count"], 1)
+
     def test_discovery_filters_and_sorting_and_profile_edits_are_real(self):
         Task.objects.create(requester=self.owner,title="A higher reward",description="Test",city="Abuja",state="FCT",neighborhood="Maitama",reward_amount=9000,scheduled_for=timezone.now()+timedelta(days=2))
         self.assertEqual(self.client.get("/api/tasks/?neighborhood=Garki&timing=flexible").data["count"],1)

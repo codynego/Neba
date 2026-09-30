@@ -67,6 +67,9 @@ class TaskViewSet(BaseTaskViewSet):
     def get_queryset(self):
         user = self.request.user
         queryset = Task.objects.select_related("requester", "target_helper").annotate(application_count=Count("applications", distinct=True))
+        search = self.request.query_params.get("search", "").strip()
+        if search:
+            queryset = queryset.filter(Q(title__icontains=search) | Q(description__icontains=search))
         owner = Q(requester=user)
         helper = Q(applications__applicant=user, applications__status="accepted")
         if self.request.query_params.get("mine") == "true": return queryset.filter(owner).distinct().order_by("-created_at")
@@ -79,8 +82,6 @@ class TaskViewSet(BaseTaskViewSet):
         for key, lookup in (("city", "city__iexact"), ("neighborhood", "neighborhood__icontains"), ("category", "category")):
             value = self.request.query_params.get(key, "").strip()
             if value: queryset = queryset.filter(**{lookup: value})
-        search = self.request.query_params.get("search", "").strip()
-        if search: queryset = queryset.filter(Q(title__icontains=search) | Q(description__icontains=search))
         timing = self.request.query_params.get("timing", "")
         today = timezone.localdate()
         if timing == "flexible": queryset = queryset.filter(scheduled_for__isnull=True)

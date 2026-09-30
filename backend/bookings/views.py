@@ -4,6 +4,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404
+from django.db.models import Q
 from accounts.trust import require_helper, require_profile, are_blocked
 from accounts.safety_views import trust_summary
 from tasks.models import Task
@@ -52,8 +53,14 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         queryset = Application.objects.select_related("task", "applicant")
         user = self.request.user
         if self.request.query_params.get("received") == "true":
-            return queryset.filter(task__requester=user)
-        return queryset.filter(applicant=user)
+            queryset = queryset.filter(task__requester=user)
+        else:
+            queryset = queryset.filter(applicant=user)
+        search = self.request.query_params.get("search", "").strip()
+        if search:
+            queryset = queryset.filter(Q(task__title__icontains=search) | Q(applicant__display_name__icontains=search) |
+                Q(applicant__username__icontains=search) | Q(message__icontains=search))
+        return queryset
     def perform_create(self, serializer):
         require_helper(self.request.user)
         serializer.save(applicant=self.request.user, contact_phone=self.request.user.phone)

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Brand } from "./brand";
 const groups = [
   { title: "Explore", links: [["/tasks", "Find tasks"], ["/offers", "Find people"], ["/tasks/new", "Post a task"], ["/offers/new", "Offer your skills"]] },
-  { title: "GetNeba", links: [["/about", "About GetNeba"], ["/stories", "Stories"], ["/local-help", "Local help in Nigeria"], ["/#how-it-works", "How it works"], ["/help", "Help center"], ["/register", "Join the neighborhood"]] },
+  { title: "GetNeba", links: [["/about", "About GetNeba"], ["/stories", "Stories"], ["/local-help", "Local help in Nigeria"], ["/install", "Install the app"], ["/#how-it-works", "How it works"], ["/help", "Help center"], ["/register", "Join the neighborhood"]] },
   { title: "Trust & safety", links: [["/community-guidelines", "Community guidelines"], ["/profile", "Complete your profile"], ["/safety", "Report & block"], ["/privacy", "Privacy"], ["/terms", "Pilot terms"]] },
 ];
 export function Footer() {

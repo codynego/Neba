@@ -1,6 +1,7 @@
 ﻿from rest_framework import serializers, viewsets
 from rest_framework.response import Response
 from rest_framework import permissions
+from django.db.models import Q
 from .models import Offer
 from accounts.trust import require_helper, blocked_user_ids
 from accounts.safety_views import trust_summary
@@ -42,7 +43,11 @@ class OfferViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = Offer.objects.select_related("provider")
         if self.request.query_params.get("mine") == "true":
-            return queryset.filter(provider=self.request.user) if self.request.user.is_authenticated else queryset.none()
+            queryset = queryset.filter(provider=self.request.user) if self.request.user.is_authenticated else queryset.none()
+            search = self.request.query_params.get("search", "").strip()
+            if search:
+                queryset = queryset.filter(Q(title__icontains=search) | Q(description__icontains=search) | Q(city__icontains=search))
+            return queryset
         queryset = queryset.filter(provider__is_active=True).exclude(provider__phone__isnull=True).exclude(provider__profile_photo_key="").exclude(provider__address="").exclude(provider__neighborhood="").exclude(provider__city="").exclude(provider__state="").exclude(provider_id__in=blocked_user_ids(self.request.user))
         if self.action == "list":
             queryset = queryset.filter(active=True)
