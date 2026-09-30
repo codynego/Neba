@@ -2,6 +2,7 @@ import io
 import uuid
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
+from django.utils import timezone
 from PIL import Image, UnidentifiedImageError
 from botocore.exceptions import BotoCoreError, ClientError
 from rest_framework import generics, permissions, serializers
@@ -40,19 +41,25 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ("id", "public_id", "username", "display_name", "city", "state", "date_joined", "phone", "phone_verified", "identity_verified", "photo_visible", "photo_available", "profile_complete", "bio", "skills", "neighborhood", "address", "latitude", "longitude", "availability")
-        read_only_fields = ("id", "public_id", "username", "date_joined", "phone_verified", "identity_verified", "photo_visible", "photo_available", "profile_complete")
+        read_only_fields = ("id", "public_id", "username", "date_joined", "phone_verified", "identity_verified", "photo_available", "profile_complete")
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[validate_password])
+    terms_accepted = serializers.BooleanField(write_only=True)
     class Meta:
         model = User
-        fields = ("username", "email", "display_name", "password", "city", "state")
+        fields = ("username", "email", "display_name", "password", "city", "state", "terms_accepted")
     def validate_email(self, value):
         if User.objects.filter(email__iexact=value).exists():
             raise serializers.ValidationError("An account with this email already exists.")
         return value
+    def validate_terms_accepted(self, value):
+        if value is not True:
+            raise serializers.ValidationError("Accept the Terms of Service and acknowledge the Privacy Notice to create an account.")
+        return value
     def create(self, validated_data):
-        return User.objects.create_user(**validated_data)
+        validated_data.pop("terms_accepted")
+        return User.objects.create_user(terms_accepted_at=timezone.now(), legal_policy_version="2026-09-30", **validated_data)
 
 class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
@@ -141,8 +148,7 @@ class ProfilePhotoConfirm(APIView):
         previous = request.user.profile_photo_key
         request.user.profile_photo_key = key
         request.user.profile_photo_content_type = content_type
-        request.user.photo_visible = True
-        request.user.save(update_fields=("profile_photo_key", "profile_photo_content_type", "photo_visible"))
+        request.user.save(update_fields=("profile_photo_key", "profile_photo_content_type"))
         if previous and previous != key:
             try:
                 r2.delete_object(previous)

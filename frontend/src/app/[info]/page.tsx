@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { publicPageMetadata } from "@/lib/seo";
+import { LegalPage } from "@/components/legal-page";
 import { ArrowRight, ArrowUpRight, Check, ClipboardCheck, HandHeart, MapPin, MessageCircle, ShieldCheck, UsersRound } from "lucide-react";
 const pages = {
   about: { title: "A little help can change the shape of a day.", label: "ABOUT GETNEBA", intro: "GetNeba helps people find useful, practical help from others nearby—and gives local skills a place to be seen.", sections: [] },
@@ -9,7 +10,7 @@ const pages = {
     ["Finding and posting tasks", "Create an account or sign in to browse your neighborhood. Before posting, applying, or offering help, complete your profile with a phone number, profile photo, and location."],
     ["After you apply", "The requester reviews applications and selects a helper. A private task conversation opens after acceptance, and contact numbers are shared privately for coordination. Agree on the exact work, address, timing, and payment before starting. Completion, cancellation after acceptance, and rescheduling need the other participant’s confirmation."],
     ["Reporting a problem", "Use Report or block on a task, offer, or received application. Describe what happened for the moderation team. Your safety center shows report status and lets you manage blocked members."],
-    ["Profile requirements", "For this MVP, a phone number, profile picture, and location are required. Phone OTP and identity review are not required yet."],
+    ["Profile and verification requirements", "A phone number, profile picture, and location complete your profile. A verified phone is required to post. A verified phone and approved identity review are required to offer skills, apply, or be accepted as a helper. Verification is not a background check or a guarantee."],
   ] },
   "community-guidelines": { title: "Look out for each other.", label: "COMMUNITY GUIDELINES", intro: "Treat your neighbors with respect. Identity checks help establish who someone is; they do not guarantee safe behaviour.", sections: [
     ["Be honest and respectful", "Use your own identity and accurate skills. Do not impersonate another person, harass, discriminate, threaten, or pressure someone to do work they did not agree to."],
@@ -18,20 +19,8 @@ const pages = {
     ["Protect personal information", "Keep phone numbers, identity documents, and exact addresses out of task descriptions and reviews. Share coordination details only with your selected participant."],
     ["Report worrying behaviour", "Send a private report and block unwanted interactions. Admins can review reports, hide abusive reviews, and suspend accounts. The moderation queue is not an emergency service; contact local emergency services if you are in immediate danger."],
   ] },
-  privacy: { title: "Your information, handled with care.", label: "PRIVACY IN THE PILOT", intro: "How the current Neba pilot uses information you provide.", sections: [
-    ["Account and task information", "Neba stores account details, cities, tasks, offers, applications, and reviews to operate the service. Task and offer information is visible to signed-in members. Keep private contact details and exact addresses out of descriptions."],
-    ["Phone number", "Your number is stored privately and shared only with the selected task participant after acceptance. SMS verification is not required in the MVP."],
-    ["Profile photos", "Your required profile picture is stored in a private Cloudflare R2 bucket. If you choose to make it visible, it appears on your public member profile through short-lived access links."],
-    ["Location", "Neba stores the address or landmark and optional coordinates privately for local matching. Public profiles show your area, city, and state—not your saved private address."],
-    ["Reports and blocks", "Reports are available to the reporting member and authorized moderators. Members can manage blocks in their safety center. Verification and moderation decisions are recorded to support accountability."],
-  ] },
-  terms: { title: "Using the Neba pilot.", label: "PILOT TERMS", intro: "Operating rules for the current pilot. Read the community guidelines and privacy information before taking part.", sections: [
-    ["Accounts and eligibility", "Use your own account and keep its information accurate. Posting, applying, and offering help require a phone number, profile photo, and location. Phone OTP and identity review are not part of this MVP."],
-    ["Agree before starting", "Participants agree directly on the work, timing, location, reward, and payment method. Neba does not process payments or provide escrow in this pilot. Only accept work you understand and can perform safely."],
-    ["Task and item policy", "Tasks involving an item must declare its type and estimated value, and the item must already be paid for. NEBA may reject prohibited or over-limit tasks and hold suspicious tasks for manual review before they become visible."],
-    ["Verification and reviews", "A badge confirms the stated checks were completed. Manual review is not automated document-authenticity testing, certified liveness, or a background check. Reviews are limited to participants in completed tasks."],
-    ["Community standards", "Follow the community guidelines. Report fraud, harassment, or unsafe conduct using the reporting controls. Admins can moderate reviews and suspend accounts. Blocking prevents new interactions; it does not resolve an existing work agreement."],
-  ] },
+  privacy: { title: "Your information, explained clearly.", label: "PRIVACY NOTICE", intro: "What GetNeba collects, why it is used, who can see it, and the choices and rights available to you.", sections: [] },
+  terms: { title: "Clear terms for local help.", label: "TERMS OF SERVICE", intro: "The rules that apply when you use GetNeba to request help, offer skills, or connect with another member.", sections: [] },
 };
 export const dynamicParams = false;
 export function generateStaticParams() { return Object.keys(pages).map((info) => ({ info })); }
@@ -39,7 +28,7 @@ export async function generateMetadata({ params }: { params: Promise<{ info: str
   const { info } = await params;
   if (!Object.hasOwn(pages, info)) notFound();
   const page = pages[info as keyof typeof pages];
-  const titles: Record<string, string> = { about: "About GetNeba: local help and neighborhood skills", help: "Help center: posting tasks, offering skills and verification", "community-guidelines": "Community guidelines for safe, respectful tasks", privacy: "Privacy and personal information", terms: "Pilot terms and task agreements" };
+  const titles: Record<string, string> = { about: "About GetNeba: local help and neighborhood skills", help: "Help center: posting tasks, offering skills and verification", "community-guidelines": "Community guidelines for safe, respectful tasks", privacy: "Privacy notice", terms: "Terms of service" };
   return publicPageMetadata(titles[info], page.intro, `/${info}`);
 }
 
@@ -71,6 +60,7 @@ export default async function InfoPage({ params }: { params: Promise<{ info: str
   const { info } = await params;
   if (!Object.hasOwn(pages, info)) notFound();
   if (info === "about") return <AboutPage />;
+  if (info === "privacy" || info === "terms") return <LegalPage kind={info} />;
   const page = pages[info as keyof typeof pages];
   return <main className="public-info landing-container"><span className="landing-eyebrow">{page.label}</span><h1>{page.title}</h1><p className="public-info-intro">{page.intro}</p>{page.sections.map(([title, text]) => <section key={title}><h2>{title}</h2><p>{text}</p></section>)}<div className="public-info-links"><Link href="/#how-it-works">How GetNeba works</Link><Link href="/community-guidelines">Community guidelines</Link><Link href="/privacy">Privacy information</Link><Link href="/safety">Your safety center</Link></div></main>;
 }

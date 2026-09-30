@@ -11,6 +11,8 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from accounts.trust import blocked_user_ids, require_helper, require_profile, are_blocked
 from accounts.notifications import notify
 from accounts.safety_views import trust_summary
+from accounts import r2
+from accounts.listing_photos import upload_ticket, PhotoUploadsUnavailable
 from bookings.models import Application, TaskMessage, TaskChange, TaskIssue
 from bookings.workflow import participants, require_available, propose_change, decide_change
 from .models import Task
@@ -102,6 +104,21 @@ class TaskViewSet(BaseTaskViewSet):
             direction = F("reward_amount").desc if sort == "reward_high" else F("reward_amount").asc
             return queryset.order_by(direction(nulls_last=True), "-id")
         return queryset.order_by(*orders[sort])
+
+    @action(detail=False, methods=["post"], url_path="photo-upload")
+    def photo_upload(self, request):
+        return Response(upload_ticket(request.user, "task-photos", request.data))
+
+    @action(detail=True, methods=["get"], url_path=r"photos/(?P<photo_index>[0-9]+)")
+    def photo(self, request, pk=None, photo_index=None):
+        task = self.get_object()
+        try:
+            key = (task.photo_keys or [])[int(photo_index)]
+        except (IndexError, TypeError, ValueError):
+            return Response(status=404)
+        if not r2.configured():
+            raise PhotoUploadsUnavailable()
+        return Response({"url": r2.download_url(key)})
 
     @action(detail=False, methods=["get"])
     def conversations(self, request):

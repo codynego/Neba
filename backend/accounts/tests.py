@@ -76,6 +76,20 @@ class TrustFlowTests(APITestCase):
         self.assertEqual(confirmed.status_code, 200)
         self.assertTrue(confirmed.data["photo_available"])
         self.assertTrue(confirmed.data["profile_complete"])
+        self.assertFalse(confirmed.data["photo_visible"])
+        visible = self.client.patch("/api/auth/me/", {"photo_visible": True}, format="json")
+        self.assertTrue(visible.data["photo_visible"])
+
+    def test_registration_requires_and_records_current_legal_acceptance(self):
+        self.client.force_authenticate(None)
+        payload = {"username": "new-member", "email": "new@example.test", "display_name": "New Member", "password": "safe-example-password-394"}
+        rejected = self.client.post("/api/auth/register/", payload, format="json")
+        self.assertEqual(rejected.status_code, 400)
+        accepted = self.client.post("/api/auth/register/", {**payload, "terms_accepted": True}, format="json")
+        self.assertEqual(accepted.status_code, 201, accepted.data)
+        member = User.objects.get(username="new-member")
+        self.assertIsNotNone(member.terms_accepted_at)
+        self.assertEqual(member.legal_policy_version, "2026-09-30")
 
     @override_settings(TWILIO_ACCOUNT_SID="", TWILIO_AUTH_TOKEN="", TWILIO_VERIFY_SERVICE_SID="")
     def test_sms_without_provider_fails_closed(self):

@@ -46,6 +46,7 @@ class Task(models.Model):
     is_private = models.BooleanField(default=False)
     title = models.CharField(max_length=140)
     description = models.TextField()
+    photo_keys = models.JSONField(default=list, blank=True)
     category = models.CharField(max_length=20, choices=Category.choices, default=Category.OTHER)
     city = models.CharField(max_length=120)
     state = models.CharField(max_length=120)

@@ -6,6 +6,8 @@ from rest_framework.exceptions import ValidationError, PermissionDenied
 from accounts.models import User
 from accounts.trust import require_profile, require_helper, are_blocked
 from accounts.notifications import notify
+from accounts import r2
+from accounts.listing_photos import upload_ticket, PhotoUploadsUnavailable
 from tasks.models import Task
 from tasks.product_api import TaskSerializer
 from .models import Offer
@@ -33,6 +35,19 @@ class OfferViewSet(BaseOfferViewSet):
         orders = {"newest": "-created_at", "price_low": "starting_price", "price_high": "-starting_price"}
         if sort not in orders: raise ValidationError("Unknown helper sorting option.")
         return queryset.order_by(orders[sort], "-id")
+    @action(detail=False, methods=["post"], url_path="photo-upload")
+    def photo_upload(self, request):
+        return Response(upload_ticket(request.user, "offer-photos", request.data))
+    @action(detail=True, methods=["get"], url_path=r"photos/(?P<photo_index>[0-9]+)")
+    def photo(self, request, pk=None, photo_index=None):
+        offer = self.get_object()
+        try:
+            key = (offer.photo_keys or [])[int(photo_index)]
+        except (IndexError, TypeError, ValueError):
+            return Response(status=404)
+        if not r2.configured():
+            raise PhotoUploadsUnavailable()
+        return Response({"url": r2.download_url(key)})
     @action(detail=True, methods=["post"])
     def request(self, request, pk=None):
         offer = self.get_object(); require_profile(request.user)

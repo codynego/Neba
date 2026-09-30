@@ -8,6 +8,7 @@ class Offer(models.Model):
     provider = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="offers")
     title = models.CharField(max_length=140)
     description = models.TextField()
+    photo_keys = models.JSONField(default=list, blank=True)
     category = models.CharField(max_length=20, choices=Task.Category.choices, default=Task.Category.OTHER)
     city = models.CharField(max_length=120)
     state = models.CharField(max_length=120)

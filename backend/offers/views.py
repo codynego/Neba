@@ -7,21 +7,30 @@ from accounts.trust import require_helper, blocked_user_ids
 from accounts.safety_views import trust_summary
 
 class OfferSerializer(serializers.ModelSerializer):
+    photos = serializers.ListField(child=serializers.CharField(max_length=255), source="photo_keys", write_only=True, required=False)
+    photo_count = serializers.SerializerMethodField()
     provider_trust = serializers.SerializerMethodField()
     def get_provider_trust(self, offer):
         return trust_summary(offer.provider)
+    def get_photo_count(self, offer):
+        return len(offer.photo_keys or [])
     provider_name = serializers.CharField(source="provider.display_name", read_only=True)
     provider_username = serializers.CharField(source="provider.username", read_only=True)
     provider_public_id = serializers.UUIDField(source="provider.public_id", read_only=True)
     class Meta:
         model = Offer
-        fields = ("id", "public_id", "provider", "provider_public_id", "provider_username", "provider_name", "title", "description", "category",
+        fields = ("id", "public_id", "provider", "provider_public_id", "provider_username", "provider_name", "title", "description", "photos", "photo_count", "category",
                   "city", "state", "starting_price", "active", "created_at", "provider_trust")
         read_only_fields = ("id", "public_id", "provider", "provider_name", "created_at")
     def validate_starting_price(self, value):
         if value <= 0:
             raise serializers.ValidationError("Enter an amount greater than zero.")
         return value
+    def validate(self, attrs):
+        if "photo_keys" in attrs:
+            from accounts.listing_photos import validate_photo_keys
+            attrs["photo_keys"] = validate_photo_keys(self.context["request"].user, "offer-photos", attrs["photo_keys"])
+        return attrs
 
 class OfferViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]

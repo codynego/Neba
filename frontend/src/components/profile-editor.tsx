@@ -80,6 +80,7 @@ export function ProfileEditor({ user, onSaved }: { user: User; onSaved: (user: U
         body: JSON.stringify({
           ...Object.fromEntries(data),
           skills: data.getAll("skills"),
+          photo_visible: data.get("photo_visible") === "on",
           latitude: coordinates.latitude || null,
           longitude: coordinates.longitude || null,
         }),
@@ -118,6 +119,7 @@ export function ProfileEditor({ user, onSaved }: { user: User; onSaved: (user: U
           <span><input name="profile_photo" type="file" accept="image/jpeg,image/png,image/webp" required={!user.photo_available} onChange={choosePhoto} disabled={busy || compressing} /><small>Use a clear photo of yourself. JPEG, PNG, or WebP under 20 MB (compressed automatically).</small></span>
         </span>
       </label>
+      <label className="legal-consent"><input name="photo_visible" type="checkbox" defaultChecked={user.photo_visible} /><span>Show my profile photo on my public profile and next to my public reviews.</span></label>
       <label>Display name<input name="display_name" defaultValue={user.display_name} required maxLength={80} /></label>
       <label>Phone number<input name="phone" type="tel" autoComplete="tel" defaultValue={user.phone || ""} required placeholder="0801 234 5678" /></label>
       <label>Address or nearby landmark<input name="address" autoComplete="street-address" defaultValue={user.address || ""} required maxLength={240} placeholder="Street, estate, or a nearby landmark" /><small>This stays private. Other members see only your area, city, and state.</small></label>

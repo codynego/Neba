@@ -11,11 +11,13 @@ export type Task = {
   involves_item: boolean; item_type: ItemType | ""; item_value: string | null; item_already_paid: boolean;
   risk_level: "low" | "medium" | "high"; moderation_status: "approved" | "held" | "rejected"; moderation_reason: string;
   status: "open" | "assigned" | "completed" | "cancelled"; application_count: number; created_at: string; requester_trust?: Trust;
+  photo_count: number;
   is_private: boolean; target_helper: number | null; target_helper_name: string; requested_offer: number | null; has_booking: boolean;
 };
 export type Offer = {
   id: number; public_id: string; provider: number; provider_public_id?: string; provider_username?: string; provider_name: string; title: string; description: string;
   category: Category; city: string; state: string; starting_price: string; active: boolean; created_at: string; provider_trust?: Trust;
+  photo_count: number;
   provider_availability?: Availability; provider_neighborhood?: string;
 };
 export type Application = {

@@ -6,6 +6,7 @@ import { ArrowLeft, ArrowRight, Check, MapPin, PackageCheck, ShieldCheck } from 
 import { api, getToken } from "@/lib/api";
 import { categories, Category, itemTypeLabels, ItemType, rewardLabel, rewardTypeLabels, RewardType, Task } from "@/lib/types";
 import { VerificationGate } from "@/components/trust";
+import { ListingPhotoPicker, uploadListingPhotos } from "@/components/listing-photos";
 
 type Draft = {
   title: string;
@@ -37,6 +38,7 @@ export default function NewTaskPage() {
   const [step, setStep] = useState(0);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [photos, setPhotos] = useState<File[]>([]);
   const submitLock = useRef(false);
   const heading = useRef<HTMLHeadingElement>(null);
 
@@ -60,8 +62,10 @@ export default function NewTaskPage() {
     if (submitLock.current) return;
     submitLock.current = true; setBusy(true); setError("");
     try {
+      const photoKeys = await uploadListingPhotos("tasks", photos);
       const data = {
         ...draft,
+        photos: photoKeys,
         title: draft.title.trim(),
         description: draft.description.trim(),
         city: draft.city.trim(),
@@ -91,6 +95,7 @@ export default function NewTaskPage() {
       {step === 0 && <>
         <label>Describe what you need<textarea name="description" required minLength={10} rows={5} maxLength={5000} value={draft.description} onChange={(event) => update("description", event.target.value)} placeholder="e.g. I need a hand moving a fridge upstairs tomorrow. It will take about 30 minutes." /></label>
         <label>Give your task a short title<input name="title" required maxLength={140} value={draft.title} onChange={(event) => update("title", event.target.value)} placeholder="e.g. Help move a fridge upstairs" /></label>
+        <ListingPhotoPicker files={photos} onChange={setPhotos} label="Show what needs doing" />
         <label>What kind of help?<select name="category" value={draft.category} onChange={(event) => update("category", event.target.value as Category)}>{categories.filter((item) => item.value).map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
         <fieldset className="item-policy-card"><legend>Does someone need to collect, carry, or deliver an item?</legend>
           <label className="choice-row"><input type="radio" name="involves_item" checked={!draft.involves_item} onChange={() => update("involves_item", false)} /><span><strong>No</strong><small>This is help, tutoring, setup, or another service.</small></span></label>

@@ -76,7 +76,7 @@ export function OnboardingForm({ initialUser, nextPath }: { initialUser: User; n
     const data = new FormData(event.currentTarget);
     data.delete("profile_photo");
     try {
-      let updated = await api<User>("/auth/me/", { method: "PATCH", body: JSON.stringify({ ...Object.fromEntries(data), latitude: coordinates.latitude || null, longitude: coordinates.longitude || null }) });
+      let updated = await api<User>("/auth/me/", { method: "PATCH", body: JSON.stringify({ ...Object.fromEntries(data), photo_visible: data.get("photo_visible") === "on", latitude: coordinates.latitude || null, longitude: coordinates.longitude || null }) });
       if (photo) {
         const fileToUpload = photo.size > 2 * 1024 * 1024 ? await compressImage(photo) : photo;
         const ticket = await api<UploadTicket>("/auth/profile-photo/upload/", { method: "POST", body: JSON.stringify({ content_type: fileToUpload.type, size: fileToUpload.size }) });
@@ -105,6 +105,7 @@ export function OnboardingForm({ initialUser, nextPath }: { initialUser: User; n
       <div className="onboarding-heading"><span className="onboarding-mark"><MapPin size={20} /></span><div><h1>Let’s place you in the neighborhood.</h1><p>A clear photo and a useful location help people know who they’re connecting with. Your exact address stays private.</p></div></div>
       <form className="stack-form" onSubmit={saveProfile}>
         <label className="profile-photo-field">Profile picture <span className="photo-upload-row"><span className="photo-preview">{compressing ? <small style={{ fontSize: "10px", textAlign: "center", lineHeight: "1.2" }}>Optimizing…</small> : preview ? <img src={preview} alt="Selected profile preview" /> : user.photo_available ? <CheckCircle2 size={24} /> : <Camera size={24} />}</span><span><input name="profile_photo" type="file" accept="image/jpeg,image/png,image/webp" required={!user.photo_available} onChange={choosePhoto} disabled={busy || compressing} /><small>Use a clear photo of yourself. JPEG, PNG, or WebP under 20 MB (compressed automatically).</small></span></span></label>
+        <label className="legal-consent"><input name="photo_visible" type="checkbox" defaultChecked={user.photo_visible} /><span>Show my profile photo on my public profile and next to my public reviews. I can change this later.</span></label>
         <div className="form-row"><label>Phone number<input name="phone" type="tel" autoComplete="tel" defaultValue={user.phone || ""} required placeholder="0801 234 5678" /></label><label>Display name<input name="display_name" defaultValue={user.display_name} required maxLength={80} /></label></div>
         <label>Address or nearby landmark<input name="address" autoComplete="street-address" defaultValue={user.address || ""} required maxLength={240} placeholder="Street, estate, or nearby landmark" /><small>This is private. Other members see only your area, city, and state.</small></label>
         <div className="form-row"><label>City<input name="city" defaultValue={user.city || ""} required maxLength={120} placeholder="e.g. Abuja" /></label><label>State<input name="state" defaultValue={user.state || ""} required maxLength={120} placeholder="e.g. FCT" /></label></div>

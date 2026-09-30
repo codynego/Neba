@@ -9,17 +9,21 @@ from accounts.safety_views import trust_summary
 from .policy import apply_task_policy
 
 class TaskSerializer(serializers.ModelSerializer):
+    photos = serializers.ListField(child=serializers.CharField(max_length=255), source="photo_keys", write_only=True, required=False)
+    photo_count = serializers.SerializerMethodField()
     policy_confirmed = serializers.BooleanField(write_only=True, required=False)
     requester_trust = serializers.SerializerMethodField()
     def get_requester_trust(self, task):
         return trust_summary(task.requester)
+    def get_photo_count(self, task):
+        return len(task.photo_keys or [])
     requester_name = serializers.CharField(source="requester.display_name", read_only=True)
     requester_username = serializers.CharField(source="requester.username", read_only=True)
     requester_public_id = serializers.UUIDField(source="requester.public_id", read_only=True)
     application_count = serializers.IntegerField(read_only=True)
     class Meta:
         model = Task
-        fields = ("id", "public_id", "requester", "requester_name", "requester_username", "requester_public_id", "title", "description", "category", "city",
+        fields = ("id", "public_id", "requester", "requester_name", "requester_username", "requester_public_id", "title", "description", "photos", "photo_count", "category", "city",
                   "state", "neighborhood", "reward_type", "reward_amount", "reward_note", "scheduled_for",
                   "involves_item", "item_type", "item_value", "item_already_paid", "risk_level",
                   "moderation_status", "moderation_reason", "policy_version", "policy_confirmed",
@@ -42,6 +46,9 @@ class TaskSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"reward_note": "Describe what you will give in return."})
         if reward_type not in (Task.RewardType.MONEY, Task.RewardType.COMBINATION):
             attrs["reward_amount"] = None
+        if "photo_keys" in attrs:
+            from accounts.listing_photos import validate_photo_keys
+            attrs["photo_keys"] = validate_photo_keys(self.context["request"].user, "task-photos", attrs["photo_keys"])
         return apply_task_policy(attrs, self.instance)
 
 class TaskViewSet(viewsets.ModelViewSet):
