@@ -62,7 +62,7 @@ export function TaskDetail({ id }: { id: string }) {
         <header className="task-detail-hero">
           <span className="category-pill">{categories.find((category) => category.value === task.category)?.label}{task.is_private && " · Private request"}</span>
           <h1>{task.title}</h1>
-          <div className="detail-meta"><span><MapPin size={18} />{[task.neighborhood, task.city, task.state].filter(Boolean).join(", ")}</span><span><CalendarDays size={18} />{task.scheduled_for ? new Date(task.scheduled_for).toLocaleString("en-NG") : "Flexible timing"}</span>{!task.is_private && <span><Users size={18} />{task.accepted_count}/{task.helpers_needed} helpers booked</span>}{task.is_recurring && <span><Repeat2 size={18} />Recurring · applications stay open</span>}</div>
+          <div className="detail-meta"><span><MapPin size={18} />{[task.neighborhood, task.city, task.state].filter(Boolean).join(", ")}</span><span><CalendarDays size={18} />{task.scheduled_for ? new Date(task.scheduled_for).toLocaleString("en-NG") : "Flexible timing"}</span>{!task.is_private && <span><Users size={18} />{task.is_recurring ? `${task.accepted_count} helpers booked so far` : `${task.accepted_count}/${task.helpers_needed} helpers booked`}</span>}{task.is_recurring && <span><Repeat2 size={18} />Recurring · applications stay open</span>}</div>
         </header>
         <ListingPhotoGallery kind="tasks" id={task.public_id || task.id} count={task.photo_count} title={task.title} />
         <div className="detail-body"><h2>What needs doing</h2><p>{task.description}</p></div>
