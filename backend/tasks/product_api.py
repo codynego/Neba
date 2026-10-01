@@ -187,10 +187,13 @@ class TaskViewSet(BaseTaskViewSet):
         members = accepted_helpers if request.user.pk == task.requester_id else [task.requester]
         active_issue = task.issues.filter(status__in=("open", "reviewing")).first()
         pending = task.changes.filter(status="pending").first()
+        participant_ids = (request.user.pk, other.pk)
+        booking_completed = task.changes.filter(kind="complete", status="accepted", proposer_id__in=participant_ids, decided_by_id__in=participant_ids).exists()
         return Response({"task": self.get_serializer(task).data, "my_role": "requester" if request.user.pk == task.requester_id else "helper",
             "member": {"id": other.pk, "public_id": str(other.public_id), "display_name": other.display_name, **trust_summary(other)},
             "members": [{"id": member.pk, "public_id": str(member.public_id), "display_name": member.display_name, **trust_summary(member)} for member in members],
             "can_message": bool(other.is_active and not are_blocked(request.user, other) and task.status not in ("completed", "cancelled")),
+            "booking_completed": booking_completed,
             "contact_phone": other.phone if other.is_active and not are_blocked(request.user, other) else "",
             "pending_change": ChangeSerializer(pending).data if pending else None,
             "active_issue": IssueSerializer(active_issue).data if active_issue else None,
