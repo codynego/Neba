@@ -54,6 +54,9 @@ Provision pooled PostgreSQL and Redis integrations, then configure these Product
 - `CORS_ALLOWED_ORIGINS`: `https://getneba.app,https://www.getneba.app`
 - `CSRF_TRUSTED_ORIGINS`: `https://getneba.app,https://www.getneba.app`
 - the Cloudflare R2 values documented in `backend/.env.example`
+- `WEB_PUSH_VAPID_PUBLIC_KEY`, `WEB_PUSH_VAPID_PRIVATE_KEY`, and `WEB_PUSH_VAPID_SUBJECT`: one VAPID key pair and a contact URI such as `mailto:support@getneba.app`
+
+Web push is opt-in: after a member signs in, GetNeba presents a one-time browser permission prompt. The backend stores a separate subscription for each browser or device and sends the existing in-app notifications there after their database transaction completes. Generate and retain one VAPID key pair for the API deployment; do not expose the private key. A notification click opens its saved in-app path, including the exact message when applicable.
 
 Profile photos use a private Cloudflare R2 bucket. Create an R2 API token with object read/write access to that bucket and set `R2_ENDPOINT_URL`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, and `R2_BUCKET_NAME`. Browser uploads use short-lived signed `PUT` URLs, so add this CORS policy to the bucket:
 

@@ -33,6 +33,7 @@ export function CandidateWorkspace({ applicationId }: { applicationId: string })
   const [uploadProgress, setUploadProgress] = useState("");
   const lastMessage = useRef(0);
   const messageRequest = useRef(false);
+  const openedLinkedMessage = useRef(false);
   const base = `/applications/${applicationId}`;
 
   const load = useCallback(async (signal?: AbortSignal) => {
@@ -68,6 +69,11 @@ export function CandidateWorkspace({ applicationId }: { applicationId: string })
     document.addEventListener("visibilitychange", refresh);
     return () => { controller.abort(); clearInterval(timer); document.removeEventListener("visibilitychange", refresh); };
   }, [load, loadMessages]);
+  useEffect(() => {
+    if (openedLinkedMessage.current || !window.location.hash.startsWith("#message-")) return;
+    const message = document.getElementById(window.location.hash.slice(1));
+    if (message) { openedLinkedMessage.current = true; message.scrollIntoView({ behavior: "smooth", block: "center" }); message.focus({ preventScroll: true }); }
+  }, [messages]);
 
   async function act(path: string, body: unknown = {}, success = "Application updated.") {
     if (busy) return false;
@@ -133,7 +139,7 @@ export function CandidateWorkspace({ applicationId }: { applicationId: string })
 
           {(chatOpen || messages.length > 0) && <section className="candidate-chat">
             <div className="candidate-section-heading"><span><MessageCircle size={18} /></span><div><h2>Before-you-book chat</h2><p>Ask about experience, availability, approach, timing, and the reward. Contact details stay private.</p></div></div>
-            <div className="message-list" role="log" aria-label="Candidate messages" aria-live="polite">{messages.length ? messages.map((message) => <article className={`message-bubble ${message.sender === me.id ? "mine" : ""}`} key={message.id}><strong>{message.sender === me.id ? "You" : message.sender_name || "Task partner"}</strong>{message.text && <p>{message.text}</p>}<MessageAttachments base={base} messageId={message.id} attachments={message.attachments} /><small>{new Date(message.created_at).toLocaleString("en-NG")}</small></article>) : <p className="panel-empty">No messages yet. Start with the detail that matters most for this task.</p>}</div>
+            <div className="message-list" role="log" aria-label="Candidate messages" aria-live="polite">{messages.length ? messages.map((message) => <article id={`message-${message.id}`} tabIndex={-1} className={`message-bubble ${message.sender === me.id ? "mine" : ""}`} key={message.id}><strong>{message.sender === me.id ? "You" : message.sender_name || "Task partner"}</strong>{message.text && <p>{message.text}</p>}<MessageAttachments base={base} messageId={message.id} attachments={message.attachments} /><small>{new Date(message.created_at).toLocaleString("en-NG")}</small></article>) : <p className="panel-empty">No messages yet. Start with the detail that matters most for this task.</p>}</div>
             {chatOpen ? <form className="message-compose" onSubmit={sendMessage}><AttachmentPicker files={files} disabled={busy} progress={uploadProgress} onChange={setFiles} onError={setError} /><div className="message-compose-row"><label className="sr-only" htmlFor="candidate-message">Message about this application</label><textarea id="candidate-message" rows={3} maxLength={2000} value={text} onChange={(event) => setText(event.target.value)} placeholder="Write a message or attach a photo…" /><button className="button button-dark compact" disabled={busy || (!text.trim() && !files.length)}><Send size={16} />Send</button></div></form> : <p className="form-note">This candidate chat is archived. Use the booking conversation for confirmed work.</p>}
           </section>}
         </div>

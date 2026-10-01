@@ -10,7 +10,7 @@ from django.test import override_settings
 from django.utils import timezone
 from rest_framework.test import APITestCase
 from rest_framework.exceptions import PermissionDenied, ValidationError
-from .models import User, PhoneChallenge, IdentityVerification, Block, SafetyReport, Review
+from .models import User, PhoneChallenge, IdentityVerification, Block, SafetyReport, Review, PushSubscription
 from .trust import review_identity
 from tasks.models import Task
 from bookings.models import Application
@@ -262,6 +262,23 @@ class TrustFlowTests(APITestCase):
         self.assertEqual(self.client.post(f"/api/applications/{application.pk}/shortlist/").status_code, 200)
         self.member.is_active = False; self.member.save()
         self.assertEqual(self.client.post(f"/api/applications/{application.pk}/offer/", {"booking_note": "Confirmed task details for testing."}, format="json").status_code, 403)
+
+    def test_push_subscriptions_are_private_to_the_signed_in_member(self):
+        payload = {
+            "endpoint": "https://push.example.test/subscriptions/member-device",
+            "keys": {"p256dh": "test-public-key", "auth": "test-auth-key"},
+        }
+        self.assertEqual(self.client.post("/api/notifications/push-subscription/", payload, format="json").status_code, 204)
+        subscription = PushSubscription.objects.get()
+        self.assertEqual(subscription.user, self.member)
+
+        self.client.force_authenticate(self.other)
+        self.assertEqual(self.client.delete("/api/notifications/push-subscription/", {"endpoint": payload["endpoint"]}, format="json").status_code, 204)
+        self.assertTrue(PushSubscription.objects.filter(pk=subscription.pk).exists())
+
+        self.client.force_authenticate(self.member)
+        self.assertEqual(self.client.delete("/api/notifications/push-subscription/", {"endpoint": payload["endpoint"]}, format="json").status_code, 204)
+        self.assertFalse(PushSubscription.objects.exists())
 
     def test_evidence_retention_expires_pending_without_granting_approval(self):
         self.verify_member_phone()

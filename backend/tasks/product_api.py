@@ -199,7 +199,7 @@ class TaskViewSet(BaseTaskViewSet):
             if created:
                 recipients = [application.applicant for application in task.applications.filter(status="accepted").select_related("applicant")] if request.user.pk == task.requester_id else [task.requester]
                 for recipient in recipients:
-                    if recipient.pk != request.user.pk: notify(recipient, "New task message", f"/messages/{task.public_id}", task.title)
+                    if recipient.pk != request.user.pk: notify(recipient, "New task message", f"/messages/{task.public_id}#message-{message.pk}", task.title)
         return Response(MessageSerializer(message).data, status=201 if created else 200)
 
     @action(detail=True, methods=["post"], url_path="message-upload")

@@ -7,3 +7,4 @@ psycopg[binary]>=3.2,<4.0
 cryptography>=44,<47
 Pillow>=11,<13
 boto3>=1.40,<2.0
+pywebpush>=2.0,<3.0

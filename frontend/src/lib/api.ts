@@ -11,6 +11,14 @@ export function setToken(token: string) {
   window.dispatchEvent(new Event("nearwork_auth"));
 }
 export function clearToken() {
+  const token = localStorage.getItem("nearwork_token");
+  if (token && typeof navigator !== "undefined" && "serviceWorker" in navigator) {
+    navigator.serviceWorker.ready.then((registration) => registration.pushManager.getSubscription()).then((subscription) => {
+      if (!subscription) return;
+      fetch(`${BASE}/notifications/push-subscription/`, { method: "DELETE", headers: { "Content-Type": "application/json", Authorization: `Token ${token}` }, body: JSON.stringify({ endpoint: subscription.endpoint }), keepalive: true }).catch(() => {});
+      subscription.unsubscribe().catch(() => {});
+    }).catch(() => {});
+  }
   localStorage.removeItem("nearwork_token");
   window.dispatchEvent(new Event("nearwork_auth"));
 }

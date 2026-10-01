@@ -181,7 +181,7 @@ class ApplicationViewSet(BaseApplicationViewSet):
             if not created and (message.text != defaults["text"] or message.attachments != defaults["attachments"]):
                 raise ValidationError("This message identifier has already been used.")
             if created:
-                notify(other, "New candidate message", f"/applications/{application.pk}", application.task.title)
+                notify(other, "New candidate message", f"/applications/{application.pk}#message-{message.pk}", application.task.title)
         return Response(ApplicationMessageSerializer(message).data, status=201 if created else 200)
 
     @action(detail=True, methods=["post"], url_path="message-upload")

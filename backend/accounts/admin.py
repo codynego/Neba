@@ -3,7 +3,7 @@ from django.contrib.auth.admin import UserAdmin
 from django.utils.html import format_html
 from rest_framework.authtoken.models import Token
 from rest_framework.exceptions import APIException
-from .models import User, IdentityVerification, SafetyReport, Review, TrustAudit
+from .models import User, IdentityVerification, SafetyReport, Review, TrustAudit, PushSubscription
 from .trust import review_identity
 
 @admin.register(User)
@@ -94,5 +94,14 @@ class AuditAdmin(admin.ModelAdmin):
     def has_change_permission(self, request, obj=None):
         return False
     def has_delete_permission(self, request, obj=None):
+        return False
+
+@admin.register(PushSubscription)
+class PushSubscriptionAdmin(admin.ModelAdmin):
+    list_display = ("user", "endpoint", "updated_at")
+    readonly_fields = ("user", "endpoint", "p256dh", "auth", "user_agent", "created_at", "updated_at")
+    def has_add_permission(self, request):
+        return False
+    def has_change_permission(self, request, obj=None):
         return False
 
