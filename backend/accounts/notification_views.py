@@ -23,7 +23,7 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=["get"])
     def unread(self, request):
         unread = self.get_queryset().filter(read_at__isnull=True)
-        message_count = unread.filter(title__in=("New task message", "New candidate message")).count()
+        message_count = unread.filter(title="New task message").count()
         return Response({"count": unread.count(), "message_count": message_count, "activity_count": unread.count() - message_count})
     @action(detail=True, methods=["post"])
     def read(self, request, pk=None):
@@ -34,6 +34,11 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=["post"], url_path="read-all")
     def read_all(self, request):
         self.get_queryset().filter(read_at__isnull=True).update(read_at=timezone.now())
+        return Response(status=204)
+
+    @action(detail=False, methods=["post"], url_path="read-task-messages")
+    def read_task_messages(self, request):
+        self.get_queryset().filter(read_at__isnull=True, title="New task message").update(read_at=timezone.now())
         return Response(status=204)
 
     @action(detail=False, methods=["get"], url_path="push-config")

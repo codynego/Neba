@@ -14,6 +14,9 @@ export default function MessagesPage() {
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
   useEffect(() => {
+    api("/notifications/read-task-messages/", { method: "POST" }).then(() => window.dispatchEvent(new Event("neba_notifications"))).catch(() => {});
+  }, []);
+  useEffect(() => {
     const controller = new AbortController();
     async function load() {
       try {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { BellRing, X } from "lucide-react";
+import { BellRing, Check, X } from "lucide-react";
 import { api, getToken } from "@/lib/api";
 import { isPublicPath } from "@/lib/routes";
 import { usePathname } from "next/navigation";
@@ -14,6 +14,66 @@ function keyBytes(value: string) {
   return Uint8Array.from(raw, (character) => character.charCodeAt(0));
 }
 
+export async function subscribeToPush(key: string) {
+  const registration = await navigator.serviceWorker.register("/sw.js", { scope: "/", updateViaCache: "none" });
+  const ready = await navigator.serviceWorker.ready;
+  let subscription = await ready.pushManager.getSubscription();
+  if (!subscription) subscription = await ready.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(key) });
+  await api("/notifications/push-subscription/", { method: "POST", body: JSON.stringify(subscription.toJSON()) });
+  return registration;
+}
+
+function pushSupported() {
+  return typeof window !== "undefined" && window.isSecureContext && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+}
+
+export function PushNotificationSettings() {
+  const [publicKey, setPublicKey] = useState("");
+  const [permission, setPermission] = useState<NotificationPermission | "unavailable">("default");
+  const [enabled, setEnabled] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!pushSupported()) { setPermission("unavailable"); return; }
+    setPermission(Notification.permission);
+    api<{ public_key: string }>("/notifications/push-config/").then(async ({ public_key }) => {
+      setPublicKey(public_key || "");
+      if (Notification.permission === "granted") {
+        const registration = await navigator.serviceWorker.getRegistration("/");
+        setEnabled(Boolean(await registration?.pushManager.getSubscription()));
+      }
+    }).catch(() => setError("Notification settings could not be loaded."));
+  }, []);
+
+  async function enable() {
+    if (!publicKey || busy) return;
+    setBusy(true); setError("");
+    try {
+      const nextPermission = await Notification.requestPermission();
+      setPermission(nextPermission);
+      if (nextPermission !== "granted") return;
+      await subscribeToPush(publicKey);
+      setEnabled(true);
+    } catch {
+      setError("Notifications could not be enabled. Check your browser settings and try again.");
+    } finally { setBusy(false); }
+  }
+
+  const unavailable = permission === "unavailable";
+  const blocked = permission === "denied";
+  const configured = Boolean(publicKey);
+  return <section className="notification-settings" aria-labelledby="notification-settings-title">
+    <div className="notification-settings-icon" aria-hidden="true"><BellRing size={18} /></div>
+    <div className="notification-settings-copy">
+      <div className="notification-settings-heading"><h2 id="notification-settings-title">Notifications</h2>{enabled && <span className="notification-settings-status"><Check size={13} /> Enabled</span>}</div>
+      <p>{unavailable ? "Push notifications aren’t available in this browser or connection." : blocked ? "Notifications are blocked in your browser. Allow them in this site’s settings, then try again." : !configured ? "Push notifications aren’t configured yet." : enabled ? "You’ll get messages, booking updates and task activity as they happen." : "Get messages, booking updates and task activity even when GetNeba is closed."}</p>
+      {error && <small className="form-error" role="alert">{error}</small>}
+      {!unavailable && configured && !blocked && !enabled && <button type="button" className="button button-dark compact" onClick={enable} disabled={busy}>{busy ? "Enabling…" : "Enable notifications"}</button>}
+    </div>
+  </section>;
+}
+
 export function PushNotifications() {
   const path = usePathname();
   const [publicKey, setPublicKey] = useState("");
@@ -21,14 +81,7 @@ export function PushNotifications() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  const subscribe = useCallback(async (key: string) => {
-    const registration = await navigator.serviceWorker.register("/sw.js", { scope: "/", updateViaCache: "none" });
-    const ready = await navigator.serviceWorker.ready;
-    let subscription = await ready.pushManager.getSubscription();
-    if (!subscription) subscription = await ready.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(key) });
-    await api("/notifications/push-subscription/", { method: "POST", body: JSON.stringify(subscription.toJSON()) });
-    return registration;
-  }, []);
+  const subscribe = useCallback(subscribeToPush, []);
 
   useEffect(() => {
     if (path !== "/dashboard" || isPublicPath(path) || !getToken() || !window.isSecureContext || !("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) { setVisible(false); return; }
