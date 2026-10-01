@@ -15,6 +15,7 @@ from accounts.safety_views import trust_summary
 from accounts import r2
 from accounts.listing_photos import upload_ticket, PhotoUploadsUnavailable
 from bookings.models import Application, TaskMessage, TaskChange, TaskIssue
+from bookings.message_attachments import attachment_response, upload_ticket as message_upload_ticket, validate_attachments
 from bookings.workflow import participants, require_available, propose_change, decide_change
 from .models import Task
 from .views import TaskViewSet as BaseTaskViewSet, TaskSerializer as BaseTaskSerializer
@@ -50,7 +51,7 @@ class MessageSerializer(serializers.ModelSerializer):
     sender_name = serializers.CharField(source="sender.display_name", read_only=True)
     class Meta:
         model = TaskMessage
-        fields = ("id", "sender", "sender_name", "text", "client_id", "created_at")
+        fields = ("id", "sender", "sender_name", "text", "attachments", "client_id", "created_at")
 
 class ChangeInput(serializers.Serializer):
     kind = serializers.ChoiceField(choices=("complete", "cancel", "reschedule"))
@@ -58,8 +59,16 @@ class ChangeInput(serializers.Serializer):
     scheduled_for = serializers.DateTimeField(required=False, allow_null=True, default=None)
 
 class MessageInput(serializers.Serializer):
-    text = serializers.CharField(max_length=2000, min_length=1)
+    text = serializers.CharField(max_length=2000, required=False, allow_blank=True, default="")
+    attachments = serializers.ListField(child=serializers.DictField(), required=False, default=list)
     client_id = serializers.UUIDField()
+
+    def validate(self, attrs):
+        attrs["text"] = attrs["text"].strip()
+        attrs["attachments"] = validate_attachments(self.context["request"].user, attrs["attachments"])
+        if not attrs["text"] and not attrs["attachments"]:
+            raise serializers.ValidationError("Write a message or attach a file.")
+        return attrs
 
 class IssueInput(serializers.Serializer):
     kind = serializers.ChoiceField(choices=("no_show", "dispute"))
@@ -177,18 +186,34 @@ class TaskViewSet(BaseTaskViewSet):
             after = serializers.IntegerField(min_value=0).run_validation(request.query_params.get("after", 0))
             items = list(task.messages.select_related("sender").filter(id__gt=after)[:51])
             return Response({"results": MessageSerializer(items[:50], many=True).data, "has_more": len(items)>50})
-        serializer = MessageInput(data=request.data); serializer.is_valid(raise_exception=True)
+        serializer = MessageInput(data=request.data, context={"request": request}); serializer.is_valid(raise_exception=True)
         with transaction.atomic():
             task = Task.objects.select_for_update().get(pk=task.pk); other = participants(task, request.user)
             require_available(task, request.user, other, communication=True)
             if task.status in ("completed", "cancelled"): raise ValidationError("This conversation is archived because the task has ended.")
-            message, created = TaskMessage.objects.get_or_create(task=task, sender=request.user, client_id=serializer.validated_data["client_id"], defaults={"text": serializer.validated_data["text"]})
-            if not created and message.text != serializer.validated_data["text"]: raise ValidationError("This message identifier has already been used.")
+            defaults = {"text": serializer.validated_data["text"], "attachments": serializer.validated_data["attachments"]}
+            message, created = TaskMessage.objects.get_or_create(task=task, sender=request.user, client_id=serializer.validated_data["client_id"], defaults=defaults)
+            if not created and (message.text != defaults["text"] or message.attachments != defaults["attachments"]): raise ValidationError("This message identifier has already been used.")
             if created:
                 recipients = [application.applicant for application in task.applications.filter(status="accepted").select_related("applicant")] if request.user.pk == task.requester_id else [task.requester]
                 for recipient in recipients:
                     if recipient.pk != request.user.pk: notify(recipient, "New task message", f"/messages/{task.public_id}", task.title)
         return Response(MessageSerializer(message).data, status=201 if created else 200)
+
+    @action(detail=True, methods=["post"], url_path="message-upload")
+    def message_upload(self, request, pk=None):
+        task = self.get_object(); other = participants(task, request.user)
+        require_available(task, request.user, other, communication=True)
+        if task.status in ("completed", "cancelled"):
+            raise ValidationError("This conversation is archived because the task has ended.")
+        return Response(message_upload_ticket(request.user, request.data))
+
+    @action(detail=True, methods=["get"], url_path=r"messages/(?P<message_id>[0-9]+)/attachments/(?P<attachment_index>[0-9]+)")
+    def message_attachment(self, request, pk=None, message_id=None, attachment_index=None):
+        task = self.get_object(); participants(task, request.user)
+        message = get_object_or_404(task.messages, pk=message_id)
+        data = attachment_response(message, attachment_index)
+        return Response(data, status=200 if data else 404)
 
     @action(detail=True, methods=["post"])
     def changes(self, request, pk=None):

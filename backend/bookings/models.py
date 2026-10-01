@@ -28,7 +28,8 @@ class Application(models.Model):
 class ApplicationMessage(models.Model):
     application = models.ForeignKey(Application, on_delete=models.CASCADE, related_name="messages")
     sender = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    text = models.TextField(max_length=2000)
+    text = models.TextField(max_length=2000, blank=True)
+    attachments = models.JSONField(default=list, blank=True)
     client_id = models.UUIDField()
     created_at = models.DateTimeField(auto_now_add=True)
     class Meta:
@@ -38,7 +39,8 @@ class ApplicationMessage(models.Model):
 class TaskMessage(models.Model):
     task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name="messages")
     sender = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    text = models.TextField(max_length=2000)
+    text = models.TextField(max_length=2000, blank=True)
+    attachments = models.JSONField(default=list, blank=True)
     client_id = models.UUIDField()
     created_at = models.DateTimeField(auto_now_add=True)
     class Meta:

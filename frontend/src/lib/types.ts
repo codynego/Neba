@@ -25,10 +25,11 @@ export type Application = {
   id: number; task: number; task_public_id?: string; task_title: string; applicant: number; applicant_public_id?: string; applicant_username?: string; applicant_name: string;
   message: string; booking_note: string; contact_phone: string; status: "pending" | "shortlisted" | "offered" | "accepted" | "declined" | "withdrawn"; created_at: string; applicant_trust?: Trust;
 };
-export type ApplicationMessage = { id: number; sender: number; sender_name: string; text: string; client_id: string; created_at: string };
+export type MessageAttachment = { key: string; name: string; content_type: string; size: number };
+export type ApplicationMessage = { id: number; sender: number; sender_name: string; text: string; attachments: MessageAttachment[]; client_id: string; created_at: string };
 export type TaskChange = { id: number; proposer: number; kind: "complete" | "cancel" | "reschedule"; reason: string; scheduled_for: string | null; status: "pending" | "accepted" | "declined" | "withdrawn"; created_at: string };
 export type TaskIssue = { id: number; reporter: number; kind: "no_show" | "dispute"; details: string; status: "open" | "reviewing" | "resolved"; outcome: string; resolution: string; created_at: string };
-export type TaskMessage = { id: number; sender: number; sender_name: string; text: string; client_id: string; created_at: string };
+export type TaskMessage = { id: number; sender: number; sender_name: string; text: string; attachments: MessageAttachment[]; client_id: string; created_at: string };
 export type Workspace = { task: Task; my_role: "helper" | "requester"; member: Trust & { id: number; display_name: string }; members?: Array<Trust & { id: number; display_name: string }>; can_message: boolean; contact_phone: string; pending_change: TaskChange | null; active_issue: TaskIssue | null; changes: TaskChange[]; issues: TaskIssue[] };
 export type Notification = { id: number; title: string; detail: string; path: string; read_at: string | null; created_at: string };
 export type Conversation = { task_id: number; task_public_id?: string; title: string; status: Task["status"]; member: Trust & { id: number; display_name: string }; last_message: string; last_message_at: string | null; updated_at: string };

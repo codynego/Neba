@@ -11,6 +11,7 @@ from accounts.trust import are_blocked, require_helper, require_profile
 from tasks.models import Task
 
 from .models import Application, ApplicationMessage
+from .message_attachments import attachment_response, upload_ticket, validate_attachments
 from .views import ApplicationViewSet as BaseApplicationViewSet
 
 
@@ -19,12 +20,20 @@ class ApplicationMessageSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ApplicationMessage
-        fields = ("id", "sender", "sender_name", "text", "client_id", "created_at")
+        fields = ("id", "sender", "sender_name", "text", "attachments", "client_id", "created_at")
 
 
 class MessageInput(serializers.Serializer):
-    text = serializers.CharField(max_length=2000, min_length=1)
+    text = serializers.CharField(max_length=2000, required=False, allow_blank=True, default="")
+    attachments = serializers.ListField(child=serializers.DictField(), required=False, default=list)
     client_id = serializers.UUIDField()
+
+    def validate(self, attrs):
+        attrs["text"] = attrs["text"].strip()
+        attrs["attachments"] = validate_attachments(self.context["request"].user, attrs["attachments"])
+        if not attrs["text"] and not attrs["attachments"]:
+            raise serializers.ValidationError("Write a message or attach a file.")
+        return attrs
 
 
 class BookingOfferInput(serializers.Serializer):
@@ -161,18 +170,35 @@ class ApplicationViewSet(BaseApplicationViewSet):
             raise ValidationError("Shortlist this applicant before starting a private chat.")
         if not request.user.is_active or not other.is_active or are_blocked(request.user, other):
             raise PermissionDenied("This conversation is unavailable.")
-        data = MessageInput(data=request.data)
+        data = MessageInput(data=request.data, context={"request": request})
         data.is_valid(raise_exception=True)
         with transaction.atomic():
             application = Application.objects.select_for_update().get(pk=application.pk)
             if application.status not in (Application.Status.SHORTLISTED, Application.Status.OFFERED):
                 raise ValidationError("This candidate conversation is now archived.")
-            message, created = ApplicationMessage.objects.get_or_create(application=application, sender=request.user, client_id=data.validated_data["client_id"], defaults={"text": data.validated_data["text"]})
-            if not created and message.text != data.validated_data["text"]:
+            defaults = {"text": data.validated_data["text"], "attachments": data.validated_data["attachments"]}
+            message, created = ApplicationMessage.objects.get_or_create(application=application, sender=request.user, client_id=data.validated_data["client_id"], defaults=defaults)
+            if not created and (message.text != defaults["text"] or message.attachments != defaults["attachments"]):
                 raise ValidationError("This message identifier has already been used.")
             if created:
                 notify(other, "New candidate message", f"/applications/{application.pk}", application.task.title)
         return Response(ApplicationMessageSerializer(message).data, status=201 if created else 200)
+
+    @action(detail=True, methods=["post"], url_path="message-upload")
+    def message_upload(self, request, pk=None):
+        application = self.get_object()
+        other = self._participants(application)
+        if application.status not in (Application.Status.SHORTLISTED, Application.Status.OFFERED) or are_blocked(request.user, other):
+            raise PermissionDenied("This conversation is unavailable.")
+        return Response(upload_ticket(request.user, request.data))
+
+    @action(detail=True, methods=["get"], url_path=r"messages/(?P<message_id>[0-9]+)/attachments/(?P<attachment_index>[0-9]+)")
+    def message_attachment(self, request, pk=None, message_id=None, attachment_index=None):
+        application = self.get_object()
+        self._participants(application)
+        message = get_object_or_404(application.messages, pk=message_id)
+        data = attachment_response(message, attachment_index)
+        return Response(data, status=200 if data else 404)
 
     @action(detail=True, methods=["post"])
     def withdraw(self, request, pk=None):

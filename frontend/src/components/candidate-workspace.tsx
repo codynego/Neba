@@ -6,6 +6,7 @@ import { ArrowLeft, ArrowRight, Check, CircleCheck, MessageCircle, Send, ShieldC
 import { api } from "@/lib/api";
 import { Application, ApplicationMessage, User } from "@/lib/types";
 import { MemberPhoto, TrustBadges } from "./trust";
+import { AttachmentPicker, MessageAttachments, uploadMessageFiles } from "./message-attachments";
 
 const stages = ["Applied", "Shortlisted", "Offer sent", "Booked"];
 const stageByStatus: Partial<Record<Application["status"], number>> = { pending: 0, shortlisted: 1, offered: 2, accepted: 3 };
@@ -28,6 +29,8 @@ export function CandidateWorkspace({ applicationId }: { applicationId: string })
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [feedback, setFeedback] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
+  const [uploadProgress, setUploadProgress] = useState("");
   const lastMessage = useRef(0);
   const messageRequest = useRef(false);
   const base = `/applications/${applicationId}`;
@@ -83,8 +86,15 @@ export function CandidateWorkspace({ applicationId }: { applicationId: string })
   async function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const value = text.trim();
-    if (!value) return;
-    if (await act("messages", { text: value, client_id: crypto.randomUUID() }, "Message sent.")) setText("");
+    if (!value && !files.length) return;
+    setBusy(true); setError(""); setFeedback("");
+    try {
+      const attachments = files.length ? await uploadMessageFiles(base, files, setUploadProgress) : [];
+      setUploadProgress("Sending…");
+      await api(`${base}/messages/`, { method: "POST", body: JSON.stringify({ text: value, attachments, client_id: crypto.randomUUID() }) });
+      setText(""); setFiles([]); setFeedback("Message sent."); await loadMessages(); window.dispatchEvent(new Event("neba_notifications"));
+    } catch (err) { setError((err as Error).message); }
+    finally { setBusy(false); setUploadProgress(""); }
   }
 
   async function sendOffer(event: FormEvent<HTMLFormElement>) {
@@ -123,8 +133,8 @@ export function CandidateWorkspace({ applicationId }: { applicationId: string })
 
           {(chatOpen || messages.length > 0) && <section className="candidate-chat">
             <div className="candidate-section-heading"><span><MessageCircle size={18} /></span><div><h2>Before-you-book chat</h2><p>Ask about experience, availability, approach, timing, and the reward. Contact details stay private.</p></div></div>
-            <div className="message-list" role="log" aria-label="Candidate messages" aria-live="polite">{messages.length ? messages.map((message) => <article className={`message-bubble ${message.sender === me.id ? "mine" : ""}`} key={message.id}><strong>{message.sender === me.id ? "You" : message.sender_name || "Task partner"}</strong><p>{message.text}</p><small>{new Date(message.created_at).toLocaleString("en-NG")}</small></article>) : <p className="panel-empty">No messages yet. Start with the detail that matters most for this task.</p>}</div>
-            {chatOpen ? <form className="message-compose" onSubmit={sendMessage}><label className="sr-only" htmlFor="candidate-message">Message about this application</label><textarea id="candidate-message" rows={3} maxLength={2000} value={text} onChange={(event) => setText(event.target.value)} placeholder="Ask a clear question about the task…" required /><button className="button button-dark compact" disabled={busy || !text.trim()}><Send size={16} />Send</button></form> : <p className="form-note">This candidate chat is archived. Use the booking conversation for confirmed work.</p>}
+            <div className="message-list" role="log" aria-label="Candidate messages" aria-live="polite">{messages.length ? messages.map((message) => <article className={`message-bubble ${message.sender === me.id ? "mine" : ""}`} key={message.id}><strong>{message.sender === me.id ? "You" : message.sender_name || "Task partner"}</strong>{message.text && <p>{message.text}</p>}<MessageAttachments base={base} messageId={message.id} attachments={message.attachments} /><small>{new Date(message.created_at).toLocaleString("en-NG")}</small></article>) : <p className="panel-empty">No messages yet. Start with the detail that matters most for this task.</p>}</div>
+            {chatOpen ? <form className="message-compose" onSubmit={sendMessage}><AttachmentPicker files={files} disabled={busy} progress={uploadProgress} onChange={setFiles} onError={setError} /><div className="message-compose-row"><label className="sr-only" htmlFor="candidate-message">Message about this application</label><textarea id="candidate-message" rows={3} maxLength={2000} value={text} onChange={(event) => setText(event.target.value)} placeholder="Write a message or attach a photo…" /><button className="button button-dark compact" disabled={busy || (!text.trim() && !files.length)}><Send size={16} />Send</button></div></form> : <p className="form-note">This candidate chat is archived. Use the booking conversation for confirmed work.</p>}
           </section>}
         </div>
 

@@ -137,6 +137,41 @@ class ProductFlowTests(APITestCase):
         self.assertEqual(self.client.get(self.path("messages")).status_code,404)
         self.assertEqual(self.client.get(self.path("workspace")).status_code,404)
 
+    @patch("bookings.message_attachments.r2.object_bytes", return_value=b"%PDF-1.7\nproof")
+    @patch("bookings.message_attachments.r2.object_metadata", return_value={"ContentLength": 14, "ContentType": "application/pdf"})
+    def test_message_can_contain_private_proof_attachment_without_text(self, metadata, content):
+        self.assign()
+        key = f"message-attachments/{self.helper.pk}/proof.pdf"
+        payload = {"text": "", "client_id": str(uuid.uuid4()), "attachments": [{
+            "key": key, "name": "Completion proof.pdf", "content_type": "application/pdf", "size": 14,
+        }]}
+        sent = self.client.post(self.path("messages"), payload, format="json")
+        self.assertEqual(sent.status_code, 201, sent.data)
+        self.assertEqual(sent.data["attachments"][0]["name"], "Completion proof.pdf")
+        message_id = sent.data["id"]
+        with patch("bookings.message_attachments.r2.configured", return_value=True), patch(
+            "bookings.message_attachments.r2.download_url", return_value="https://files.example.test/proof"
+        ):
+            opened = self.client.get(self.path(f"messages/{message_id}/attachments/0"))
+            self.assertEqual(opened.status_code, 200)
+            self.assertEqual(opened.data["url"], "https://files.example.test/proof")
+            self.client.force_authenticate(self.stranger)
+            self.assertEqual(self.client.get(self.path(f"messages/{message_id}/attachments/0")).status_code, 404)
+
+    @patch("bookings.message_attachments.r2.upload_url", return_value="https://upload.example.test/signed")
+    @patch("bookings.message_attachments.r2.configured", return_value=True)
+    def test_message_upload_ticket_requires_conversation_access(self, configured, upload_url):
+        self.assign()
+        ticket = self.client.post(self.path("message-upload"), {
+            "name": "before.jpg", "content_type": "image/jpeg", "size": 2048,
+        }, format="json")
+        self.assertEqual(ticket.status_code, 200)
+        self.assertTrue(ticket.data["key"].startswith(f"message-attachments/{self.helper.pk}/"))
+        self.client.force_authenticate(self.stranger)
+        self.assertEqual(self.client.post(self.path("message-upload"), {
+            "name": "private.jpg", "content_type": "image/jpeg", "size": 2048,
+        }, format="json").status_code, 404)
+
     def test_conversation_inbox_is_private_and_keeps_ended_history(self):
         self.assertEqual(self.client.get("/api/tasks/conversations/").data["count"], 0)
         self.assign()
