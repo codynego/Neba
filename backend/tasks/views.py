@@ -38,13 +38,17 @@ class TaskSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Enter an amount greater than zero.")
         return value
     def validate_helpers_needed(self, value):
-        if value < 1 or value > 20:
-            raise serializers.ValidationError("Choose between 1 and 20 helpers.")
+        if value != 1:
+            raise serializers.ValidationError("Tasks currently support one helper only.")
         return value
     def validate(self, attrs):
         confirmed = attrs.pop("policy_confirmed", False)
         if self.instance is None and not confirmed:
             raise serializers.ValidationError({"policy_confirmed": "Confirm that this task follows Neba’s task policy."})
+        if attrs.get("is_recurring", getattr(self.instance, "is_recurring", False)):
+            raise serializers.ValidationError({"is_recurring": "Recurring tasks are temporarily unavailable."})
+        if attrs.get("helpers_needed", getattr(self.instance, "helpers_needed", 1)) != 1:
+            raise serializers.ValidationError({"helpers_needed": "Tasks currently support one helper only."})
         reward_type = attrs.get("reward_type", getattr(self.instance, "reward_type", Task.RewardType.MONEY))
         reward_amount = attrs.get("reward_amount", getattr(self.instance, "reward_amount", None))
         reward_note = attrs.get("reward_note", getattr(self.instance, "reward_note", "")).strip()
