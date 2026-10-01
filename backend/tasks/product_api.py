@@ -75,8 +75,15 @@ class TaskViewSet(BaseTaskViewSet):
             queryset = queryset.filter(Q(title__icontains=search) | Q(description__icontains=search))
         owner = Q(requester=user)
         helper = Q(applications__applicant=user, applications__status="accepted")
-        if self.request.query_params.get("mine") == "true": return queryset.filter(owner).distinct().order_by("-created_at")
-        if self.request.query_params.get("bookings") == "true": return queryset.filter(owner | helper).exclude(status="open").distinct().order_by("-updated_at")
+        active_only = self.request.query_params.get("active") == "true"
+        if self.request.query_params.get("mine") == "true":
+            queryset = queryset.filter(owner)
+            if active_only: queryset = queryset.exclude(status__in=(Task.Status.COMPLETED, Task.Status.CANCELLED))
+            return queryset.distinct().order_by("-created_at")
+        if self.request.query_params.get("bookings") == "true":
+            queryset = queryset.filter(owner | helper).exclude(status="open")
+            if active_only: queryset = queryset.exclude(status__in=(Task.Status.COMPLETED, Task.Status.CANCELLED))
+            return queryset.distinct().order_by("-updated_at")
         if self.request.query_params.get("invitations") == "true": return queryset.filter(target_helper=user, status="open", is_private=True, moderation_status=Task.ModerationStatus.APPROVED).order_by("-created_at")
         discover = Q(is_private=False, status="open", moderation_status=Task.ModerationStatus.APPROVED, requester__is_active=True) & ~Q(requester_id__in=blocked_user_ids(user))
         target = Q(target_helper=user, moderation_status=Task.ModerationStatus.APPROVED)

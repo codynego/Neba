@@ -58,6 +58,8 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(task__requester=user)
         else:
             queryset = queryset.filter(applicant=user)
+        if self.request.query_params.get("active") == "true":
+            queryset = queryset.filter(status__in=(Application.Status.PENDING, Application.Status.SHORTLISTED, Application.Status.OFFERED, Application.Status.ACCEPTED)).exclude(task__status__in=(Task.Status.COMPLETED, Task.Status.CANCELLED))
         search = self.request.query_params.get("search", "").strip()
         if search:
             queryset = queryset.filter(Q(task__title__icontains=search) | Q(applicant__display_name__icontains=search) |

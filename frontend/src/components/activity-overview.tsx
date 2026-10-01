@@ -64,7 +64,6 @@ export function ActivityOverview() {
       const search = currentQuery ? `&search=${encodeURIComponent(currentQuery)}` : "";
       const result = await api<Page<ActivityItem>>(`${endpoints[active]}&page=${currentPage}${search}`, { signal });
       setDatasets((current) => ({ ...current, [active]: result }));
-      setCounts((current) => ({ ...current, [active]: result.count }));
     } finally {
       if (!signal?.aborted) setLoading(false);
     }
@@ -79,7 +78,7 @@ export function ActivityOverview() {
 
   useEffect(() => {
     const controller = new AbortController();
-    Promise.all(sections.map((item) => api<Page<ActivityItem>>(`${endpoints[item.id]}&page=1`, { signal: controller.signal }).then((result) => [item.id, result.count] as const)))
+    Promise.all(sections.map((item) => api<Page<ActivityItem>>(`${endpoints[item.id]}&active=true&page=1`, { signal: controller.signal }).then((result) => [item.id, result.count] as const)))
       .then((results) => setCounts((current) => ({ ...current, ...Object.fromEntries(results) as Record<Section, number> })))
       .catch(() => {});
     return () => controller.abort();

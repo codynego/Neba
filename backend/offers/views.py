@@ -58,6 +58,7 @@ class OfferViewSet(CachedListMixin, viewsets.ModelViewSet):
         queryset = Offer.objects.select_related("provider")
         if self.request.query_params.get("mine") == "true":
             queryset = queryset.filter(provider=self.request.user) if self.request.user.is_authenticated else queryset.none()
+            if self.request.query_params.get("active") == "true": queryset = queryset.filter(active=True)
             search = self.request.query_params.get("search", "").strip()
             if search:
                 queryset = queryset.filter(Q(title__icontains=search) | Q(description__icontains=search) | Q(city__icontains=search))
