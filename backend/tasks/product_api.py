@@ -10,6 +10,7 @@ from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from accounts.trust import blocked_user_ids, require_helper, require_profile, are_blocked
 from accounts.notifications import notify
+from accounts.models import Notification
 from accounts.emailing import safely, send_direct_request_decision_email
 from accounts.safety_views import trust_summary
 from accounts import r2
@@ -23,14 +24,29 @@ from .views import TaskViewSet as BaseTaskViewSet, TaskSerializer as BaseTaskSer
 class TaskSerializer(BaseTaskSerializer):
     has_booking = serializers.SerializerMethodField()
     my_booking = serializers.SerializerMethodField()
+    my_application = serializers.SerializerMethodField()
     def get_has_booking(self, task):
         return task.applications.filter(status="accepted").exists()
     def get_my_booking(self, task):
         user = self.context.get("request").user if self.context.get("request") else None
         return bool(user and user.is_authenticated and task.applications.filter(status="accepted", applicant=user).exists())
+    def get_my_application(self, task):
+        user = self.context.get("request").user if self.context.get("request") else None
+        if not user or not user.is_authenticated:
+            return None
+        application = task.applications.filter(applicant=user).first()
+        if not application:
+            return None
+        has_unread_message = Notification.objects.filter(
+            recipient=user,
+            read_at__isnull=True,
+            title="New candidate message",
+            path__startswith=f"/applications/{application.public_id}#message-",
+        ).exists()
+        return {"public_id": str(application.public_id), "status": application.status, "has_unread_message": has_unread_message}
     target_helper_name = serializers.CharField(source="target_helper.display_name", read_only=True, default="")
     class Meta(BaseTaskSerializer.Meta):
-        fields = BaseTaskSerializer.Meta.fields + ("is_private", "target_helper", "target_helper_name", "requested_offer", "has_booking", "my_booking")
+        fields = BaseTaskSerializer.Meta.fields + ("is_private", "target_helper", "target_helper_name", "requested_offer", "has_booking", "my_booking", "my_application")
         read_only_fields = BaseTaskSerializer.Meta.read_only_fields + ("is_private", "target_helper", "target_helper_name", "requested_offer")
     def validate_scheduled_for(self, value):
         if value and value <= timezone.now():

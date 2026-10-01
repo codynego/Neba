@@ -1,4 +1,6 @@
 ﻿from django.db import transaction
+import uuid
+
 from rest_framework import permissions, serializers, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -21,8 +23,8 @@ class ApplicationSerializer(serializers.ModelSerializer):
     task_public_id = serializers.UUIDField(source="task.public_id", read_only=True)
     class Meta:
         model = Application
-        fields = ("id", "task", "task_public_id", "task_title", "applicant", "applicant_public_id", "applicant_username", "applicant_name", "message", "booking_note", "contact_phone", "status", "created_at", "applicant_trust")
-        read_only_fields = ("id", "task_title", "applicant", "applicant_name", "booking_note", "status", "created_at")
+        fields = ("id", "public_id", "task", "task_public_id", "task_title", "applicant", "applicant_public_id", "applicant_username", "applicant_name", "message", "booking_note", "contact_phone", "status", "created_at", "applicant_trust")
+        read_only_fields = ("id", "public_id", "task_title", "applicant", "applicant_name", "booking_note", "status", "created_at")
         extra_kwargs = {"contact_phone": {"read_only": True}}
     def to_representation(self, instance):
         data = super().to_representation(instance)
@@ -49,6 +51,18 @@ class ApplicationViewSet(viewsets.ModelViewSet):
     serializer_class = ApplicationSerializer
     http_method_names = ["get", "post", "head", "options"]
     permission_classes = [permissions.IsAuthenticated]
+    def get_object(self):
+        identifier = self.kwargs.get(self.lookup_url_kwarg or self.lookup_field)
+        try:
+            lookup = {"public_id": uuid.UUID(str(identifier))}
+        except (ValueError, TypeError, AttributeError):
+            lookup = {"pk": identifier}
+        application = self.filter_queryset(self.get_queryset()).filter(**lookup).first()
+        if application is None:
+            from rest_framework.exceptions import NotFound
+            raise NotFound()
+        self.check_object_permissions(self.request, application)
+        return application
     def get_queryset(self):
         queryset = Application.objects.select_related("task", "applicant")
         user = self.request.user
@@ -72,7 +86,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
     def accept(self, request, pk=None):
         with transaction.atomic():
             application = get_object_or_404(Application.objects.select_related("task", "applicant").select_for_update(),
-                pk=pk, task__requester=request.user
+                public_id=pk, task__requester=request.user
             )
             require_profile(request.user)
             require_helper(application.applicant)

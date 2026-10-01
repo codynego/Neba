@@ -114,6 +114,22 @@ class ProductFlowTests(APITestCase):
         self.client.force_authenticate(self.stranger)
         self.assertEqual(self.client.post("/api/applications/", {"task": self.task.pk, "message": "Available next week"}).status_code, 201)
 
+    def test_confirmed_helper_can_request_completion_on_an_open_recurring_task(self):
+        self.task.is_recurring = True
+        self.task.save(update_fields=("is_recurring",))
+        first = self.client.post("/api/applications/", {"task": self.task.pk, "message": "Recurring helper"})
+        self.client.force_authenticate(self.owner)
+        self.client.post(f"/api/applications/{first.data['id']}/shortlist/")
+        self.client.post(f"/api/applications/{first.data['id']}/offer/", {"booking_note": "Recurring help every Saturday morning."})
+        self.client.force_authenticate(self.helper)
+        self.assertEqual(self.client.post(f"/api/applications/{first.data['id']}/respond-offer/", {"decision": "accept"}).status_code, 200)
+        requested = self.client.post(self.path("changes"), {"kind": "complete"})
+        self.assertEqual(requested.status_code, 201)
+        self.client.force_authenticate(self.owner)
+        self.assertEqual(self.client.post(self.path(f"changes/{requested.data['id']}/respond"), {"decision": "accept"}).status_code, 200)
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.status, "open")
+
     def test_shortlisted_candidate_chat_is_private_and_retry_safe(self):
         applied = self.client.post("/api/applications/", {"task": self.task.pk, "message": "I can help"})
         self.client.force_authenticate(self.owner)
@@ -121,11 +137,19 @@ class ProductFlowTests(APITestCase):
         payload = {"text": "Have you moved a table like this before?", "client_id": str(uuid.uuid4())}
         sent = self.client.post(f"/api/applications/{applied.data['id']}/messages/", payload, format="json")
         self.assertEqual(sent.status_code, 201)
-        self.assertEqual(Notification.objects.filter(recipient=self.helper, title="New candidate message").get().path, f"/applications/{applied.data['id']}#message-{sent.data['id']}")
+        self.assertEqual(Notification.objects.filter(recipient=self.helper, title="New candidate message").get().path, f"/applications/{applied.data['public_id']}#message-{sent.data['id']}")
         self.assertEqual(self.client.post(f"/api/applications/{applied.data['id']}/messages/", payload, format="json").status_code, 200)
         self.assertEqual(ApplicationMessage.objects.count(), 1)
         self.client.force_authenticate(self.stranger)
         self.assertEqual(self.client.get(f"/api/applications/{applied.data['id']}/messages/").status_code, 404)
+
+    def test_application_detail_uses_a_public_uuid(self):
+        applied = self.client.post("/api/applications/", {"task": self.task.pk, "message": "I can help"})
+        self.assertEqual(applied.status_code, 201)
+        self.assertIn("public_id", applied.data)
+        self.assertEqual(Notification.objects.get(recipient=self.owner, title="New task application").path, f"/applications/{applied.data['public_id']}")
+        self.client.force_authenticate(self.owner)
+        self.assertEqual(self.client.get(f"/api/applications/{applied.data['public_id']}/").status_code, 200)
 
     def test_messages_are_participant_only_and_retries_do_not_duplicate(self):
         self.assign(); client_id=str(uuid.uuid4())

@@ -1,4 +1,6 @@
 ﻿from django.conf import settings
+import uuid
+
 from django.db import models
 from tasks.models import Task
 
@@ -10,6 +12,7 @@ class Application(models.Model):
         ACCEPTED = "accepted", "Accepted"
         DECLINED = "declined", "Declined"
         WITHDRAWN = "withdrawn", "Withdrawn"
+    public_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False, db_index=True)
     task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name="applications")
     applicant = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="applications")
     message = models.TextField(max_length=800)

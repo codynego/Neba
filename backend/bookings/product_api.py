@@ -1,3 +1,5 @@
+import uuid
+
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from rest_framework import serializers
@@ -47,6 +49,12 @@ class ApplicationViewSet(BaseApplicationViewSet):
         self.throttle_scope = "application_messages" if self.action in ("messages", "message_upload") and self.request.method == "POST" else None
         return super().get_throttles()
 
+    def _application(self, identifier, **filters):
+        try:
+            return get_object_or_404(Application, public_id=uuid.UUID(str(identifier)), **filters)
+        except (ValueError, TypeError, AttributeError):
+            return get_object_or_404(Application, pk=identifier, **filters)
+
     def _participants(self, application):
         if self.request.user.pk not in (application.task.requester_id, application.applicant_id):
             raise PermissionDenied("Only the requester and applicant can access this application.")
@@ -63,11 +71,11 @@ class ApplicationViewSet(BaseApplicationViewSet):
         if task.applications.filter(applicant=self.request.user).exists():
             raise ValidationError("You already applied to this task.")
         application = serializer.save(applicant=self.request.user, contact_phone=self.request.user.phone)
-        notify(task.requester, "New task application", f"/applications/{application.pk}", self.request.user.display_name or self.request.user.username)
+        notify(task.requester, "New task application", f"/applications/{application.public_id}", self.request.user.display_name or self.request.user.username)
 
     @action(detail=True, methods=["post"])
     def shortlist(self, request, pk=None):
-        candidate = get_object_or_404(Application, pk=pk, task__requester=request.user)
+        candidate = self._application(pk, task__requester=request.user)
         with transaction.atomic():
             task = Task.objects.select_for_update().get(pk=candidate.task_id)
             application = Application.objects.select_for_update().get(pk=candidate.pk)
@@ -77,14 +85,14 @@ class ApplicationViewSet(BaseApplicationViewSet):
                 raise PermissionDenied("You cannot shortlist a blocked member.")
             application.status = Application.Status.SHORTLISTED
             application.save(update_fields=("status",))
-            notify(application.applicant, "You were shortlisted", f"/applications/{application.pk}", task.title)
+            notify(application.applicant, "You were shortlisted", f"/applications/{application.public_id}", task.title)
         return Response(self.get_serializer(application).data)
 
     @action(detail=True, methods=["post"], url_path="offer")
     def send_offer(self, request, pk=None):
         data = BookingOfferInput(data=request.data)
         data.is_valid(raise_exception=True)
-        candidate = get_object_or_404(Application, pk=pk, task__requester=request.user)
+        candidate = self._application(pk, task__requester=request.user)
         with transaction.atomic():
             task = Task.objects.select_for_update().get(pk=candidate.task_id)
             application = Application.objects.select_related("applicant").select_for_update().get(pk=candidate.pk)
@@ -103,12 +111,12 @@ class ApplicationViewSet(BaseApplicationViewSet):
             application.booking_note = data.validated_data["booking_note"]
             application.status = Application.Status.OFFERED
             application.save(update_fields=("booking_note", "status"))
-            notify(application.applicant, "Booking offer ready to review", f"/applications/{application.pk}", task.title)
+            notify(application.applicant, "Booking offer ready to review", f"/applications/{application.public_id}", task.title)
         return Response(self.get_serializer(application).data)
 
     @action(detail=True, methods=["post"], url_path="retract-offer")
     def retract_offer(self, request, pk=None):
-        candidate = get_object_or_404(Application, pk=pk, task__requester=request.user)
+        candidate = self._application(pk, task__requester=request.user)
         with transaction.atomic():
             task = Task.objects.select_for_update().get(pk=candidate.task_id)
             application = Application.objects.select_for_update().get(pk=candidate.pk)
@@ -117,13 +125,13 @@ class ApplicationViewSet(BaseApplicationViewSet):
             application.status = Application.Status.SHORTLISTED
             application.booking_note = ""
             application.save(update_fields=("status", "booking_note"))
-            notify(application.applicant, "Booking offer withdrawn", f"/applications/{application.pk}", "The requester wants to keep discussing the task.")
+            notify(application.applicant, "Booking offer withdrawn", f"/applications/{application.public_id}", "The requester wants to keep discussing the task.")
         return Response(self.get_serializer(application).data)
 
     @action(detail=True, methods=["post"], url_path="respond-offer")
     def respond_offer(self, request, pk=None):
         decision = serializers.ChoiceField(choices=("accept", "decline")).run_validation(request.data.get("decision"))
-        candidate = get_object_or_404(Application, pk=pk, applicant=request.user)
+        candidate = self._application(pk, applicant=request.user)
         with transaction.atomic():
             task = Task.objects.select_for_update().get(pk=candidate.task_id)
             application = Application.objects.select_related("applicant", "task__requester").select_for_update().get(pk=candidate.pk)
@@ -133,7 +141,7 @@ class ApplicationViewSet(BaseApplicationViewSet):
                 application.status = Application.Status.SHORTLISTED
                 application.booking_note = ""
                 application.save(update_fields=("status", "booking_note"))
-                notify(task.requester, "Booking offer declined", f"/applications/{application.pk}", "You can keep talking or consider another applicant.")
+                notify(task.requester, "Booking offer declined", f"/applications/{application.public_id}", "You can keep talking or consider another applicant.")
                 return Response(self.get_serializer(application).data)
             require_helper(application.applicant)
             require_profile(task.requester)
@@ -181,7 +189,7 @@ class ApplicationViewSet(BaseApplicationViewSet):
             if not created and (message.text != defaults["text"] or message.attachments != defaults["attachments"]):
                 raise ValidationError("This message identifier has already been used.")
             if created:
-                notify(other, "New candidate message", f"/applications/{application.pk}#message-{message.pk}", application.task.title)
+                notify(other, "New candidate message", f"/applications/{application.public_id}#message-{message.pk}", application.task.title)
         return Response(ApplicationMessageSerializer(message).data, status=201 if created else 200)
 
     @action(detail=True, methods=["post"], url_path="message-upload")
@@ -202,7 +210,7 @@ class ApplicationViewSet(BaseApplicationViewSet):
 
     @action(detail=True, methods=["post"])
     def withdraw(self, request, pk=None):
-        candidate = get_object_or_404(Application, pk=pk, applicant=request.user)
+        candidate = self._application(pk, applicant=request.user)
         with transaction.atomic():
             task = Task.objects.select_for_update().get(pk=candidate.task_id)
             application = Application.objects.select_for_update().get(pk=candidate.pk)
@@ -216,7 +224,7 @@ class ApplicationViewSet(BaseApplicationViewSet):
 
     @action(detail=True, methods=["post"])
     def decline(self, request, pk=None):
-        candidate = get_object_or_404(Application, pk=pk, task__requester=request.user)
+        candidate = self._application(pk, task__requester=request.user)
         with transaction.atomic():
             task = Task.objects.select_for_update().get(pk=candidate.task_id)
             application = Application.objects.select_for_update().get(pk=candidate.pk)

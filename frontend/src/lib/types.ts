@@ -8,7 +8,7 @@ export type Task = {
   id: number; public_id: string; requester: number; requester_public_id?: string; requester_username?: string; requester_name: string; title: string; description: string;
   category: Category; city: string; state: string; neighborhood: string;
   reward_type: RewardType; reward_amount: string | null; reward_note: string; scheduled_for: string | null;
-  is_recurring: boolean; helpers_needed: number; accepted_count: number; my_booking?: boolean;
+  is_recurring: boolean; helpers_needed: number; accepted_count: number; my_booking?: boolean; my_application?: { public_id: string; status: Application["status"]; has_unread_message: boolean } | null;
   involves_item: boolean; item_type: ItemType | ""; item_value: string | null; item_already_paid: boolean;
   risk_level: "low" | "medium" | "high"; moderation_status: "approved" | "held" | "rejected"; moderation_reason: string;
   status: "open" | "assigned" | "completed" | "cancelled"; application_count: number; created_at: string; requester_trust?: Trust;
@@ -22,7 +22,7 @@ export type Offer = {
   provider_availability?: Availability; provider_neighborhood?: string;
 };
 export type Application = {
-  id: number; task: number; task_public_id?: string; task_title: string; applicant: number; applicant_public_id?: string; applicant_username?: string; applicant_name: string;
+  id: number; public_id: string; task: number; task_public_id?: string; task_title: string; applicant: number; applicant_public_id?: string; applicant_username?: string; applicant_name: string;
   message: string; booking_note: string; contact_phone: string; status: "pending" | "shortlisted" | "offered" | "accepted" | "declined" | "withdrawn"; created_at: string; applicant_trust?: Trust;
 };
 export type MessageAttachment = { key: string; name: string; content_type: string; size: number };

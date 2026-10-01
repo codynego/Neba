@@ -22,7 +22,9 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
         return Notification.objects.filter(recipient=self.request.user)
     @action(detail=False, methods=["get"])
     def unread(self, request):
-        return Response({"count": self.get_queryset().filter(read_at__isnull=True).count()})
+        unread = self.get_queryset().filter(read_at__isnull=True)
+        message_count = unread.filter(title__in=("New task message", "New candidate message")).count()
+        return Response({"count": unread.count(), "message_count": message_count, "activity_count": unread.count() - message_count})
     @action(detail=True, methods=["post"])
     def read(self, request, pk=None):
         item = self.get_object()

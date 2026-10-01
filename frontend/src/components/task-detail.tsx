@@ -3,13 +3,22 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { ArrowLeft, CalendarDays, LoaderCircle, MapPin, PackageCheck, Repeat2, ShieldAlert, ShieldCheck, Users, WalletCards } from "lucide-react";
+import { ArrowLeft, CalendarDays, LoaderCircle, MapPin, MessageCircle, PackageCheck, Repeat2, ShieldAlert, ShieldCheck, Users, WalletCards } from "lucide-react";
 import { api } from "@/lib/api";
 import { Task, User, categories, itemTypeLabels, naira, rewardLabel, rewardTypeLabels } from "@/lib/types";
 import { TrustBadges, VerificationGate } from "./trust";
 import { SafetyActions } from "./safety-actions";
 import { BookingWorkspace } from "./booking-workspace";
 import { ListingPhotoGallery } from "./listing-photos";
+
+const applicationProgress = {
+  pending: { title: "Application sent", detail: "The tasker is reviewing your application. You are not booked yet.", action: "View application" },
+  shortlisted: { title: "You’re shortlisted", detail: "The tasker wants to talk before choosing. Reply in the private chat.", action: "Open candidate chat" },
+  offered: { title: "Booking offer ready", detail: "Review the agreed work, timing, and reward. Confirm only when it works for you.", action: "Review booking offer" },
+  accepted: { title: "Booking confirmed", detail: "You and the tasker agreed. Continue in the booking conversation.", action: "Open booking" },
+  declined: { title: "Application closed", detail: "The tasker is not continuing with this application.", action: "View application" },
+  withdrawn: { title: "Application withdrawn", detail: "You withdrew this application. No booking was created.", action: "View application" },
+} as const;
 
 export function TaskDetail({ id }: { id: string }) {
   const router = useRouter();
@@ -51,6 +60,7 @@ export function TaskDetail({ id }: { id: string }) {
 
   if (!task || !me) return <main className="detail-page container"><p role={error ? "alert" : "status"} className={error ? "error-box" : ""}>{error || "Loading task…"}</p></main>;
   const owner = task.requester === me.id;
+  const myApplication = !owner ? task.my_application : null;
   const held = task.moderation_status === "held";
   const rejected = task.moderation_status === "rejected";
 
@@ -75,6 +85,7 @@ export function TaskDetail({ id }: { id: string }) {
         {held ? <div className="moderation-message"><ShieldAlert size={22} /><h3>Awaiting review</h3><p>{task.moderation_reason || "This task needs a quick policy review before it can be shared."}</p>{owner && <button className="text-button" disabled={busy} onClick={() => action(`/tasks/${id}/cancel/`)}>Cancel this task</button>}</div>
           : rejected ? <div className="moderation-message rejected"><ShieldAlert size={22} /><h3>Task not approved</h3><p>{task.moderation_reason || "This task does not meet the current MVP policy."}</p></div>
           : task.my_booking && !owner ? <><h3>You’re booked for this task</h3><p>The listing may remain open while the requester fills other spots or accepts future helpers.</p><Link className="button button-dark full-width" href={`/messages/${task.public_id || task.id}`}>Open booking conversation</Link></>
+          : myApplication ? <section className="application-progress-card"><span className="application-progress-icon"><MessageCircle size={19} /></span><div><span className="eyebrow">YOUR APPLICATION</span><h3>{applicationProgress[myApplication.status].title}</h3><p>{applicationProgress[myApplication.status].detail}</p>{myApplication.has_unread_message && <strong className="application-new-message">New message waiting</strong>}</div><Link className="button button-dark full-width" href={myApplication.status === "accepted" ? `/messages/${task.public_id || task.id}` : `/applications/${myApplication.public_id}`}>{applicationProgress[myApplication.status].action}</Link></section>
           : task.status === "open" ? owner ? <><p>{task.is_private ? `Waiting for ${task.target_helper_name || "your requested helper"} to respond.` : "Applications appear in Activity. Review a helper’s profile before choosing."}</p><Link className="button button-dark full-width" href="/activity">Manage applications</Link><button className="text-button" disabled={busy} onClick={() => action(`/tasks/${id}/cancel/`)}>Cancel this unassigned task</button></>
             : task.is_private ? <><h3>A request for your skills</h3><p>Check the work, reward, and timing. Accepting opens a private conversation with the requester.</p><VerificationGate helper /><button className="button button-dark full-width" disabled={busy} onClick={() => action(`/tasks/${id}/respond-invitation/`, { decision: "accept" })}>Accept request</button><button className="button button-outline full-width" disabled={busy} onClick={() => action(`/tasks/${id}/respond-invitation/`, { decision: "decline" })}>Decline request</button></>
               : <form className="stack-form" onSubmit={apply}><label>Introduce yourself<textarea rows={5} value={message} onChange={(event) => setMessage(event.target.value)} maxLength={800} required placeholder="Tell them why you can help…" /></label><VerificationGate helper /><p className="form-note">Your phone number is shared privately after acceptance. You can coordinate in the task conversation.</p><button className="button button-dark full-width" disabled={busy || !message.trim()} aria-busy={busy}>{busy ? <><LoaderCircle className="button-spinner" size={17} aria-hidden="true" />Applying…</> : "Apply for this task"}</button></form>

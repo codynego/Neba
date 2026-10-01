@@ -25,8 +25,8 @@ def require_available(task, user, other, communication=False):
 
 def propose_change(task, user, kind, reason="", scheduled_for=None):
     other = participants(task, user)
-    if task.status != "assigned":
-        raise ValidationError("Changes can only be requested for an assigned task.")
+    if task.status not in ("assigned", "open"):
+        raise ValidationError("Changes can only be requested for a confirmed booking.")
     if task.issues.filter(status__in=("open", "reviewing")).exists():
         raise ValidationError("Resolve the open task issue before changing this booking.")
     if task.changes.filter(status="pending").exists():
@@ -46,7 +46,7 @@ def propose_change(task, user, kind, reason="", scheduled_for=None):
 def decide_change(change, user, decision):
     task = change.task
     other = participants(task, user)
-    if task.status != "assigned" or change.status != "pending":
+    if task.status not in ("assigned", "open") or change.status != "pending":
         raise ValidationError("This request is no longer pending.")
     if task.issues.filter(status__in=("open", "reviewing")).exists():
         raise ValidationError("The booking is paused while a task issue is reviewed.")
@@ -62,7 +62,11 @@ def decide_change(change, user, decision):
             raise ValidationError("Accept or decline this request.")
         change.status = "accepted" if decision == "accept" else "declined"
         if decision == "accept":
-            if change.kind == "complete": task.status = "completed"
+            if change.kind == "complete":
+                # Recurring and partially-filled multi-helper tasks remain open
+                # for new applications after this booking is completed.
+                if task.status == "assigned":
+                    task.status = "completed"
             elif change.kind == "cancel": task.status = "cancelled"
             else:
                 if change.scheduled_for <= timezone.now():

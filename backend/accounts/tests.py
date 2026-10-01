@@ -280,6 +280,13 @@ class TrustFlowTests(APITestCase):
         self.assertEqual(self.client.delete("/api/notifications/push-subscription/", {"endpoint": payload["endpoint"]}, format="json").status_code, 204)
         self.assertFalse(PushSubscription.objects.exists())
 
+    def test_unread_notification_counts_split_messages_from_activity(self):
+        from .models import Notification
+        Notification.objects.create(recipient=self.member, title="New task message", path="/messages/example#message-1")
+        Notification.objects.create(recipient=self.member, title="Booking confirmed", path="/tasks/example")
+        response = self.client.get("/api/notifications/unread/")
+        self.assertEqual(response.data, {"count": 2, "message_count": 1, "activity_count": 1})
+
     def test_evidence_retention_expires_pending_without_granting_approval(self):
         self.verify_member_phone()
         result = self.submission()
