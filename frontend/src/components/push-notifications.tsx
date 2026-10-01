@@ -69,7 +69,7 @@ export function PushNotificationSettings() {
       <div className="notification-settings-heading"><h2 id="notification-settings-title">Notifications</h2>{enabled && <span className="notification-settings-status"><Check size={13} /> Enabled</span>}</div>
       <p>{unavailable ? "Push notifications aren’t available in this browser or connection." : blocked ? "Notifications are blocked in your browser. Allow them in this site’s settings, then try again." : !configured ? "Push notifications aren’t configured yet." : enabled ? "You’ll get messages, booking updates and task activity as they happen." : "Get messages, booking updates and task activity even when GetNeba is closed."}</p>
       {error && <small className="form-error" role="alert">{error}</small>}
-      {!unavailable && configured && !blocked && !enabled && <button type="button" className="button button-dark compact" onClick={enable} disabled={busy}>{busy ? "Enabling…" : "Enable notifications"}</button>}
+      {!unavailable && configured && !enabled && <button type="button" className="button button-dark compact" onClick={enable} disabled={busy}>{busy ? "Checking…" : blocked ? "Try again" : "Enable notifications"}</button>}
     </div>
   </section>;
 }
