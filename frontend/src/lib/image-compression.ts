@@ -3,6 +3,7 @@ const TARGET_MAX_BYTES = 1.5 * 1024 * 1024;
 const HARD_MAX_BYTES = 5 * 1024 * 1024;
 const MAX_EDGE = 1600;
 const MIN_EDGE = 200;
+const compressedFiles = new WeakSet<File>();
 
 function loadImage(file: File): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -27,6 +28,7 @@ function getBlob(canvas: HTMLCanvasElement, mimeType: string, quality: number): 
 }
 
 export async function compressImage(file: File): Promise<File> {
+  if (compressedFiles.has(file)) return file;
   if (file.size > MAX_INPUT_BYTES) {
     throw new Error("Choose an image under 20 MB.");
   }
@@ -89,7 +91,9 @@ export async function compressImage(file: File): Promise<File> {
     }
 
     const baseName = file.name.replace(/\.[^.]+$/, "").trim() || "profile";
-    return new File([blob], `${baseName}.${ext}`, { type: mimeType, lastModified: Date.now() });
+    const compressed = new File([blob], `${baseName}.${ext}`, { type: mimeType, lastModified: Date.now() });
+    compressedFiles.add(compressed);
+    return compressed;
   } catch (error) {
     if (error instanceof Error && (error.message.includes("MB") || error.message.includes("pixels") || error.message.includes("Choose"))) {
       throw error;

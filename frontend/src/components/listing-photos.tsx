@@ -43,7 +43,10 @@ export function ListingPhotoPicker({ files, onChange, label = "Add helpful photo
 
 export async function uploadListingPhotos(kind: ListingKind, files: File[]) {
   const keys: string[] = [];
-  for (const file of files) {
+  for (const original of files) {
+    // Keep compression at the upload boundary as well as the picker so a future
+    // caller cannot accidentally send a full-size task or offer image.
+    const file = await compressImage(original);
     const ticket = await api<UploadTicket>(`/${kind}/photo-upload/`, { method: "POST", body: JSON.stringify({ content_type: file.type, size: file.size }) });
     const response = await fetch(ticket.upload_url, { method: "PUT", headers: { "Content-Type": file.type }, body: file });
     if (!response.ok) throw new Error("A photo did not finish uploading. Check your connection and try again.");

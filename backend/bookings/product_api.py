@@ -44,7 +44,7 @@ class ApplicationViewSet(BaseApplicationViewSet):
     throttle_scope = None
 
     def get_throttles(self):
-        self.throttle_scope = "application_messages" if self.action == "messages" and self.request.method == "POST" else None
+        self.throttle_scope = "application_messages" if self.action in ("messages", "message_upload") and self.request.method == "POST" else None
         return super().get_throttles()
 
     def _participants(self, application):

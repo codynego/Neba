@@ -78,7 +78,7 @@ class TaskViewSet(BaseTaskViewSet):
     serializer_class = TaskSerializer
     throttle_scope = None
     def get_throttles(self):
-        self.throttle_scope = "task_messages" if self.action == "messages" and self.request.method == "POST" else None
+        self.throttle_scope = "task_messages" if self.action in ("messages", "message_upload") and self.request.method == "POST" else None
         return super().get_throttles()
     def get_queryset(self):
         user = self.request.user
@@ -150,14 +150,14 @@ class TaskViewSet(BaseTaskViewSet):
             applications__status="accepted",
         ).select_related("requester").prefetch_related(
             Prefetch("applications", queryset=accepted.select_related("applicant"), to_attr="accepted_helpers")
-        ).annotate(last_text=Subquery(latest.values("text")[:1]), last_sent=Subquery(latest.values("created_at")[:1])).distinct().order_by(Coalesce("last_sent", "updated_at").desc(), "-id")
+        ).annotate(last_text=Subquery(latest.values("text")[:1]), last_attachments=Subquery(latest.values("attachments")[:1]), last_sent=Subquery(latest.values("created_at")[:1])).distinct().order_by(Coalesce("last_sent", "updated_at").desc(), "-id")
         page = self.paginate_queryset(queryset)
         rows = []
         for task in page if page is not None else queryset:
             other = task.accepted_helpers[0].applicant if task.requester_id == request.user.pk else task.requester
             rows.append({"task_id": task.pk, "task_public_id": str(task.public_id), "title": task.title, "status": task.status,
                 "member": {"id": other.pk, "public_id": str(other.public_id), "display_name": other.display_name, **trust_summary(other)},
-                "last_message": task.last_text or "", "last_message_at": task.last_sent,
+                "last_message": task.last_text or ("Attachment" if task.last_attachments else ""), "last_message_at": task.last_sent,
                 "updated_at": task.updated_at})
         return self.get_paginated_response(rows) if page is not None else Response(rows)
 

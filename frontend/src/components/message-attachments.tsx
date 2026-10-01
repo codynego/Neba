@@ -4,24 +4,29 @@ import { ChangeEvent, useEffect, useRef, useState } from "react";
 import { Download, FileImage, FileText, LoaderCircle, Paperclip, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { MessageAttachment } from "@/lib/types";
+import { compressImage } from "@/lib/image-compression";
 
 const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]);
-const maxSize = 10 * 1024 * 1024;
+const maxImageInputSize = 20 * 1024 * 1024;
+const maxFileSize = 10 * 1024 * 1024;
 const maxFiles = 4;
 
 type UploadTicket = MessageAttachment & { upload_url: string };
 
 export function selectMessageFiles(current: File[], incoming: FileList | null) {
   const next = [...current, ...Array.from(incoming || [])].slice(0, maxFiles);
-  const invalid = next.find((file) => !allowedTypes.has(file.type) || file.size > maxSize);
-  if (invalid) throw new Error("Choose JPEG, PNG, WebP, or PDF files under 10 MB.");
+  const invalid = next.find((file) => !allowedTypes.has(file.type) || file.size > (file.type.startsWith("image/") ? maxImageInputSize : maxFileSize));
+  if (invalid) throw new Error("Choose JPEG, PNG, or WebP images under 20 MB, or PDF files under 10 MB.");
   return next;
 }
 
 export async function uploadMessageFiles(base: string, files: File[], onProgress: (value: string) => void) {
   const uploaded: MessageAttachment[] = [];
   for (let index = 0; index < files.length; index += 1) {
-    const file = files[index];
+    const original = files[index];
+    const isImage = original.type.startsWith("image/");
+    onProgress(`${isImage ? "Compressing" : "Preparing"} ${index + 1} of ${files.length}…`);
+    const file = isImage ? await compressImage(original) : original;
     onProgress(`Uploading ${index + 1} of ${files.length}…`);
     const ticket = await api<UploadTicket>(`${base}/message-upload/`, {
       method: "POST",
