@@ -198,4 +198,4 @@ class ApplicationViewSet(BaseApplicationViewSet):
 
     @action(detail=True, methods=["post"])
     def accept(self, request, pk=None):
-        raise ValidationError("Shortlist the applicant, talk through the task, and send a booking offer instead.")
+        raise ValidationError("This application is not booked yet. Open the applicant, choose ‘Shortlist and start chat’, talk through the task, then choose ‘Prepare booking offer’. The helper must confirm before the task is assigned.")
