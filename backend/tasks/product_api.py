@@ -21,11 +21,15 @@ from .views import TaskViewSet as BaseTaskViewSet, TaskSerializer as BaseTaskSer
 
 class TaskSerializer(BaseTaskSerializer):
     has_booking = serializers.SerializerMethodField()
+    my_booking = serializers.SerializerMethodField()
     def get_has_booking(self, task):
         return task.applications.filter(status="accepted").exists()
+    def get_my_booking(self, task):
+        user = self.context.get("request").user if self.context.get("request") else None
+        return bool(user and user.is_authenticated and task.applications.filter(status="accepted", applicant=user).exists())
     target_helper_name = serializers.CharField(source="target_helper.display_name", read_only=True, default="")
     class Meta(BaseTaskSerializer.Meta):
-        fields = BaseTaskSerializer.Meta.fields + ("is_private", "target_helper", "target_helper_name", "requested_offer", "has_booking")
+        fields = BaseTaskSerializer.Meta.fields + ("is_private", "target_helper", "target_helper_name", "requested_offer", "has_booking", "my_booking")
         read_only_fields = BaseTaskSerializer.Meta.read_only_fields + ("is_private", "target_helper", "target_helper_name", "requested_offer")
     def validate_scheduled_for(self, value):
         if value and value <= timezone.now():
@@ -69,7 +73,7 @@ class TaskViewSet(BaseTaskViewSet):
         return super().get_throttles()
     def get_queryset(self):
         user = self.request.user
-        queryset = Task.objects.select_related("requester", "target_helper").annotate(application_count=Count("applications", distinct=True))
+        queryset = Task.objects.select_related("requester", "target_helper").annotate(application_count=Count("applications", distinct=True), accepted_count=Count("applications", filter=Q(applications__status="accepted"), distinct=True))
         search = self.request.query_params.get("search", "").strip()
         if search:
             queryset = queryset.filter(Q(title__icontains=search) | Q(description__icontains=search))
@@ -81,7 +85,7 @@ class TaskViewSet(BaseTaskViewSet):
             if active_only: queryset = queryset.exclude(status__in=(Task.Status.COMPLETED, Task.Status.CANCELLED))
             return queryset.distinct().order_by("-created_at")
         if self.request.query_params.get("bookings") == "true":
-            queryset = queryset.filter(owner | helper).exclude(status="open")
+            queryset = queryset.filter(owner | helper, applications__status="accepted")
             if active_only: queryset = queryset.exclude(status__in=(Task.Status.COMPLETED, Task.Status.CANCELLED))
             return queryset.distinct().order_by("-updated_at")
         if self.request.query_params.get("invitations") == "true": return queryset.filter(target_helper=user, status="open", is_private=True, moderation_status=Task.ModerationStatus.APPROVED).order_by("-created_at")
@@ -152,10 +156,13 @@ class TaskViewSet(BaseTaskViewSet):
     def workspace(self, request, pk=None):
         task = self.get_object()
         other = participants(task, request.user)
+        accepted_helpers = [application.applicant for application in task.applications.filter(status="accepted").select_related("applicant")]
+        members = accepted_helpers if request.user.pk == task.requester_id else [task.requester]
         active_issue = task.issues.filter(status__in=("open", "reviewing")).first()
         pending = task.changes.filter(status="pending").first()
         return Response({"task": self.get_serializer(task).data, "my_role": "requester" if request.user.pk == task.requester_id else "helper",
             "member": {"id": other.pk, "public_id": str(other.public_id), "display_name": other.display_name, **trust_summary(other)},
+            "members": [{"id": member.pk, "public_id": str(member.public_id), "display_name": member.display_name, **trust_summary(member)} for member in members],
             "can_message": bool(other.is_active and not are_blocked(request.user, other) and task.status not in ("completed", "cancelled")),
             "contact_phone": other.phone if other.is_active and not are_blocked(request.user, other) else "",
             "pending_change": ChangeSerializer(pending).data if pending else None,
@@ -177,7 +184,10 @@ class TaskViewSet(BaseTaskViewSet):
             if task.status in ("completed", "cancelled"): raise ValidationError("This conversation is archived because the task has ended.")
             message, created = TaskMessage.objects.get_or_create(task=task, sender=request.user, client_id=serializer.validated_data["client_id"], defaults={"text": serializer.validated_data["text"]})
             if not created and message.text != serializer.validated_data["text"]: raise ValidationError("This message identifier has already been used.")
-            if created: notify(other, "New task message", f"/messages/{task.public_id}", task.title)
+            if created:
+                recipients = [application.applicant for application in task.applications.filter(status="accepted").select_related("applicant")] if request.user.pk == task.requester_id else [task.requester]
+                for recipient in recipients:
+                    if recipient.pk != request.user.pk: notify(recipient, "New task message", f"/messages/{task.public_id}", task.title)
         return Response(MessageSerializer(message).data, status=201 if created else 200)
 
     @action(detail=True, methods=["post"])
@@ -212,6 +222,7 @@ class TaskViewSet(BaseTaskViewSet):
         with transaction.atomic():
             task = Task.objects.select_for_update().get(pk=target.pk)
             if task.requester_id != request.user.pk or task.status != "open": raise PermissionDenied("Use a cancellation request for an accepted task.")
+            if task.applications.filter(status="accepted").exists(): raise PermissionDenied("Use a cancellation request because this task already has confirmed helpers.")
             task.status = "cancelled"; task.save(update_fields=("status", "updated_at"))
             task.applications.filter(status="pending").update(status="declined")
             users = {app.applicant for app in task.applications.select_related("applicant")}

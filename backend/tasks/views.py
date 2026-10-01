@@ -1,6 +1,6 @@
 ﻿from django.db.models import Count
 from rest_framework import serializers, viewsets
-from django.db import transaction
+from django.db import transaction, models
 from rest_framework.decorators import action
 from rest_framework import permissions
 from rest_framework.response import Response
@@ -24,10 +24,11 @@ class TaskSerializer(serializers.ModelSerializer):
     requester_username = serializers.CharField(source="requester.username", read_only=True)
     requester_public_id = serializers.UUIDField(source="requester.public_id", read_only=True)
     application_count = serializers.IntegerField(read_only=True)
+    accepted_count = serializers.IntegerField(read_only=True, default=0)
     class Meta:
         model = Task
         fields = ("id", "public_id", "requester", "requester_name", "requester_username", "requester_public_id", "title", "description", "photos", "photo_count", "category", "city",
-                  "state", "neighborhood", "reward_type", "reward_amount", "reward_note", "scheduled_for",
+                  "state", "neighborhood", "reward_type", "reward_amount", "reward_note", "scheduled_for", "is_recurring", "helpers_needed", "accepted_count",
                   "involves_item", "item_type", "item_value", "item_already_paid", "risk_level",
                   "moderation_status", "moderation_reason", "policy_version", "policy_confirmed",
                   "status", "application_count", "created_at", "updated_at", "requester_trust")
@@ -35,6 +36,10 @@ class TaskSerializer(serializers.ModelSerializer):
     def validate_reward_amount(self, value):
         if value is not None and value <= 0:
             raise serializers.ValidationError("Enter an amount greater than zero.")
+        return value
+    def validate_helpers_needed(self, value):
+        if value < 1 or value > 20:
+            raise serializers.ValidationError("Choose between 1 and 20 helpers.")
         return value
     def validate(self, attrs):
         confirmed = attrs.pop("policy_confirmed", False)
@@ -77,7 +82,7 @@ class TaskViewSet(CachedListMixin, viewsets.ModelViewSet):
         self.check_object_permissions(self.request, obj)
         return obj
     def get_queryset(self):
-        queryset = Task.objects.select_related("requester").annotate(application_count=Count("applications")).order_by("-created_at")
+        queryset = Task.objects.select_related("requester").annotate(application_count=Count("applications", distinct=True), accepted_count=Count("applications", filter=models.Q(applications__status="accepted"), distinct=True)).order_by("-created_at")
         if self.request.query_params.get("mine") == "true":
             return queryset.filter(requester=self.request.user) if self.request.user.is_authenticated else queryset.none()
         queryset = queryset.filter(requester__is_active=True).exclude(requester_id__in=blocked_user_ids(self.request.user))

@@ -83,8 +83,10 @@ class ApplicationViewSet(BaseApplicationViewSet):
             require_helper(application.applicant)
             if task.status != Task.Status.OPEN or application.status != Application.Status.SHORTLISTED:
                 raise ValidationError("Shortlist this applicant before sending a booking offer.")
-            if task.applications.filter(status=Application.Status.OFFERED).exclude(pk=application.pk).exists():
-                raise ValidationError("This task already has a booking offer awaiting a response.")
+            accepted_count = task.applications.filter(status=Application.Status.ACCEPTED).count()
+            offered_count = task.applications.filter(status=Application.Status.OFFERED).exclude(pk=application.pk).count()
+            if not task.is_recurring and accepted_count + offered_count >= task.helpers_needed:
+                raise ValidationError("All helper spots are already booked or awaiting confirmation.")
             if application.applicant.availability == "unavailable":
                 raise ValidationError("This helper is not currently taking work.")
             if are_blocked(request.user, application.applicant):
@@ -130,12 +132,16 @@ class ApplicationViewSet(BaseApplicationViewSet):
                 raise ValidationError("Update your availability before accepting this booking.")
             if are_blocked(application.applicant, task.requester):
                 raise PermissionDenied("You cannot accept a booking from a blocked member.")
-            task.status = Task.Status.ASSIGNED
-            task.save(update_fields=("status", "updated_at"))
+            accepted_count = task.applications.filter(status=Application.Status.ACCEPTED).exclude(pk=application.pk).count()
+            if not task.is_recurring and accepted_count >= task.helpers_needed:
+                raise ValidationError("This task has already filled all helper spots.")
             application.status = Application.Status.ACCEPTED
             application.save(update_fields=("status",))
-            others = list(task.applications.filter(status__in=(Application.Status.PENDING, Application.Status.SHORTLISTED, Application.Status.OFFERED)).exclude(pk=application.pk).select_related("applicant"))
-            task.applications.filter(pk__in=[item.pk for item in others]).update(status=Application.Status.DECLINED, booking_note="")
+            filled = not task.is_recurring and accepted_count + 1 >= task.helpers_needed
+            task.status = Task.Status.ASSIGNED if filled else Task.Status.OPEN
+            task.save(update_fields=("status", "updated_at"))
+            others = list(task.applications.filter(status__in=(Application.Status.PENDING, Application.Status.SHORTLISTED, Application.Status.OFFERED)).exclude(pk=application.pk).select_related("applicant")) if filled else []
+            if others: task.applications.filter(pk__in=[item.pk for item in others]).update(status=Application.Status.DECLINED, booking_note="")
             notify(task.requester, "Booking confirmed", f"/tasks/{task.public_id}", application.applicant.display_name or application.applicant.username)
             notify(application.applicant, "Booking confirmed", f"/tasks/{task.public_id}", task.title)
             for other in others:

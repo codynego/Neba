@@ -8,10 +8,14 @@ from tasks.models import Task
 from .models import TaskChange, TaskIssue
 
 def participants(task, user):
-    accepted = task.applications.select_related("applicant").filter(status="accepted").first()
-    if not accepted or user.pk not in (task.requester_id, accepted.applicant_id):
-        raise PermissionDenied("Only the requester and accepted helper can access this booking.")
-    return accepted.applicant if user.pk == task.requester_id else task.requester
+    accepted = task.applications.select_related("applicant").filter(status="accepted")
+    if user.pk == task.requester_id:
+        first = accepted.first()
+        if not first: raise PermissionDenied("Only the requester and accepted helpers can access this booking.")
+        return first.applicant
+    if not accepted.filter(applicant=user).exists():
+        raise PermissionDenied("Only the requester and accepted helpers can access this booking.")
+    return task.requester
 
 def require_available(task, user, other, communication=False):
     if not user.is_active or not other.is_active:

@@ -55,6 +55,8 @@ class Task(models.Model):
     reward_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     reward_note = models.CharField(max_length=160, blank=True)
     scheduled_for = models.DateTimeField(null=True, blank=True)
+    is_recurring = models.BooleanField(default=False)
+    helpers_needed = models.PositiveSmallIntegerField(default=1)
     involves_item = models.BooleanField(default=False)
     item_type = models.CharField(max_length=20, choices=ItemType.choices, blank=True)
     item_value = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)

@@ -8,6 +8,7 @@ export type Task = {
   id: number; public_id: string; requester: number; requester_public_id?: string; requester_username?: string; requester_name: string; title: string; description: string;
   category: Category; city: string; state: string; neighborhood: string;
   reward_type: RewardType; reward_amount: string | null; reward_note: string; scheduled_for: string | null;
+  is_recurring: boolean; helpers_needed: number; accepted_count: number; my_booking?: boolean;
   involves_item: boolean; item_type: ItemType | ""; item_value: string | null; item_already_paid: boolean;
   risk_level: "low" | "medium" | "high"; moderation_status: "approved" | "held" | "rejected"; moderation_reason: string;
   status: "open" | "assigned" | "completed" | "cancelled"; application_count: number; created_at: string; requester_trust?: Trust;
@@ -28,7 +29,7 @@ export type ApplicationMessage = { id: number; sender: number; sender_name: stri
 export type TaskChange = { id: number; proposer: number; kind: "complete" | "cancel" | "reschedule"; reason: string; scheduled_for: string | null; status: "pending" | "accepted" | "declined" | "withdrawn"; created_at: string };
 export type TaskIssue = { id: number; reporter: number; kind: "no_show" | "dispute"; details: string; status: "open" | "reviewing" | "resolved"; outcome: string; resolution: string; created_at: string };
 export type TaskMessage = { id: number; sender: number; sender_name: string; text: string; client_id: string; created_at: string };
-export type Workspace = { task: Task; my_role: "helper" | "requester"; member: Trust & { id: number; display_name: string }; can_message: boolean; contact_phone: string; pending_change: TaskChange | null; active_issue: TaskIssue | null; changes: TaskChange[]; issues: TaskIssue[] };
+export type Workspace = { task: Task; my_role: "helper" | "requester"; member: Trust & { id: number; display_name: string }; members?: Array<Trust & { id: number; display_name: string }>; can_message: boolean; contact_phone: string; pending_change: TaskChange | null; active_issue: TaskIssue | null; changes: TaskChange[]; issues: TaskIssue[] };
 export type Notification = { id: number; title: string; detail: string; path: string; read_at: string | null; created_at: string };
 export type Conversation = { task_id: number; task_public_id?: string; title: string; status: Task["status"]; member: Trust & { id: number; display_name: string }; last_message: string; last_message_at: string | null; updated_at: string };
 export type MemberReview = { rating: number; comment: string; created_at: string; reviewer_username: string; reviewer_public_id: string; reviewer_photo_available: boolean };

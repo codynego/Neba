@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { ArrowLeft, CalendarDays, LoaderCircle, MapPin, PackageCheck, ShieldAlert, ShieldCheck, Users, WalletCards } from "lucide-react";
+import { ArrowLeft, CalendarDays, LoaderCircle, MapPin, PackageCheck, Repeat2, ShieldAlert, ShieldCheck, Users, WalletCards } from "lucide-react";
 import { api } from "@/lib/api";
 import { Task, User, categories, itemTypeLabels, naira, rewardLabel, rewardTypeLabels } from "@/lib/types";
 import { TrustBadges, VerificationGate } from "./trust";
@@ -62,7 +62,7 @@ export function TaskDetail({ id }: { id: string }) {
         <header className="task-detail-hero">
           <span className="category-pill">{categories.find((category) => category.value === task.category)?.label}{task.is_private && " · Private request"}</span>
           <h1>{task.title}</h1>
-          <div className="detail-meta"><span><MapPin size={18} />{[task.neighborhood, task.city, task.state].filter(Boolean).join(", ")}</span><span><CalendarDays size={18} />{task.scheduled_for ? new Date(task.scheduled_for).toLocaleString("en-NG") : "Flexible timing"}</span>{!task.is_private && <span><Users size={18} />{task.application_count} applicants</span>}</div>
+          <div className="detail-meta"><span><MapPin size={18} />{[task.neighborhood, task.city, task.state].filter(Boolean).join(", ")}</span><span><CalendarDays size={18} />{task.scheduled_for ? new Date(task.scheduled_for).toLocaleString("en-NG") : "Flexible timing"}</span>{!task.is_private && <span><Users size={18} />{task.accepted_count}/{task.helpers_needed} helpers booked</span>}{task.is_recurring && <span><Repeat2 size={18} />Recurring · applications stay open</span>}</div>
         </header>
         <ListingPhotoGallery kind="tasks" id={task.public_id || task.id} count={task.photo_count} title={task.title} />
         <div className="detail-body"><h2>What needs doing</h2><p>{task.description}</p></div>
@@ -74,6 +74,7 @@ export function TaskDetail({ id }: { id: string }) {
         <div className="task-reward-card"><WalletCards size={28} /><div><span className="eyebrow">AGREED TASK REWARD</span><div className="detail-price">{rewardLabel(task)}</div></div></div>{task.reward_type === "money" && task.reward_note && <p>{task.reward_note}</p>}<div className="aside-rule" />
         {held ? <div className="moderation-message"><ShieldAlert size={22} /><h3>Awaiting review</h3><p>{task.moderation_reason || "This task needs a quick policy review before it can be shared."}</p>{owner && <button className="text-button" disabled={busy} onClick={() => action(`/tasks/${id}/cancel/`)}>Cancel this task</button>}</div>
           : rejected ? <div className="moderation-message rejected"><ShieldAlert size={22} /><h3>Task not approved</h3><p>{task.moderation_reason || "This task does not meet the current MVP policy."}</p></div>
+          : task.my_booking && !owner ? <><h3>You’re booked for this task</h3><p>The listing may remain open while the requester fills other spots or accepts future helpers.</p><Link className="button button-dark full-width" href={`/messages/${task.public_id || task.id}`}>Open booking conversation</Link></>
           : task.status === "open" ? owner ? <><p>{task.is_private ? `Waiting for ${task.target_helper_name || "your requested helper"} to respond.` : "Applications appear in Activity. Review a helper’s profile before choosing."}</p><Link className="button button-dark full-width" href="/activity">Manage applications</Link><button className="text-button" disabled={busy} onClick={() => action(`/tasks/${id}/cancel/`)}>Cancel this unassigned task</button></>
             : task.is_private ? <><h3>A request for your skills</h3><p>Check the work, reward, and timing. Accepting opens a private conversation with the requester.</p><VerificationGate helper /><button className="button button-dark full-width" disabled={busy} onClick={() => action(`/tasks/${id}/respond-invitation/`, { decision: "accept" })}>Accept request</button><button className="button button-outline full-width" disabled={busy} onClick={() => action(`/tasks/${id}/respond-invitation/`, { decision: "decline" })}>Decline request</button></>
               : <form className="stack-form" onSubmit={apply}><label>Introduce yourself<textarea rows={5} value={message} onChange={(event) => setMessage(event.target.value)} maxLength={800} required placeholder="Tell them why you can help…" /></label><VerificationGate helper /><p className="form-note">Your phone number is shared privately after acceptance. You can coordinate in the task conversation.</p><button className="button button-dark full-width" disabled={busy || !message.trim()} aria-busy={busy}>{busy ? <><LoaderCircle className="button-spinner" size={17} aria-hidden="true" />Applying…</> : "Apply for this task"}</button></form>
@@ -81,6 +82,6 @@ export function TaskDetail({ id }: { id: string }) {
         <small><ShieldCheck size={15} />Agree on the exact work, timing, and reward before starting. Money, goods, and services are exchanged directly.</small>
       </aside>
     </div>
-    {error && <p className="error-box" role="alert">{error}</p>}{feedback && <p className="form-feedback" role="status">{feedback}</p>}{task.has_booking && <BookingWorkspace key={task.id} taskId={task.id} me={me.id} onChanged={() => { load().catch((err) => setError(err.message)); }} />}
+    {error && <p className="error-box" role="alert">{error}</p>}{feedback && <p className="form-feedback" role="status">{feedback}</p>}{task.has_booking && (owner || task.my_booking) && <BookingWorkspace key={task.id} taskId={task.id} me={me.id} onChanged={() => { load().catch((err) => setError(err.message)); }} />}
   </div></main>;
 }

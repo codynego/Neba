@@ -82,6 +82,38 @@ class ProductFlowTests(APITestCase):
         self.assertEqual(Application.objects.get(pk=first.data["id"]).status, "declined")
         self.assertEqual(Application.objects.get(pk=second.data["id"]).status, "accepted")
 
+    def test_multi_helper_task_stays_open_until_all_spots_are_filled(self):
+        self.task.helpers_needed = 2
+        self.task.save(update_fields=("helpers_needed",))
+        first = self.client.post("/api/applications/", {"task": self.task.pk, "message": "First helper"})
+        self.client.force_authenticate(self.stranger)
+        second = self.client.post("/api/applications/", {"task": self.task.pk, "message": "Second helper"})
+        self.client.force_authenticate(self.owner)
+        for application_id in (first.data["id"], second.data["id"]):
+            self.client.post(f"/api/applications/{application_id}/shortlist/")
+            self.assertEqual(self.client.post(f"/api/applications/{application_id}/offer/", {"booking_note": "Agreed work, timing, and reward."}).status_code, 200)
+        self.client.force_authenticate(self.helper)
+        self.assertEqual(self.client.post(f"/api/applications/{first.data['id']}/respond-offer/", {"decision": "accept"}).status_code, 200)
+        self.task.refresh_from_db(); self.assertEqual(self.task.status, "open")
+        self.client.force_authenticate(self.stranger)
+        self.assertEqual(self.client.post(f"/api/applications/{second.data['id']}/respond-offer/", {"decision": "accept"}).status_code, 200)
+        self.task.refresh_from_db(); self.assertEqual(self.task.status, "assigned")
+        self.assertEqual(self.task.applications.filter(status="accepted").count(), 2)
+        self.assertEqual(self.client.get(self.path("workspace")).status_code, 200)
+
+    def test_recurring_task_keeps_accepting_applications_after_booking(self):
+        self.task.is_recurring = True
+        self.task.save(update_fields=("is_recurring",))
+        first = self.client.post("/api/applications/", {"task": self.task.pk, "message": "Recurring helper"})
+        self.client.force_authenticate(self.owner)
+        self.client.post(f"/api/applications/{first.data['id']}/shortlist/")
+        self.client.post(f"/api/applications/{first.data['id']}/offer/", {"booking_note": "Recurring help every Saturday morning."})
+        self.client.force_authenticate(self.helper)
+        self.assertEqual(self.client.post(f"/api/applications/{first.data['id']}/respond-offer/", {"decision": "accept"}).status_code, 200)
+        self.task.refresh_from_db(); self.assertEqual(self.task.status, "open")
+        self.client.force_authenticate(self.stranger)
+        self.assertEqual(self.client.post("/api/applications/", {"task": self.task.pk, "message": "Available next week"}).status_code, 201)
+
     def test_shortlisted_candidate_chat_is_private_and_retry_safe(self):
         applied = self.client.post("/api/applications/", {"task": self.task.pk, "message": "I can help"})
         self.client.force_authenticate(self.owner)

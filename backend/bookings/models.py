@@ -21,8 +21,6 @@ class Application(models.Model):
         ordering = ("-created_at",)
         constraints = [
             models.UniqueConstraint(fields=("task", "applicant"), name="unique_task_application"),
-            models.UniqueConstraint(fields=("task",), condition=models.Q(status="offered"), name="one_booking_offer_per_task"),
-            models.UniqueConstraint(fields=("task",), condition=models.Q(status="accepted"), name="one_accepted_application_per_task"),
         ]
     def __str__(self):
         return f"{self.applicant}  {self.task}"
