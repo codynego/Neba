@@ -83,7 +83,7 @@ Deploy with the Vercel Git integration or run `vercel deploy --prod` from the re
 - `/api/auth/register/`, `login/`, `logout/`, `me/`
 - `/api/tasks/` — browse, post, filter by city/category/search; `/{id}/complete/` and `/{id}/cancel/`
 - `/api/offers/` — browse and publish service offers
-- `/api/applications/` — apply, view sent/received, and `/{id}/accept/`
+- `/api/applications/` — apply, shortlist, use candidate chat, send/respond to booking offers, and view sent/received applications
 - `/api/cities/` — optional city directory
 
 Run `python manage.py test tasks` to verify the core task flow.

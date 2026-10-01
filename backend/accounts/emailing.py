@@ -113,9 +113,9 @@ def send_application_accepted_email(application):
         return None
     link = f"{settings.FRONTEND_URL}/tasks/{application.task.public_id}"
     title = html.escape(application.task.title)
-    body = f"<p>Your application for <strong>{title}</strong> was accepted.</p><p>You can now coordinate securely in the task workspace.</p>"
-    return send_email(user.email, "Your task application was accepted", _frame("Your application was accepted", "You got the task", body, "Open task workspace", link),
-        f"Your application for {application.task.title} was accepted. Open: {link}", f"application-accepted-{application.pk}")
+    body = f"<p>Your booking for <strong>{title}</strong> is confirmed.</p><p>You and the tasker can now coordinate securely in the task workspace.</p>"
+    return send_email(user.email, "Your GetNeba booking is confirmed", _frame("Your booking is confirmed", "You got the task", body, "Open booking", link),
+        f"Your booking for {application.task.title} is confirmed. Open: {link}", f"application-accepted-{application.pk}")
 
 
 def send_task_approved_email(task):

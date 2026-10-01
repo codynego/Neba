@@ -78,7 +78,7 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "phone_send": "5/hour", "phone_check": "15/hour", "identity_submit": "3/day",
         "capture_challenge": "10/hour", "safety_report": "10/hour", "block_user": "30/hour",
-        "task_messages": "120/hour",
+        "task_messages": "120/hour", "application_messages": "120/hour",
         "register": "5/hour", "login": "10/hour", "password_reset": "5/hour",
         "email_verification": "5/hour",
     },

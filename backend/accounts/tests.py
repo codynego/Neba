@@ -259,8 +259,9 @@ class TrustFlowTests(APITestCase):
         application = Application.objects.create(task=task, applicant=self.member, message="Test", contact_phone=self.member.phone)
         self.client.force_authenticate(self.other)
         self.assertEqual(self.client.get("/api/applications/?received=true").data["results"][0]["contact_phone"], "")
+        self.assertEqual(self.client.post(f"/api/applications/{application.pk}/shortlist/").status_code, 200)
         self.member.is_active = False; self.member.save()
-        self.assertEqual(self.client.post(f"/api/applications/{application.pk}/accept/").status_code, 403)
+        self.assertEqual(self.client.post(f"/api/applications/{application.pk}/offer/", {"booking_note": "Confirmed task details for testing."}, format="json").status_code, 403)
 
     def test_evidence_retention_expires_pending_without_granting_approval(self):
         self.verify_member_phone()

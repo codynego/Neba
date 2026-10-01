@@ -8,7 +8,7 @@ from rest_framework.exceptions import PermissionDenied
 from accounts.models import User, Block, Notification
 from tasks.models import Task
 from offers.models import Offer
-from .models import Application, TaskMessage, TaskChange, TaskIssue
+from .models import Application, ApplicationMessage, TaskMessage, TaskChange, TaskIssue
 from .workflow import resolve_issue
 from unittest.mock import patch
 
@@ -39,17 +39,59 @@ class ProductFlowTests(APITestCase):
     def respond(self, change, decision): return self.client.post(f"/api/tasks/{self.task.pk}/changes/{change}/respond/", {"decision": decision})
 
     @patch("bookings.product_api.send_application_accepted_email")
-    def test_acceptance_creates_notifications_and_private_conversation(self, send_accepted_email):
+    def test_booking_offer_requires_helper_confirmation_before_assignment(self, send_accepted_email):
         applied = self.client.post("/api/applications/", {"task": self.task.pk, "message": "I can help"})
         self.assertEqual(applied.status_code,201)
         self.assertEqual(Notification.objects.filter(recipient=self.owner).count(),1)
         self.assertEqual(self.client.get(self.path("messages")).status_code,403)
         self.client.force_authenticate(self.owner)
+        self.assertEqual(self.client.post(f"/api/applications/{applied.data['id']}/accept/").status_code, 400)
+        self.task.refresh_from_db(); self.assertEqual(self.task.status, "open")
+        self.assertEqual(self.client.post(f"/api/applications/{applied.data['id']}/shortlist/").status_code,200)
+        offered = self.client.post(f"/api/applications/{applied.data['id']}/offer/", {"booking_note": "Carry the table Saturday at 2pm for N5,000."}, format="json")
+        self.assertEqual(offered.status_code, 200)
+        self.task.refresh_from_db(); self.assertEqual(self.task.status, "open")
+        self.assertEqual(self.client.get(f"/api/applications/{applied.data['id']}/").data["contact_phone"], "")
+        self.client.force_authenticate(self.helper)
         with self.captureOnCommitCallbacks(execute=True):
-            self.assertEqual(self.client.post(f"/api/applications/{applied.data['id']}/accept/").status_code,200)
-        self.assertEqual(Notification.objects.filter(recipient=self.helper).count(),1)
+            confirmed = self.client.post(f"/api/applications/{applied.data['id']}/respond-offer/", {"decision": "accept"}, format="json")
+        self.assertEqual(confirmed.status_code, 200)
+        self.assertEqual(confirmed.data["status"], "accepted")
+        self.task.refresh_from_db(); self.assertEqual(self.task.status, "assigned")
         send_accepted_email.assert_called_once()
+        self.client.force_authenticate(self.owner)
         self.assertEqual(self.client.get(self.path("workspace")).data["contact_phone"],self.helper.phone)
+
+    def test_multiple_shortlists_are_allowed_but_only_one_offer_can_wait(self):
+        first = self.client.post("/api/applications/", {"task": self.task.pk, "message": "I can help first"})
+        self.client.force_authenticate(self.stranger)
+        second = self.client.post("/api/applications/", {"task": self.task.pk, "message": "I can help too"})
+        self.client.force_authenticate(self.owner)
+        for application_id in (first.data["id"], second.data["id"]):
+            self.assertEqual(self.client.post(f"/api/applications/{application_id}/shortlist/").status_code, 200)
+        self.assertEqual(self.client.post(f"/api/applications/{first.data['id']}/offer/", {"booking_note": "Agreed first booking details."}, format="json").status_code, 200)
+        self.assertEqual(self.client.post(f"/api/applications/{second.data['id']}/offer/", {"booking_note": "Agreed second booking details."}, format="json").status_code, 400)
+        self.task.refresh_from_db(); self.assertEqual(self.task.status, "open")
+        self.client.force_authenticate(self.helper)
+        declined = self.client.post(f"/api/applications/{first.data['id']}/respond-offer/", {"decision": "decline"}, format="json")
+        self.assertEqual(declined.data["status"], "shortlisted")
+        self.client.force_authenticate(self.owner)
+        self.assertEqual(self.client.post(f"/api/applications/{second.data['id']}/offer/", {"booking_note": "Agreed second booking details."}, format="json").status_code, 200)
+        self.client.force_authenticate(self.stranger)
+        self.assertEqual(self.client.post(f"/api/applications/{second.data['id']}/respond-offer/", {"decision": "accept"}, format="json").status_code, 200)
+        self.assertEqual(Application.objects.get(pk=first.data["id"]).status, "declined")
+        self.assertEqual(Application.objects.get(pk=second.data["id"]).status, "accepted")
+
+    def test_shortlisted_candidate_chat_is_private_and_retry_safe(self):
+        applied = self.client.post("/api/applications/", {"task": self.task.pk, "message": "I can help"})
+        self.client.force_authenticate(self.owner)
+        self.client.post(f"/api/applications/{applied.data['id']}/shortlist/")
+        payload = {"text": "Have you moved a table like this before?", "client_id": str(uuid.uuid4())}
+        self.assertEqual(self.client.post(f"/api/applications/{applied.data['id']}/messages/", payload, format="json").status_code, 201)
+        self.assertEqual(self.client.post(f"/api/applications/{applied.data['id']}/messages/", payload, format="json").status_code, 200)
+        self.assertEqual(ApplicationMessage.objects.count(), 1)
+        self.client.force_authenticate(self.stranger)
+        self.assertEqual(self.client.get(f"/api/applications/{applied.data['id']}/messages/").status_code, 404)
 
     def test_messages_are_participant_only_and_retries_do_not_duplicate(self):
         self.assign(); client_id=str(uuid.uuid4())

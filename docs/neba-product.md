@@ -2,7 +2,7 @@
 
 ## Member experience
 
-- `/activity` brings together accepted bookings, private helper invitations, posted tasks, applications sent and received, and offers. Pending applicants can withdraw; requesters can accept or decline.
+- `/activity` brings together confirmed bookings, private helper invitations, posted tasks, applications sent and received, and offers. Requesters can shortlist multiple applicants and privately discuss fit without creating a booking. Only one booking offer can await confirmation per task; the task becomes assigned after the helper confirms it.
 - Offer detail pages let phone-verified requesters send a private task request to a specific verified helper. Only the requester and invited helper can see it. Acceptance opens the booking workspace; declining closes the request. Unavailable helpers cannot take new work.
 - `/messages` is the private conversation inbox; `/messages/{taskId}` is the dedicated conversation screen. Booking pages link to Messages and keep task actions separate. New-message notifications open the conversation directly. Accepted task participants have a private conversation with persistent, incremental messages. Client message IDs prevent duplicate sends after a retry. Messages refresh every 10 seconds while the page is visible. Ended bookings retain conversation history and disable new messages.
 - Completion, cancellation after acceptance, and rescheduling require a proposal and the other participant's agreement. The proposer can withdraw a pending proposal. Reviews unlock after confirmed completion. An open task can be cancelled by its requester.

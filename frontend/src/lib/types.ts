@@ -22,8 +22,9 @@ export type Offer = {
 };
 export type Application = {
   id: number; task: number; task_public_id?: string; task_title: string; applicant: number; applicant_public_id?: string; applicant_username?: string; applicant_name: string;
-  message: string; contact_phone: string; status: "pending" | "accepted" | "declined" | "withdrawn"; created_at: string; applicant_trust?: Trust;
+  message: string; booking_note: string; contact_phone: string; status: "pending" | "shortlisted" | "offered" | "accepted" | "declined" | "withdrawn"; created_at: string; applicant_trust?: Trust;
 };
+export type ApplicationMessage = { id: number; sender: number; sender_name: string; text: string; client_id: string; created_at: string };
 export type TaskChange = { id: number; proposer: number; kind: "complete" | "cancel" | "reschedule"; reason: string; scheduled_for: string | null; status: "pending" | "accepted" | "declined" | "withdrawn"; created_at: string };
 export type TaskIssue = { id: number; reporter: number; kind: "no_show" | "dispute"; details: string; status: "open" | "reviewing" | "resolved"; outcome: string; resolution: string; created_at: string };
 export type TaskMessage = { id: number; sender: number; sender_name: string; text: string; client_id: string; created_at: string };

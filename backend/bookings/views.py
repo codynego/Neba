@@ -21,8 +21,8 @@ class ApplicationSerializer(serializers.ModelSerializer):
     task_public_id = serializers.UUIDField(source="task.public_id", read_only=True)
     class Meta:
         model = Application
-        fields = ("id", "task", "task_public_id", "task_title", "applicant", "applicant_public_id", "applicant_username", "applicant_name", "message", "contact_phone", "status", "created_at", "applicant_trust")
-        read_only_fields = ("id", "task_title", "applicant", "applicant_name", "status", "created_at")
+        fields = ("id", "task", "task_public_id", "task_title", "applicant", "applicant_public_id", "applicant_username", "applicant_name", "message", "booking_note", "contact_phone", "status", "created_at", "applicant_trust")
+        read_only_fields = ("id", "task_title", "applicant", "applicant_name", "booking_note", "status", "created_at")
         extra_kwargs = {"contact_phone": {"read_only": True}}
     def to_representation(self, instance):
         data = super().to_representation(instance)
@@ -52,7 +52,9 @@ class ApplicationViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = Application.objects.select_related("task", "applicant")
         user = self.request.user
-        if self.request.query_params.get("received") == "true":
+        if self.action != "list":
+            queryset = queryset.filter(Q(task__requester=user) | Q(applicant=user))
+        elif self.request.query_params.get("received") == "true":
             queryset = queryset.filter(task__requester=user)
         else:
             queryset = queryset.filter(applicant=user)

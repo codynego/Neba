@@ -33,6 +33,15 @@ const endpoints: Record<Section, string> = {
   offers: "/offers/?mine=true",
 };
 
+const applicationStatus: Record<Application["status"], string> = {
+  pending: "Awaiting review",
+  shortlisted: "Shortlisted · chat open",
+  offered: "Booking offer awaiting reply",
+  accepted: "Booked",
+  declined: "Closed",
+  withdrawn: "Withdrawn",
+};
+
 export function ActivityOverview() {
   const [active, setActive] = useState<Section>("bookings");
   const [pages, setPages] = useState(initialNumbers);
@@ -40,7 +49,6 @@ export function ActivityOverview() {
   const [queries, setQueries] = useState(initialText);
   const [datasets, setDatasets] = useState(initialData);
   const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const currentPage = pages[active];
@@ -66,21 +74,6 @@ export function ActivityOverview() {
     const timer = setInterval(() => { if (!document.hidden) load().catch(() => {}); }, 20000);
     return () => { controller.abort(); clearInterval(timer); };
   }, [load]);
-
-  async function act(path: string) {
-    if (busy) return;
-    setBusy(true);
-    setError("");
-    try {
-      await api(path, { method: "POST" });
-      await load();
-      window.dispatchEvent(new Event("neba_notifications"));
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
 
   function selectSection(sectionId: Section) {
     setActive(sectionId);
@@ -111,7 +104,7 @@ export function ActivityOverview() {
 
   function pagination() {
     if (!currentData.previous && !currentData.next) return null;
-    return <nav className="pagination-controls" aria-label={`${section.title} pages`}><button className="small-button" disabled={!currentData.previous || busy || loading} onClick={() => setPages((current) => ({ ...current, [active]: current[active] - 1 }))}>Previous</button><span>Page {currentPage}</span><button className="small-button" disabled={!currentData.next || busy || loading} onClick={() => setPages((current) => ({ ...current, [active]: current[active] + 1 }))}>Next</button></nav>;
+    return <nav className="pagination-controls" aria-label={`${section.title} pages`}><button className="small-button" disabled={!currentData.previous || loading} onClick={() => setPages((current) => ({ ...current, [active]: current[active] - 1 }))}>Previous</button><span>Page {currentPage}</span><button className="small-button" disabled={!currentData.next || loading} onClick={() => setPages((current) => ({ ...current, [active]: current[active] + 1 }))}>Next</button></nav>;
   }
 
   function taskRows(data: Page<ActivityItem>) {
@@ -119,11 +112,11 @@ export function ActivityOverview() {
   }
 
   function receivedRows(data: Page<ActivityItem>) {
-    return (data.results as Application[]).map((application) => <div className="dash-row application-row" key={application.id}><div><Link href={`/u/${application.applicant_username || application.applicant_public_id || application.applicant}`}><strong>{application.applicant_name || "Applicant"}</strong></Link><p><Link href={`/tasks/${application.task_public_id || application.task}`}>{application.task_title}</Link> · {application.status}</p><TrustBadges trust={application.applicant_trust} /><p>{application.message}</p><SafetyActions member={application.applicant} name={application.applicant_name} task={application.task} /></div>{application.status === "pending" ? <div className="application-actions"><button className="small-button" disabled={busy} onClick={() => act(`/applications/${application.id}/accept/`)}>Accept helper</button><button className="text-button" disabled={busy} onClick={() => act(`/applications/${application.id}/decline/`)}>Decline</button></div> : null}</div>);
+    return (data.results as Application[]).map((application) => <div className="dash-row application-row" key={application.id}><div><Link href={`/u/${application.applicant_username || application.applicant_public_id || application.applicant}`}><strong>{application.applicant_name || "Applicant"}</strong></Link><p><Link href={`/tasks/${application.task_public_id || application.task}`}>{application.task_title}</Link> · {applicationStatus[application.status]}</p><TrustBadges trust={application.applicant_trust} /><p>{application.message}</p><SafetyActions member={application.applicant} name={application.applicant_name} task={application.task} /></div><div className="application-actions"><Link className="small-button" href={application.status === "accepted" ? `/tasks/${application.task_public_id || application.task}` : `/applications/${application.id}`}>{application.status === "pending" ? "Review applicant" : application.status === "shortlisted" ? "Open candidate chat" : application.status === "offered" ? "Review offer" : application.status === "accepted" ? "Open booking" : "View details"}</Link></div></div>);
   }
 
   function sentRows(data: Page<ActivityItem>) {
-    return (data.results as Application[]).map((application) => <div className="dash-row" key={application.id}><div><Link href={`/tasks/${application.task_public_id || application.task}`}><strong>{application.task_title}</strong></Link><p>{application.status}</p></div>{application.status === "pending" ? <button className="small-button" disabled={busy} onClick={() => act(`/applications/${application.id}/withdraw/`)}>Withdraw</button> : null}</div>);
+    return (data.results as Application[]).map((application) => <div className="dash-row" key={application.id}><div><Link href={`/tasks/${application.task_public_id || application.task}`}><strong>{application.task_title}</strong></Link><p>{applicationStatus[application.status]}</p></div><Link className="small-button" href={application.status === "accepted" ? `/tasks/${application.task_public_id || application.task}` : `/applications/${application.id}`}>{application.status === "accepted" ? "Open booking" : application.status === "offered" ? "Review booking offer" : application.status === "shortlisted" ? "Open candidate chat" : "View application"}</Link></div>);
   }
 
   function offerRows(data: Page<ActivityItem>) {
@@ -147,7 +140,7 @@ export function ActivityOverview() {
     <div className="activity-tabs" role="tablist" aria-label="Activity sections">{sections.map((item, index) => <button key={item.id} ref={(element) => { tabRefs.current[index] = element; }} id={`activity-tab-${item.id}`} role="tab" aria-selected={active === item.id} aria-controls="activity-panel" tabIndex={active === item.id ? 0 : -1} onClick={() => selectSection(item.id)} onKeyDown={(event) => handleTabKey(event, index)}>{item.tab}</button>)}</div>
     {error ? <p className="error-box" role="alert">{error}</p> : null}
     <section className="dash-panel activity-panel" id="activity-panel" role="tabpanel" aria-labelledby={`activity-tab-${active}`} tabIndex={0}>
-      <div className="activity-panel-heading"><div><span className="activity-count">{currentData.count}</span><div><h2>{section.title}</h2><p>{section.description}</p></div></div>{action ? <Link href={action.href}>{action.label}</Link> : null}</div>
+      <div className="activity-panel-heading"><div><span className="activity-count">{currentData.count}</span><div><h2>{section.title}</h2><p>{section.description}</p>{active === "received" && <small className="candidate-list-note">Shortlist to chat. A booking starts only after the helper confirms your offer.</small>}</div></div>{action ? <Link href={action.href}>{action.label}</Link> : null}</div>
       <form className="activity-search" role="search" onSubmit={search}><Search size={18} aria-hidden="true" /><label className="sr-only" htmlFor={`activity-search-${active}`}>{section.placeholder}</label><input id={`activity-search-${active}`} value={drafts[active]} onChange={(event) => setDrafts((current) => ({ ...current, [active]: event.target.value }))} placeholder={section.placeholder} />{drafts[active] ? <button className="activity-search-clear" type="button" aria-label={`Clear ${section.placeholder.toLowerCase()}`} onClick={clearSearch}><X size={16} /></button> : null}<button className="small-button" type="submit" disabled={loading}>Search</button></form>
       <div className="activity-results" aria-live="polite" aria-busy={loading}>{loading ? <p className="panel-empty" role="status">Loading {section.title.toLowerCase()}…</p> : rows.length ? rows : <p className="panel-empty">{currentQuery ? `No results for “${currentQuery}”.` : emptyMessages[active]}</p>}</div>
       {pagination()}

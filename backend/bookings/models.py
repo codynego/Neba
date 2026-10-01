@@ -5,6 +5,8 @@ from tasks.models import Task
 class Application(models.Model):
     class Status(models.TextChoices):
         PENDING = "pending", "Pending"
+        SHORTLISTED = "shortlisted", "Shortlisted"
+        OFFERED = "offered", "Booking offer sent"
         ACCEPTED = "accepted", "Accepted"
         DECLINED = "declined", "Declined"
         WITHDRAWN = "withdrawn", "Withdrawn"
@@ -12,13 +14,28 @@ class Application(models.Model):
     applicant = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="applications")
     message = models.TextField(max_length=800)
     contact_phone = models.CharField(max_length=25, default="")
+    booking_note = models.TextField(max_length=1000, blank=True)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
     created_at = models.DateTimeField(auto_now_add=True)
     class Meta:
         ordering = ("-created_at",)
-        constraints = [models.UniqueConstraint(fields=("task", "applicant"), name="unique_task_application")]
+        constraints = [
+            models.UniqueConstraint(fields=("task", "applicant"), name="unique_task_application"),
+            models.UniqueConstraint(fields=("task",), condition=models.Q(status="offered"), name="one_booking_offer_per_task"),
+            models.UniqueConstraint(fields=("task",), condition=models.Q(status="accepted"), name="one_accepted_application_per_task"),
+        ]
     def __str__(self):
         return f"{self.applicant}  {self.task}"
+
+class ApplicationMessage(models.Model):
+    application = models.ForeignKey(Application, on_delete=models.CASCADE, related_name="messages")
+    sender = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    text = models.TextField(max_length=2000)
+    client_id = models.UUIDField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    class Meta:
+        ordering = ("id",)
+        constraints = [models.UniqueConstraint(fields=("application", "sender", "client_id"), name="unique_application_message_retry")]
 
 class TaskMessage(models.Model):
     task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name="messages")

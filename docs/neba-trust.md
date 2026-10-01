@@ -6,7 +6,7 @@ Start with a small invited group and trained admin reviewers. Public launch shou
 
 - `/verify`: real SMS verification, then ID upload, live camera portrait and a prompted gesture photo. Submission remains pending until an authorized reviewer approves it.
 - A verified phone is required to post a task. Phone and approved identity review are required to publish an offer, apply to a task, or be accepted as a helper. Existing offers from unverified or suspended accounts are hidden from public discovery.
-- Phone numbers come from the verified account, not an application text field. Application contact is visible only after acceptance and disappears across a block or helper suspension.
+- Phone numbers come from the verified account, not an application text field. Shortlisting opens an in-app candidate chat without revealing phone numbers. Application contact is visible only after the helper confirms a booking offer and disappears across a block or helper suspension.
 - A member can explicitly opt to show their approved portrait on their public profile. Otherwise it remains private. ID documents and challenge photos never become public profile images.
 - `/safety`: private reports, report status, blocked members and unblock. Report/block controls also appear on task, offer and received application pages. Blocks hide listings in signed-in browsing and prevent new work in either direction; public member profiles remain public. Task and offer browsing requires authentication, including list/detail API access. Blocking is not cancellation of an already agreed task.
 - Only the two participants in a completed task can review each other, once per task. The server determines the review subject. Admins can hide abusive reviews.
