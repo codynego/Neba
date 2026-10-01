@@ -119,7 +119,9 @@ class ProductFlowTests(APITestCase):
         self.client.force_authenticate(self.owner)
         self.client.post(f"/api/applications/{applied.data['id']}/shortlist/")
         payload = {"text": "Have you moved a table like this before?", "client_id": str(uuid.uuid4())}
-        self.assertEqual(self.client.post(f"/api/applications/{applied.data['id']}/messages/", payload, format="json").status_code, 201)
+        sent = self.client.post(f"/api/applications/{applied.data['id']}/messages/", payload, format="json")
+        self.assertEqual(sent.status_code, 201)
+        self.assertEqual(Notification.objects.filter(recipient=self.helper, title="New candidate message").get().path, f"/applications/{applied.data['id']}#message-{sent.data['id']}")
         self.assertEqual(self.client.post(f"/api/applications/{applied.data['id']}/messages/", payload, format="json").status_code, 200)
         self.assertEqual(ApplicationMessage.objects.count(), 1)
         self.client.force_authenticate(self.stranger)
@@ -132,6 +134,7 @@ class ProductFlowTests(APITestCase):
         self.assertEqual(self.client.post(self.path("messages"),payload).status_code,200)
         self.assertEqual(TaskMessage.objects.count(),1)
         self.assertEqual(Notification.objects.filter(recipient=self.owner).count(),1)
+        self.assertEqual(Notification.objects.get(recipient=self.owner).path, f"/messages/{self.task.public_id}#message-{first.data['id']}")
         self.assertEqual(self.client.post(self.path("messages"),{**payload,"text":"Changed text"}).status_code,400)
         self.client.force_authenticate(self.stranger)
         self.assertEqual(self.client.get(self.path("messages")).status_code,404)

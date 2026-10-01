@@ -6,7 +6,7 @@ import { api, getToken } from "@/lib/api";
 import { isPublicPath } from "@/lib/routes";
 import { usePathname } from "next/navigation";
 
-const dismissKey = "neba_push_prompt_dismissed";
+const promptSeenKey = "neba_push_prompt_seen_v1";
 
 function keyBytes(value: string) {
   const padded = value.padEnd(value.length + (4 - value.length % 4) % 4, "=").replace(/-/g, "+").replace(/_/g, "/");
@@ -31,14 +31,17 @@ export function PushNotifications() {
   }, []);
 
   useEffect(() => {
-    if (isPublicPath(path) || !getToken() || !window.isSecureContext || !("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) { setVisible(false); return; }
+    if (path !== "/dashboard" || isPublicPath(path) || !getToken() || !window.isSecureContext || !("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) { setVisible(false); return; }
     let active = true;
     api<{ public_key: string }>("/notifications/push-config/").then(async ({ public_key }) => {
       if (!active || !public_key) return;
       setPublicKey(public_key);
       if (Notification.permission === "granted") {
         try { await subscribe(public_key); } catch {}
-      } else if (Notification.permission === "default" && sessionStorage.getItem(dismissKey) !== "1") setVisible(true);
+      } else if (Notification.permission === "default" && localStorage.getItem(promptSeenKey) !== "1") {
+        localStorage.setItem(promptSeenKey, "1");
+        setVisible(true);
+      }
     }).catch(() => {});
     return () => { active = false; };
   }, [path, subscribe]);
@@ -57,7 +60,6 @@ export function PushNotifications() {
   }
 
   function dismiss() {
-    try { sessionStorage.setItem(dismissKey, "1"); } catch {}
     setVisible(false);
   }
 
