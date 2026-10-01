@@ -307,8 +307,20 @@ class Reviews(PrivateView):
         if rating not in range(1, 6) or len(comment) > 800:
             raise ValidationError("Choose a rating from 1 to 5 and keep the comment under 800 characters.")
         with transaction.atomic():
-            task = get_object_or_404(Task.objects.select_for_update(), pk=numeric_id(request.data.get("task")), status="completed")
-            accepted = task.applications.filter(status="accepted").first()
+            task = get_object_or_404(Task.objects.select_for_update(), pk=numeric_id(request.data.get("task")))
+            completed_changes = list(task.changes.filter(kind="complete", status="accepted").values("proposer_id", "decided_by_id"))
+            if task.status != "completed" and not completed_changes:
+                raise Http404
+            accepted_qs = task.applications.filter(status="accepted")
+            if task.status == "completed":
+                accepted = accepted_qs.first()
+            elif request.user.pk == task.requester_id:
+                helper_ids = {participant for change in completed_changes for participant in (change["proposer_id"], change["decided_by_id"]) if participant != task.requester_id}
+                accepted = accepted_qs.filter(applicant_id__in=helper_ids).first()
+            else:
+                accepted = accepted_qs.filter(applicant_id=request.user.pk).first()
+                if accepted and not any({change["proposer_id"], change["decided_by_id"]} == {task.requester_id, request.user.pk} for change in completed_changes):
+                    accepted = None
             if not accepted:
                 raise ValidationError("There is no completed booking to review.")
             if request.user.pk == task.requester_id:

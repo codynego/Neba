@@ -132,6 +132,7 @@ class ProductFlowTests(APITestCase):
         workspace = self.client.get(self.path("workspace"))
         self.assertEqual(workspace.status_code, 200)
         self.assertTrue(workspace.data["booking_completed"])
+        self.assertEqual(self.client.post("/api/auth/reviews/", {"task": self.task.pk, "rating": 5, "comment": "Reliable recurring help."}).status_code, 201)
 
     def test_shortlisted_candidate_chat_is_private_and_retry_safe(self):
         applied = self.client.post("/api/applications/", {"task": self.task.pk, "message": "I can help"})

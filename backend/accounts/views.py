@@ -67,6 +67,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         return value
     def create(self, validated_data):
         validated_data.pop("terms_accepted")
+        validated_data.setdefault("display_name", validated_data["username"])
         return User.objects.create_user(terms_accepted_at=timezone.now(), legal_policy_version="2026-09-30", **validated_data)
 
 class RegisterView(generics.CreateAPIView):
