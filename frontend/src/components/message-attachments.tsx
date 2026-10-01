@@ -5,6 +5,7 @@ import { Download, FileImage, FileText, LoaderCircle, Paperclip, X } from "lucid
 import { api } from "@/lib/api";
 import { MessageAttachment } from "@/lib/types";
 import { compressImage } from "@/lib/image-compression";
+import { ImageLightbox } from "./image-lightbox";
 
 const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]);
 const maxImageInputSize = 20 * 1024 * 1024;
@@ -65,17 +66,21 @@ function formatSize(size: number) {
 }
 
 function Attachment({ attachment, url }: { attachment: MessageAttachment; url: string }) {
-  const [download, setDownload] = useState("");
+  const [file, setFile] = useState<{ url: string; download_url: string } | null>(null);
   const [failed, setFailed] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
   useEffect(() => {
     let active = true;
-    api<{ url: string }>(url).then((data) => { if (active) setDownload(data.url); }).catch(() => { if (active) setFailed(true); });
+    api<{ url: string; download_url: string }>(url).then((data) => { if (active) setFile(data); }).catch(() => { if (active) setFailed(true); });
     return () => { active = false; };
   }, [url]);
   if (failed) return <span className="message-file unavailable"><FileType type={attachment.content_type} /><span><strong>{attachment.name}</strong><small>Attachment unavailable</small></span></span>;
-  if (!download) return <span className="message-file loading"><LoaderCircle size={18} /><span><strong>{attachment.name}</strong><small>Loading securely…</small></span></span>;
-  if (attachment.content_type.startsWith("image/")) return <a className="message-image" href={download} target="_blank" rel="noreferrer"><img src={download} alt={attachment.name} /><span><FileImage size={14} />{attachment.name}</span></a>;
-  return <a className="message-file" href={download} target="_blank" rel="noreferrer"><FileText size={18} /><span><strong>{attachment.name}</strong><small>{formatSize(attachment.size)}</small></span><Download size={16} /></a>;
+  if (!file) return <span className="message-file loading"><LoaderCircle size={18} /><span><strong>{attachment.name}</strong><small>Loading securely…</small></span></span>;
+  if (attachment.content_type.startsWith("image/")) {
+    const images = [{ url: file.url, downloadUrl: file.download_url, alt: attachment.name, name: attachment.name }];
+    return <><div className="message-image"><button type="button" onClick={() => setPreviewing(true)} aria-label={`Preview ${attachment.name}`}><img src={file.url} alt={attachment.name} /></button><span><button type="button" onClick={() => setPreviewing(true)}><FileImage size={14} />Preview</button><a href={file.download_url} download={attachment.name}><Download size={14} />Download</a></span></div>{previewing && <ImageLightbox images={images} activeIndex={0} onChange={() => {}} onClose={() => setPreviewing(false)} />}</>;
+  }
+  return <a className="message-file" href={file.download_url} download={attachment.name}><FileText size={18} /><span><strong>{attachment.name}</strong><small>{formatSize(attachment.size)}</small></span><Download size={16} /></a>;
 }
 
 export function MessageAttachments({ base, messageId, attachments }: { base: string; messageId: number; attachments?: MessageAttachment[] }) {

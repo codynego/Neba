@@ -47,7 +47,9 @@ class OfferViewSet(BaseOfferViewSet):
             return Response(status=404)
         if not r2.configured():
             raise PhotoUploadsUnavailable()
-        return Response({"url": r2.download_url(key)})
+        extension = key.rsplit(".", 1)[-1] if "." in key else "webp"
+        name = f"service-photo-{int(photo_index) + 1}.{extension}"
+        return Response({"url": r2.download_url(key), "download_url": r2.download_url(key, name), "name": name})
     @action(detail=True, methods=["post"])
     def request(self, request, pk=None):
         offer = self.get_object(); require_profile(request.user)

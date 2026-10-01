@@ -1,9 +1,10 @@
 "use client";
 
 import { ChangeEvent, useEffect, useState } from "react";
-import { Camera, ImagePlus, X } from "lucide-react";
+import { Camera, Download, Expand, ImagePlus, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { compressImage } from "@/lib/image-compression";
+import { ImageLightbox, PreviewImage } from "./image-lightbox";
 
 type ListingKind = "tasks" | "offers";
 type UploadTicket = { upload_url: string; key: string };
@@ -56,17 +57,18 @@ export async function uploadListingPhotos(kind: ListingKind, files: File[]) {
 }
 
 export function ListingPhotoGallery({ kind, id, count, compact = false, title }: { kind: ListingKind; id: string | number; count?: number; compact?: boolean; title: string }) {
-  const [urls, setUrls] = useState<string[]>([]);
+  const [images, setImages] = useState<PreviewImage[]>([]);
+  const [active, setActive] = useState<number | null>(null);
   const total = Math.min(count || 0, compact ? 1 : 4);
   useEffect(() => {
     let active = true;
-    if (!total) { setUrls([]); return; }
-    Promise.all(Array.from({ length: total }, (_, index) => api<{ url: string }>(`/${kind}/${id}/photos/${index}/`).then((item) => item.url).catch(() => "")))
-      .then((items) => { if (active) setUrls(items.filter(Boolean)); });
+    if (!total) { setImages([]); return; }
+    Promise.all(Array.from({ length: total }, (_, index) => api<{ url: string; download_url: string; name: string }>(`/${kind}/${id}/photos/${index}/`).then((item) => ({ url: item.url, downloadUrl: item.download_url, name: item.name, alt: `${title}, photo ${index + 1}` })).catch(() => null)))
+      .then((items) => { if (active) setImages(items.filter((item): item is PreviewImage => Boolean(item))); });
     return () => { active = false; };
   }, [kind, id, total]);
   if (!total) return null;
-  return <div className={`listing-photo-gallery${compact ? " compact" : ""}${urls.length > 1 ? " multiple" : ""}`} aria-label={`Photos for ${title}`}>
-    {urls.map((url, index) => <img key={url} src={url} alt={`${title}, photo ${index + 1}`} />)}
-  </div>;
+  return <><div className={`listing-photo-gallery${compact ? " compact" : ""}${images.length > 1 ? " multiple" : ""}`} aria-label={`Photos for ${title}`}>
+    {images.map((image, index) => compact ? <img key={image.url} src={image.url} alt={image.alt} /> : <figure key={image.url}><button type="button" className="listing-photo-preview" onClick={() => setActive(index)} aria-label={`Preview ${image.alt}`}><img src={image.url} alt={image.alt} /><span><Expand size={15} />Preview</span></button><a className="listing-photo-download" href={image.downloadUrl} download={image.name} aria-label={`Download ${image.alt}`}><Download size={16} /></a></figure>)}
+  </div>{active !== null && <ImageLightbox images={images} activeIndex={active} onChange={setActive} onClose={() => setActive(null)} />}</>;
 }

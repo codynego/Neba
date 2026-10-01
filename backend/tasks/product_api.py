@@ -139,7 +139,9 @@ class TaskViewSet(BaseTaskViewSet):
             return Response(status=404)
         if not r2.configured():
             raise PhotoUploadsUnavailable()
-        return Response({"url": r2.download_url(key)})
+        extension = key.rsplit(".", 1)[-1] if "." in key else "webp"
+        name = f"task-photo-{int(photo_index) + 1}.{extension}"
+        return Response({"url": r2.download_url(key), "download_url": r2.download_url(key, name), "name": name})
 
     @action(detail=False, methods=["get"])
     def conversations(self, request):

@@ -1,4 +1,6 @@
 from functools import lru_cache
+import re
+import unicodedata
 
 import boto3
 from botocore.config import Config
@@ -32,10 +34,15 @@ def upload_url(key, content_type):
     )
 
 
-def download_url(key):
+def download_url(key, download_name=None):
+    params = {"Bucket": settings.R2_BUCKET_NAME, "Key": key}
+    if download_name:
+        safe_name = unicodedata.normalize("NFKD", str(download_name)).encode("ascii", "ignore").decode("ascii")
+        safe_name = re.sub(r'[^A-Za-z0-9._ -]+', "", safe_name).strip(" .")[:100] or "download"
+        params["ResponseContentDisposition"] = f'attachment; filename="{safe_name}"'
     return client().generate_presigned_url(
         "get_object",
-        Params={"Bucket": settings.R2_BUCKET_NAME, "Key": key},
+        Params=params,
         ExpiresIn=900,
     )
 

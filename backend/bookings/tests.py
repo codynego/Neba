@@ -150,11 +150,12 @@ class ProductFlowTests(APITestCase):
         self.assertEqual(sent.data["attachments"][0]["name"], "Completion proof.pdf")
         message_id = sent.data["id"]
         with patch("bookings.message_attachments.r2.configured", return_value=True), patch(
-            "bookings.message_attachments.r2.download_url", return_value="https://files.example.test/proof"
+            "bookings.message_attachments.r2.download_url", side_effect=("https://files.example.test/preview", "https://files.example.test/download")
         ):
             opened = self.client.get(self.path(f"messages/{message_id}/attachments/0"))
             self.assertEqual(opened.status_code, 200)
-            self.assertEqual(opened.data["url"], "https://files.example.test/proof")
+            self.assertEqual(opened.data["url"], "https://files.example.test/preview")
+            self.assertEqual(opened.data["download_url"], "https://files.example.test/download")
             self.client.force_authenticate(self.stranger)
             self.assertEqual(self.client.get(self.path(f"messages/{message_id}/attachments/0")).status_code, 404)
 

@@ -92,5 +92,6 @@ def attachment_response(message, index):
         return None
     if not r2.configured():
         raise MessageUploadsUnavailable()
-    return {"url": r2.download_url(attachment["key"]), "name": attachment["name"],
+    return {"url": r2.download_url(attachment["key"]),
+            "download_url": r2.download_url(attachment["key"], attachment["name"]), "name": attachment["name"],
             "content_type": attachment["content_type"], "size": attachment["size"]}
