@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, CalendarDays, MapPin, PackageCheck, ShieldAlert, ShieldCheck, Users, WalletCards } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { ArrowLeft, CalendarDays, LoaderCircle, MapPin, PackageCheck, ShieldAlert, ShieldCheck, Users, WalletCards } from "lucide-react";
 import { api } from "@/lib/api";
 import { Task, User, categories, itemTypeLabels, naira, rewardLabel, rewardTypeLabels } from "@/lib/types";
 import { TrustBadges, VerificationGate } from "./trust";
@@ -11,6 +12,7 @@ import { BookingWorkspace } from "./booking-workspace";
 import { ListingPhotoGallery } from "./listing-photos";
 
 export function TaskDetail({ id }: { id: string }) {
+  const router = useRouter();
   const [task, setTask] = useState<Task | null>(null);
   const [me, setMe] = useState<User | null>(null);
   const [message, setMessage] = useState("");
@@ -32,6 +34,19 @@ export function TaskDetail({ id }: { id: string }) {
     try { await api(path, { method: "POST", body: JSON.stringify(body) }); await load(); setFeedback("Updated. You can track this in Activity."); }
     catch (err) { setError((err as Error).message); }
     finally { setBusy(false); }
+  }
+
+  async function apply(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (busy || !task) return;
+    setBusy(true); setError("");
+    try {
+      await api("/applications/", { method: "POST", body: JSON.stringify({ task: task.id, message }) });
+      router.push("/activity");
+    } catch (err) {
+      setError((err as Error).message);
+      setBusy(false);
+    }
   }
 
   if (!task || !me) return <main className="detail-page container"><p role={error ? "alert" : "status"} className={error ? "error-box" : ""}>{error || "Loading task…"}</p></main>;
@@ -61,7 +76,7 @@ export function TaskDetail({ id }: { id: string }) {
           : rejected ? <div className="moderation-message rejected"><ShieldAlert size={22} /><h3>Task not approved</h3><p>{task.moderation_reason || "This task does not meet the current MVP policy."}</p></div>
           : task.status === "open" ? owner ? <><p>{task.is_private ? `Waiting for ${task.target_helper_name || "your requested helper"} to respond.` : "Applications appear in Activity. Review a helper’s profile before choosing."}</p><Link className="button button-dark full-width" href="/activity">Manage applications</Link><button className="text-button" disabled={busy} onClick={() => action(`/tasks/${id}/cancel/`)}>Cancel this unassigned task</button></>
             : task.is_private ? <><h3>A request for your skills</h3><p>Check the work, reward, and timing. Accepting opens a private conversation with the requester.</p><VerificationGate helper /><button className="button button-dark full-width" disabled={busy} onClick={() => action(`/tasks/${id}/respond-invitation/`, { decision: "accept" })}>Accept request</button><button className="button button-outline full-width" disabled={busy} onClick={() => action(`/tasks/${id}/respond-invitation/`, { decision: "decline" })}>Decline request</button></>
-              : <form className="stack-form" onSubmit={async (event) => { event.preventDefault(); await action("/applications/", { task: task.id, message }); }}><label>Introduce yourself<textarea rows={5} value={message} onChange={(event) => setMessage(event.target.value)} maxLength={800} required placeholder="Tell them why you can help…" /></label><VerificationGate helper /><p className="form-note">Your phone number is shared privately after acceptance. You can coordinate in the task conversation.</p><button className="button button-dark full-width" disabled={busy || !message.trim()}>Apply for this task</button></form>
+              : <form className="stack-form" onSubmit={apply}><label>Introduce yourself<textarea rows={5} value={message} onChange={(event) => setMessage(event.target.value)} maxLength={800} required placeholder="Tell them why you can help…" /></label><VerificationGate helper /><p className="form-note">Your phone number is shared privately after acceptance. You can coordinate in the task conversation.</p><button className="button button-dark full-width" disabled={busy || !message.trim()} aria-busy={busy}>{busy ? <><LoaderCircle className="button-spinner" size={17} aria-hidden="true" />Applying…</> : "Apply for this task"}</button></form>
             : <p>This task is {task.status}. {task.has_booking && "Booking actions are below. Open Messages to coordinate."}</p>}
         <small><ShieldCheck size={15} />Agree on the exact work, timing, and reward before starting. Money, goods, and services are exchanged directly.</small>
       </aside>

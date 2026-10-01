@@ -21,7 +21,7 @@ const sections: { id: Section; tab: string; title: string; description: string; 
 ];
 
 const blankPage = (): Page<ActivityItem> => ({ count: 0, next: null, previous: null, results: [] });
-const initialNumbers = (): Record<Section, number> => ({ bookings: 1, invitations: 1, tasks: 1, received: 1, sent: 1, offers: 1 });
+const initialNumbers = (): Record<Section, number | null> => ({ bookings: null, invitations: null, tasks: null, received: null, sent: null, offers: null });
 const initialText = (): Record<Section, string> => ({ bookings: "", invitations: "", tasks: "", received: "", sent: "", offers: "" });
 const initialData = (): Record<Section, Page<ActivityItem>> => ({ bookings: blankPage(), invitations: blankPage(), tasks: blankPage(), received: blankPage(), sent: blankPage(), offers: blankPage() });
 const endpoints: Record<Section, string> = {
@@ -44,7 +44,8 @@ const applicationStatus: Record<Application["status"], string> = {
 
 export function ActivityOverview() {
   const [active, setActive] = useState<Section>("bookings");
-  const [pages, setPages] = useState(initialNumbers);
+  const [pages, setPages] = useState<Record<Section, number>>({ bookings: 1, invitations: 1, tasks: 1, received: 1, sent: 1, offers: 1 });
+  const [counts, setCounts] = useState(initialNumbers);
   const [drafts, setDrafts] = useState(initialText);
   const [queries, setQueries] = useState(initialText);
   const [datasets, setDatasets] = useState(initialData);
@@ -63,6 +64,7 @@ export function ActivityOverview() {
       const search = currentQuery ? `&search=${encodeURIComponent(currentQuery)}` : "";
       const result = await api<Page<ActivityItem>>(`${endpoints[active]}&page=${currentPage}${search}`, { signal });
       setDatasets((current) => ({ ...current, [active]: result }));
+      setCounts((current) => ({ ...current, [active]: result.count }));
     } finally {
       if (!signal?.aborted) setLoading(false);
     }
@@ -74,6 +76,14 @@ export function ActivityOverview() {
     const timer = setInterval(() => { if (!document.hidden) load().catch(() => {}); }, 20000);
     return () => { controller.abort(); clearInterval(timer); };
   }, [load]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    Promise.all(sections.map((item) => api<Page<ActivityItem>>(`${endpoints[item.id]}&page=1`, { signal: controller.signal }).then((result) => [item.id, result.count] as const)))
+      .then((results) => setCounts((current) => ({ ...current, ...Object.fromEntries(results) as Record<Section, number> })))
+      .catch(() => {});
+    return () => controller.abort();
+  }, []);
 
   function selectSection(sectionId: Section) {
     setActive(sectionId);
@@ -137,7 +147,7 @@ export function ActivityOverview() {
 
   return <main className="dashboard-page container activity-page">
     <div className="listing-heading"><div><span className="eyebrow">KEEP THINGS MOVING</span><h1>Your <em>activity.</em></h1><p>Bookings, helper requests, applications, and offers—one clear view at a time.</p></div><Link className="button button-outline" href="/notifications">View notifications</Link></div>
-    <div className="activity-tabs" role="tablist" aria-label="Activity sections">{sections.map((item, index) => <button key={item.id} ref={(element) => { tabRefs.current[index] = element; }} id={`activity-tab-${item.id}`} role="tab" aria-selected={active === item.id} aria-controls="activity-panel" tabIndex={active === item.id ? 0 : -1} onClick={() => selectSection(item.id)} onKeyDown={(event) => handleTabKey(event, index)}>{item.tab}</button>)}</div>
+    <div className="activity-tabs" role="tablist" aria-label="Activity sections">{sections.map((item, index) => <button key={item.id} ref={(element) => { tabRefs.current[index] = element; }} id={`activity-tab-${item.id}`} role="tab" aria-selected={active === item.id} aria-controls="activity-panel" aria-label={`${item.tab}: ${counts[item.id] ?? "loading"}`} tabIndex={active === item.id ? 0 : -1} onClick={() => selectSection(item.id)} onKeyDown={(event) => handleTabKey(event, index)}><span className="activity-tab-label">{item.tab}</span><span className="activity-tab-badge" aria-hidden="true">{counts[item.id] ?? "…"}</span></button>)}</div>
     {error ? <p className="error-box" role="alert">{error}</p> : null}
     <section className="dash-panel activity-panel" id="activity-panel" role="tabpanel" aria-labelledby={`activity-tab-${active}`} tabIndex={0}>
       <div className="activity-panel-heading"><div><span className="activity-count">{currentData.count}</span><div><h2>{section.title}</h2><p>{section.description}</p>{active === "received" && <small className="candidate-list-note">Shortlist to chat. A booking starts only after the helper confirms your offer.</small>}</div></div>{action ? <Link href={action.href}>{action.label}</Link> : null}</div>
