@@ -28,7 +28,7 @@ INSTALLED_APPS = [
     "django.contrib.admin", "django.contrib.auth", "django.contrib.contenttypes",
     "django.contrib.sessions", "django.contrib.messages", "django.contrib.staticfiles",
     "rest_framework", "rest_framework.authtoken", "corsheaders",
-    "accounts.apps.AccountsConfig", "locations", "tasks", "offers", "bookings", "workspaces",
+    "accounts.apps.AccountsConfig", "locations", "tasks", "offers", "bookings",
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
