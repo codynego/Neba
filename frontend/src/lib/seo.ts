@@ -7,7 +7,7 @@ if (siteUrl.protocol !== "https:" || siteUrl.username || siteUrl.password || sit
 }
 export const indexPublicPages = process.env.NODE_ENV === "production" && process.env.SEO_INDEXABLE !== "false" && (!process.env.VERCEL_ENV || process.env.VERCEL_ENV === "production");
 export const publicSearchPaths = ["/", "/local-help", "/install", "/about", "/stories", "/help", "/community-guidelines", "/privacy", "/terms"];
-export const siteDescription = "Find local help and paid tasks in Nigeria. Post errands, moving, tutoring, tech and event tasks, or offer your skills to people in your city.";
+export const siteDescription = "Neba Pro helps Nigerian service businesses turn WhatsApp enquiries into organised, completed and paid jobs.";
 
 export function publicPageMetadata(title: string, description: string, path: string): Metadata {
   const url = new URL(path, siteUrl).toString();

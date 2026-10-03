@@ -39,6 +39,10 @@ export const availabilityLabels: Record<Availability, string> = { flexible: "Fle
 export const itemTypeLabels: Record<ItemType, string> = { documents: "Documents", food: "Food or groceries", clothing: "Clothing", electronics: "Electronics", furniture: "Furniture", other: "Other" };
 export const rewardTypeLabels: Record<RewardType, string> = { money: "Money", food: "Food", item: "Item / goods", skill: "Skill / knowledge", service: "Service", exchange: "Exchange / barter", combination: "Combination", other: "Other" };
 export type Page<T> = { count: number; next: string | null; previous: string | null; results: T[] };
+export type Business = { id: number; name: string; service_type: string; city: string; phone: string; slug: string; job_count: number; created_at: string; updated_at: string };
+export type Customer = { id: number; business: number; name: string; phone: string; address: string; notes: string; created_at: string };
+export type JobStatus = "new" | "quoted" | "confirmed" | "in_progress" | "completed" | "cancelled";
+export type Job = { id: number; business: number; customer: number; customer_name: string; customer_phone: string; title: string; description: string; address: string; requested_for: string | null; assignee_name: string; status: JobStatus; quote_amount: string | null; deposit_amount: string; amount_paid: string; payment_status: "unpaid" | "partial" | "paid"; balance_due: string; source: string; ai_summary: string; created_at: string; updated_at: string };
 export const categories: { value: Category | ""; label: string }[] = [
   { value: "", label: "All categories" },
   { value: "errands", label: "Errands" },

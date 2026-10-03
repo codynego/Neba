@@ -8,6 +8,7 @@ from tasks.product_api import TaskViewSet
 from offers.product_api import OfferViewSet
 from bookings.product_api import ApplicationViewSet
 from accounts.notification_views import NotificationViewSet
+from workspaces.product_api import BusinessViewSet, CustomerViewSet, JobViewSet
 
 router = DefaultRouter()
 router.register("cities", CityViewSet, basename="city")
@@ -15,6 +16,9 @@ router.register("tasks", TaskViewSet, basename="task")
 router.register("offers", OfferViewSet, basename="offer")
 router.register("applications", ApplicationViewSet, basename="application")
 router.register("notifications", NotificationViewSet, basename="notification")
+router.register("businesses", BusinessViewSet, basename="business")
+router.register("customers", CustomerViewSet, basename="customer")
+router.register("jobs", JobViewSet, basename="job")
 
 
 def health(request):
