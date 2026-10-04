@@ -2,18 +2,273 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowRight, Bell, Bookmark, CalendarClock, Check, Compass, Search, Sparkles, Target } from "lucide-react";
+import { ArrowRight, Bell, Bookmark, CalendarClock, Check, Compass, Search, Sparkles } from "lucide-react";
 import { api, getToken } from "@/lib/api";
 import { Opportunity, OpportunityDashboard, User } from "@/lib/types";
 import { useRouter } from "next/navigation";
 
-const categoryLabels: Record<string, string> = { scholarship: "Scholarships", grant: "Grants", job: "Jobs", internship: "Internships", fellowship: "Fellowships", competition: "Competitions", training: "Training", startup: "Startup programs", funding: "Business funding" };
-function deadlineLabel(deadline: string | null) { if (!deadline) return "No deadline listed"; const days = Math.ceil((new Date(deadline).getTime() - Date.now()) / 86400000); return days <= 0 ? "Closing today" : days === 1 ? "1 day left" : `${days} days left`; }
-function OpportunityCard({ opportunity }: { opportunity: Opportunity }) { return <article className="radar-match-card"><div className="radar-match-meta"><span>{opportunity.match?.score || 0}% match</span><small>{categoryLabels[opportunity.category]} · {opportunity.is_remote ? "Remote" : opportunity.location_label || opportunity.country || "Open location"}</small></div><h3>{opportunity.title}</h3><p>{opportunity.provider}</p><div className="why-match">{opportunity.match?.reasons.slice(0, 2).map((reason) => <span key={reason}><Check size={13} />{reason}</span>)}</div><div className="radar-match-footer"><small><CalendarClock size={14} />{deadlineLabel(opportunity.deadline)}</small><Link href={`/opportunities/${opportunity.public_id}`}>View <ArrowRight size={14} /></Link></div></article> }
+const categoryMeta: Record<string, string> = {
+  scholarship: "Scholarships",
+  grant: "Grants",
+  job: "Jobs",
+  internship: "Internships",
+  fellowship: "Fellowships",
+  competition: "Competitions",
+  training: "Training",
+  startup: "Startup programs",
+  funding: "Business funding",
+};
+
+function timeGreeting() {
+  const h = new Date().getHours();
+  return h < 12 ? "morning" : h < 18 ? "afternoon" : "evening";
+}
+
+function deadlineDays(deadline: string | null) {
+  if (!deadline) return null;
+  return Math.ceil((new Date(deadline).getTime() - Date.now()) / 86400000);
+}
+
+function deadlineLabel(deadline: string | null) {
+  const days = deadlineDays(deadline);
+  if (days === null) return "No deadline";
+  if (days <= 0) return "Closing today";
+  if (days === 1) return "1 day left";
+  return `${days} days left`;
+}
+
+function TopMatchCard({ opp }: { opp: Opportunity }) {
+  const score = opp.match?.score ?? 0;
+  const reasons = opp.match?.reasons ?? [];
+  const location = opp.is_remote ? "Remote" : opp.location_label || opp.country || "Open location";
+  const days = deadlineDays(opp.deadline);
+
+  return (
+    <article className="dash-hero-card">
+      <div className="dash-hero-card-top">
+        <div className="dash-score-badge">
+          <span className="dash-score-num">{score}%</span>
+          <span className="dash-score-lbl">match</span>
+        </div>
+        <div className="dash-hero-chips">
+          <span className="dash-cat-chip">{categoryMeta[opp.category] || opp.category} · {location}</span>
+          {days !== null && (
+            <span className={`dash-dl-chip${days <= 7 ? " urgent" : ""}`}>
+              <CalendarClock size={12} />
+              Deadline: {days <= 0 ? "today" : `${days} days`}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <h2 className="dash-hero-title">{opp.title}</h2>
+      <p className="dash-hero-provider">{opp.provider}</p>
+
+      {reasons.length > 0 && (
+        <div className="dash-why">
+          <span className="dash-why-label">Why you match</span>
+          <div className="dash-why-list">
+            {reasons.slice(0, 3).map((r) => (
+              <span key={r} className="dash-why-item">
+                <Check size={13} /> {r}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <Link href={`/opportunities/${opp.public_id}`} className="dash-hero-cta">
+        View opportunity <ArrowRight size={16} />
+      </Link>
+    </article>
+  );
+}
+
+function MiniMatchRow({ opp }: { opp: Opportunity }) {
+  return (
+    <Link href={`/opportunities/${opp.public_id}`} className="dash-mini-row">
+      <span className="dash-mini-score">{opp.match?.score ?? 0}%</span>
+      <div className="dash-mini-info">
+        <strong>{opp.title}</strong>
+        <small>{categoryMeta[opp.category]} · {deadlineLabel(opp.deadline)}</small>
+      </div>
+      <ArrowRight size={14} />
+    </Link>
+  );
+}
+
+function UrgentChip({ opp }: { opp: Opportunity }) {
+  const days = deadlineDays(opp.deadline);
+  return (
+    <Link href={`/opportunities/${opp.public_id}`} className="dash-urgent-chip">
+      <span className="dash-urgent-cat">{categoryMeta[opp.category] || opp.category}</span>
+      <span className="dash-urgent-days">
+        {days !== null && days >= 0 ? `${days} day${days === 1 ? "" : "s"} left` : "Closing today"}
+      </span>
+    </Link>
+  );
+}
 
 export default function DashboardPage() {
-  const router = useRouter(); const [user, setUser] = useState<User | null>(null); const [data, setData] = useState<OpportunityDashboard | null>(null); const [query, setQuery] = useState("");
-  useEffect(() => { if (!getToken()) { router.replace("/login?next=/dashboard"); return; } Promise.all([api<User>("/auth/me/"), api<OpportunityDashboard>("/opportunities/dashboard/")]).then(([profile, dashboard]) => { setUser(profile); setData(dashboard); }).catch(() => router.replace("/login")); }, [router]);
+  const router = useRouter();
+  const [user, setUser] = useState<User | null>(null);
+  const [data, setData] = useState<OpportunityDashboard | null>(null);
+  const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    if (!getToken()) { router.replace("/login?next=/dashboard"); return; }
+    Promise.all([api<User>("/auth/me/"), api<OpportunityDashboard>("/opportunities/dashboard/")])
+      .then(([profile, dashboard]) => { setUser(profile); setData(dashboard); })
+      .catch(() => router.replace("/login"));
+  }, [router]);
+
   const firstName = user?.display_name?.split(" ")[0] || "there";
-  return <main className="opportunity-dashboard container"><header className="opportunity-dashboard-header"><div><span className="eyebrow">YOUR OPPORTUNITY COMMAND CENTER</span><h1>Good {new Date().getHours() < 12 ? "morning" : new Date().getHours() < 18 ? "afternoon" : "evening"}, {firstName}.</h1><p>{data ? `${data.new_this_week} opportunities match your profile right now.` : "Loading your opportunity radar…"}</p></div><Link href="/alerts" className="dashboard-alert"><Bell size={18} /> Alerts</Link></header><form className="dashboard-search" onSubmit={(event) => { event.preventDefault(); router.push(`/opportunities?search=${encodeURIComponent(query)}`); }}><Search size={20} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search scholarships, grants, jobs, fellowships…" /><button type="submit"><ArrowRight size={18} /></button></form>{!data ? <div className="dashboard-loading">Preparing your radar…</div> : <><section className="dashboard-radar"><div className="dashboard-radar-heading"><div><span className="landing-eyebrow"><Compass size={14} /> YOUR OPPORTUNITY RADAR</span><h2>{data.match_count} opportunities match your profile.</h2><p>{data.match_count ? "Start with the ones that fit your direction best." : "Finish a few profile details and we’ll start finding relevant opportunities."}</p></div><Link href="/matches" className="section-link">View all matches <ArrowRight size={16} /></Link></div>{data.top_matches.length ? <div className="radar-match-grid">{data.top_matches.slice(0, 3).map((opportunity) => <OpportunityCard opportunity={opportunity} key={opportunity.public_id} />)}</div> : <div className="radar-empty"><Sparkles size={26} /><div><strong>Your radar is ready for opportunities.</strong><p>Once opportunities are published, we’ll rank them against your profile and show you why they fit.</p></div><Link className="button button-dark compact" href="/profile">Refine profile <ArrowRight size={15} /></Link></div>}</section><section className="dashboard-section"><div className="dashboard-section-heading"><div><span className="eyebrow">ACT SOON</span><h2>Don’t miss these</h2></div><Link href="/matches" className="section-link">See deadlines <ArrowRight size={16} /></Link></div><div className="urgent-grid">{data.urgent.length ? data.urgent.map((opportunity) => <Link href={`/opportunities/${opportunity.public_id}`} className="urgent-card" key={opportunity.public_id}><strong>{deadlineLabel(opportunity.deadline)}</strong><span>{categoryLabels[opportunity.category]}</span><h3>{opportunity.title}</h3><p>{opportunity.benefit || opportunity.provider}</p></Link>) : <p className="quiet-section">Deadlines for matching opportunities will appear here.</p>}</div></section><section className="dashboard-section"><div className="dashboard-section-heading"><div><span className="eyebrow">EXPLORE</span><h2>Find your next opening</h2></div><Link href="/opportunities" className="section-link">Browse all <ArrowRight size={16} /></Link></div><div className="dashboard-categories">{Object.entries(categoryLabels).slice(0, 8).map(([value, label]) => <Link href={`/opportunities?category=${value}`} key={value}><Target size={18} /><span>{label}</span><ArrowRight size={15} /></Link>)}</div></section><div className="dashboard-lower"><section className="dashboard-section tracker-panel"><div className="dashboard-section-heading"><div><span className="eyebrow">YOUR APPLICATIONS</span><h2>Keep moving</h2></div><Link href="/applications" className="section-link">Open tracker <ArrowRight size={16} /></Link></div>{data.applications.length ? <div className="tracker-list">{data.applications.map((item) => <div key={item.id}><span className={`application-status ${item.status}`}>{item.status}</span><strong>{item.opportunity.title}</strong><small>{deadlineLabel(item.opportunity.deadline)}</small></div>)}</div> : <p className="quiet-section">Save an opportunity or add it to your tracker when you are ready to apply.</p>}</section><section className="profile-nudge"><span><Bookmark size={19} /></span><div><small>PROFILE QUALITY</small><strong>{data.profile_completion}% complete</strong><p>{data.missing_profile_fields.length ? `Add ${data.missing_profile_fields.slice(0, 2).join(" and ").replaceAll("_", " ")} for more precise matches.` : "Your profile is giving your radar useful context."}</p><Link href="/profile">Improve my matches <ArrowRight size={15} /></Link></div></section></div></>}</main>;
+
+  return (
+    <main className="dash-overview container">
+
+      {/* ── Greeting ─────────────────────────────── */}
+      <header className="dash-greeting">
+        <div className="dash-greeting-copy">
+          <p className="dash-greeting-time">Good {timeGreeting()}, {firstName}</p>
+          {data ? (
+            <div className="dash-greeting-stats">
+              <strong>{data.match_count} opportunities match your profile</strong>
+              {data.new_this_week > 0 && <span>{data.new_this_week} new this week</span>}
+            </div>
+          ) : (
+            <div className="dash-greeting-stats"><span>Loading your radar…</span></div>
+          )}
+        </div>
+        <Link href="/alerts" className="dash-alerts-link">
+          <Bell size={16} /> Alerts
+        </Link>
+      </header>
+
+      {/* ── Search ───────────────────────────────── */}
+      <form
+        className="dash-search"
+        onSubmit={(e) => { e.preventDefault(); if (query.trim()) router.push(`/opportunities?search=${encodeURIComponent(query)}`); }}
+      >
+        <Search size={18} />
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search opportunities…"
+          aria-label="Search opportunities"
+        />
+        {query.trim() && (
+          <button type="submit" aria-label="Search">
+            <ArrowRight size={17} />
+          </button>
+        )}
+      </form>
+
+      {!data ? (
+        <div className="dash-loading">
+          <Sparkles size={22} />
+          <span>Preparing your radar…</span>
+        </div>
+      ) : (
+        <>
+          {/* ── Your Opportunity Radar ────────────── */}
+          <section className="dash-section">
+            <div className="dash-section-hd">
+              <span className="dash-eyebrow"><Compass size={12} /> YOUR OPPORTUNITY RADAR</span>
+              <Link href="/matches" className="dash-section-link">View all matches <ArrowRight size={13} /></Link>
+            </div>
+
+            {data.top_matches.length ? (
+              <>
+                <TopMatchCard opp={data.top_matches[0]} />
+                {data.top_matches.length > 1 && (
+                  <div className="dash-mini-list">
+                    {data.top_matches.slice(1, 4).map((opp) => (
+                      <MiniMatchRow key={opp.public_id} opp={opp} />
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="dash-radar-empty">
+                <Sparkles size={26} />
+                <div>
+                  <strong>Your radar is ready.</strong>
+                  <p>Once opportunities are published we'll rank them against your profile and show you why they fit.</p>
+                </div>
+                <Link href="/profile" className="button button-dark compact">Refine my profile <ArrowRight size={14} /></Link>
+              </div>
+            )}
+          </section>
+
+          {/* ── Don't Miss These ─────────────────── */}
+          {data.urgent.length > 0 && (
+            <section className="dash-section">
+              <div className="dash-section-hd">
+                <span className="dash-eyebrow dash-eyebrow-hot">DON&apos;T MISS THESE</span>
+                <Link href="/matches" className="dash-section-link">See all deadlines <ArrowRight size={13} /></Link>
+              </div>
+              <div className="dash-urgent-row">
+                {data.urgent.map((opp) => (
+                  <UrgentChip key={opp.public_id} opp={opp} />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* ── Explore ──────────────────────────── */}
+          <section className="dash-section">
+            <div className="dash-section-hd">
+              <span className="dash-eyebrow">EXPLORE</span>
+              <Link href="/opportunities" className="dash-section-link">Browse all <ArrowRight size={13} /></Link>
+            </div>
+            <div className="dash-explore-pills">
+              {Object.entries(categoryMeta).map(([value, label]) => (
+                <Link href={`/opportunities?category=${value}`} key={value} className="dash-explore-pill">
+                  {label}
+                </Link>
+              ))}
+            </div>
+          </section>
+
+          {/* ── Bottom: Tracker + Profile Quality ── */}
+          <div className="dash-bottom">
+            <section className="dash-tracker">
+              <div className="dash-section-hd">
+                <span className="dash-eyebrow">YOUR APPLICATIONS</span>
+                <Link href="/applications" className="dash-section-link">Open tracker <ArrowRight size={13} /></Link>
+              </div>
+              {data.applications.length ? (
+                <div className="dash-app-list">
+                  {data.applications.map((item) => (
+                    <div key={item.id} className="dash-app-row">
+                      <span className={`dash-app-status ${item.status}`}>{item.status}</span>
+                      <strong>{item.opportunity.title}</strong>
+                      <small>{deadlineLabel(item.opportunity.deadline)}</small>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="dash-quiet">Save an opportunity or add it to your tracker when you&apos;re ready to apply.</p>
+              )}
+            </section>
+
+            <section className="dash-profile-nudge">
+              <span className="dash-nudge-icon"><Bookmark size={18} /></span>
+              <div>
+                <small>PROFILE QUALITY</small>
+                <strong>{data.profile_completion}% complete</strong>
+                <p>
+                  {data.missing_profile_fields.length
+                    ? `Add ${data.missing_profile_fields.slice(0, 2).join(" and ").replaceAll("_", " ")} for more precise matches.`
+                    : "Your profile is giving your radar great context."}
+                </p>
+                <Link href="/profile">Improve my matches <ArrowRight size={14} /></Link>
+              </div>
+            </section>
+          </div>
+        </>
+      )}
+    </main>
+  );
 }
