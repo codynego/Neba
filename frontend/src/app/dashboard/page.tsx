@@ -17,6 +17,7 @@ const categoryMeta: Record<string, string> = {
   training: "Training",
   startup: "Startup programs",
   funding: "Business funding",
+  tender: "Tenders & Procurement",
 };
 
 function timeGreeting() {

@@ -15,6 +15,7 @@ class Opportunity(models.Model):
         TRAINING = "training", "Training"
         STARTUP = "startup", "Startup program"
         FUNDING = "funding", "Business funding"
+        TENDER = "tender", "Tenders & Procurement"
 
     public_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False, db_index=True)
     title = models.CharField(max_length=220)

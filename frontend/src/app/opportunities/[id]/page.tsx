@@ -7,7 +7,7 @@ import { useParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { Opportunity, OpportunityApplication, Page } from "@/lib/types";
 
-const labels: Record<string, string> = { scholarship: "Scholarship", grant: "Grant", job: "Job", internship: "Internship", fellowship: "Fellowship", competition: "Competition", training: "Training", startup: "Startup program", funding: "Funding" };
+const labels: Record<string, string> = { scholarship: "Scholarship", grant: "Grant", job: "Job", internship: "Internship", fellowship: "Fellowship", competition: "Competition", training: "Training", startup: "Startup program", funding: "Funding", tender: "Tenders & Procurement" };
 const formatDate = (value: string | null) => value ? new Intl.DateTimeFormat("en", { month: "long", day: "numeric", year: "numeric" }).format(new Date(value)) : "No deadline listed";
 const daysLeft = (value: string | null) => value ? Math.max(0, Math.ceil((new Date(value).getTime() - Date.now()) / 86400000)) : null;
 const place = (item: Opportunity) => item.is_remote ? "Remote" : item.location_label || item.country || "Open location";

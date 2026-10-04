@@ -6,8 +6,8 @@ import { ArrowRight, Bookmark, CalendarClock, Check, ChevronDown, Filter, Search
 import { api } from "@/lib/api";
 import { Opportunity, OpportunityCategory, Page } from "@/lib/types";
 
-const labels: Record<string, string> = { scholarship: "Scholarship", grant: "Grant", job: "Job", internship: "Internship", fellowship: "Fellowship", competition: "Competition", training: "Training", startup: "Startup program", funding: "Funding", accelerator: "Accelerator", remote: "Remote", volunteer: "Volunteer" };
-const tabs = ["all", "scholarship", "grant", "job", "internship", "fellowship", "competition", "training", "startup", "accelerator", "funding", "remote", "volunteer"];
+const labels: Record<string, string> = { scholarship: "Scholarship", grant: "Grant", job: "Job", internship: "Internship", fellowship: "Fellowship", competition: "Competition", training: "Training", startup: "Startup program", funding: "Funding", tender: "Tenders & Procurement", remote: "Remote" };
+const tabs = ["all", "job", "internship", "scholarship", "grant", "fellowship", "training", "startup", "tender", "competition", "funding", "remote"];
 const deadline = (value: string | null) => value ? new Intl.DateTimeFormat("en", { month: "short", day: "numeric", year: "numeric" }).format(new Date(value)) : "No deadline listed";
 const location = (item: Opportunity) => item.is_remote ? "Remote" : item.location_label || item.country || "Open location";
 

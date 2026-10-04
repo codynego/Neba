@@ -36,6 +36,7 @@ const opportunityInterestLabels: Record<string, string> = {
   training: "Training",
   startup: "Startup Programs",
   funding: "Business Funding",
+  tender: "Tenders & Procurement",
   remote: "Remote Opportunities",
 };
 
