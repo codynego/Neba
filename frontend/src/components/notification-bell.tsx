@@ -12,5 +12,5 @@ export function NotificationBell() {
     window.addEventListener("neba_notifications", refresh); document.addEventListener("visibilitychange", refresh);
     return () => { controller.abort(); clearInterval(timer); window.removeEventListener("neba_notifications", refresh); document.removeEventListener("visibilitychange", refresh); };
   }, []);
-  return <Link className="notification-bell" href="/notifications" aria-label={`Notifications${count ? `, ${count} unread` : ""}`}><Bell size={21} />{count > 0 && <span>{count > 99 ? "99+" : count}</span>}</Link>;
+  return <Link className="notification-bell" href="/alerts" aria-label={`Notifications${count ? `, ${count} unread` : ""}`}><Bell size={21} />{count > 0 && <span>{count > 99 ? "99+" : count}</span>}</Link>;
 }
