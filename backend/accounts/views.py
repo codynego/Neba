@@ -7,6 +7,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.utils.encoding import force_str
 from django.utils.http import urlsafe_base64_decode
 from django.utils import timezone
+from django.utils.text import slugify
 from PIL import Image, UnidentifiedImageError
 from botocore.exceptions import BotoCoreError, ClientError
 from rest_framework import generics, permissions, serializers
@@ -20,7 +21,9 @@ from .trust import normalize_phone
 from .emailing import EmailUnavailable, safely, send_password_reset_email, send_verification_email
 
 class UserSerializer(serializers.ModelSerializer):
-    skills = serializers.ListField(child=serializers.ChoiceField(choices=("errands", "moving", "events", "tutoring", "tech", "other")), max_length=6, required=False)
+    skills = serializers.ListField(child=serializers.CharField(max_length=80), max_length=20, required=False)
+    opportunity_interests = serializers.ListField(child=serializers.CharField(max_length=80), max_length=12, required=False)
+    goals = serializers.ListField(child=serializers.CharField(max_length=80), max_length=12, required=False)
     def validate_skills(self, value):
         return list(dict.fromkeys(value))
     phone_verified = serializers.SerializerMethodField()
@@ -48,15 +51,18 @@ class UserSerializer(serializers.ModelSerializer):
         return value
     class Meta:
         model = User
-        fields = ("id", "public_id", "username", "email", "email_verified", "display_name", "city", "state", "date_joined", "phone", "phone_verified", "identity_verified", "photo_visible", "photo_available", "profile_complete", "bio", "skills", "neighborhood", "address", "latitude", "longitude", "availability", "nearby_task_emails")
+        fields = ("id", "public_id", "username", "email", "email_verified", "display_name", "city", "state", "date_joined", "phone", "phone_verified", "identity_verified", "photo_visible", "photo_available", "profile_complete", "bio", "skills", "neighborhood", "address", "latitude", "longitude", "availability", "nearby_task_emails", "date_of_birth", "gender", "country", "education_level", "field_of_study", "institution", "graduation_year", "gpa", "employment_status", "years_experience", "industry", "opportunity_interests", "goals", "business_status", "financial_need")
         read_only_fields = ("id", "public_id", "username", "email", "email_verified", "date_joined", "phone_verified", "identity_verified", "photo_available", "profile_complete")
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[validate_password])
     terms_accepted = serializers.BooleanField(write_only=True)
+    display_name = serializers.CharField(max_length=80, required=False, allow_blank=True)
+    username = serializers.CharField(required=False, write_only=True)
+    phone = serializers.CharField(required=False, allow_blank=True, write_only=True)
     class Meta:
         model = User
-        fields = ("username", "email", "display_name", "password", "city", "state", "terms_accepted")
+        fields = ("username", "email", "display_name", "password", "phone", "terms_accepted")
     def validate_email(self, value):
         if User.objects.filter(email__iexact=value).exists():
             raise serializers.ValidationError("An account with this email already exists.")
@@ -67,7 +73,20 @@ class RegisterSerializer(serializers.ModelSerializer):
         return value
     def create(self, validated_data):
         validated_data.pop("terms_accepted")
-        validated_data.setdefault("display_name", validated_data["username"])
+        requested_username = validated_data.pop("username", "")
+        base_username = slugify(requested_username or validated_data["email"].split("@", 1)[0])[:130] or "member"
+        username = base_username
+        suffix = 2
+        while User.objects.filter(username__iexact=username).exists():
+            username = f"{base_username[:145]}-{suffix}"
+            suffix += 1
+        validated_data["username"] = username
+        validated_data["display_name"] = validated_data.get("display_name") or requested_username or username
+        phone = validated_data.get("phone", "")
+        if phone:
+            validated_data["phone"] = normalize_phone(phone)
+        else:
+            validated_data.pop("phone", None)
         return User.objects.create_user(terms_accepted_at=timezone.now(), legal_policy_version="2026-09-30", **validated_data)
 
 class RegisterView(generics.CreateAPIView):
@@ -75,8 +94,9 @@ class RegisterView(generics.CreateAPIView):
     permission_classes = [permissions.AllowAny]
     throttle_scope = "register"
     def create(self, request, *args, **kwargs):
-        response = super().create(request, *args, **kwargs)
-        user = User.objects.get(username=response.data["username"])
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
         safely(send_verification_email, user)
         token, _ = Token.objects.get_or_create(user=user)
         return Response({"token": token.key, "user": UserSerializer(user).data}, status=201)
@@ -85,7 +105,9 @@ class LoginView(APIView):
     permission_classes = [permissions.AllowAny]
     throttle_scope = "login"
     def post(self, request):
-        user = authenticate(username=request.data.get("username"), password=request.data.get("password"))
+        identifier = str(request.data.get("identifier") or request.data.get("username") or "").strip()
+        username = User.objects.filter(email__iexact=identifier).values_list("username", flat=True).first() if "@" in identifier else identifier
+        user = authenticate(username=username, password=request.data.get("password"))
         if not user:
             return Response({"detail": "Invalid username or password."}, status=400)
         token, _ = Token.objects.get_or_create(user=user)

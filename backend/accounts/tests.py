@@ -63,13 +63,12 @@ class TrustFlowTests(APITestCase):
         self.assertEqual(self.member.phone, "+2348012345671")
         self.assertIsNone(self.member.phone_verified_at)
 
-    def test_profile_becomes_complete_after_private_r2_photo_confirmation(self):
+    def test_profile_becomes_complete_after_core_opportunity_details(self):
         profile = self.client.patch("/api/auth/me/", {
-            "phone": "08012345671", "address": "12 Test Street", "neighborhood": "Garki",
-            "city": "Abuja", "state": "FCT", "latitude": "9.076500", "longitude": "7.398600",
+            "country": "Nigeria", "education_level": "Undergraduate", "opportunity_interests": ["Scholarships", "Internships"],
         }, format="json")
         self.assertEqual(profile.status_code, 200)
-        self.assertFalse(profile.data["profile_complete"])
+        self.assertTrue(profile.data["profile_complete"])
         with patch("accounts.views.r2.configured", return_value=True), patch("accounts.views.r2.upload_url", return_value="https://upload.example.test/signed"):
             ticket = self.client.post("/api/auth/profile-photo/upload/", {"content_type": "image/jpeg", "size": 2048}, format="json")
         self.assertEqual(ticket.status_code, 200)
@@ -87,12 +86,13 @@ class TrustFlowTests(APITestCase):
     @patch("accounts.views.send_verification_email")
     def test_registration_requires_and_records_current_legal_acceptance(self, send_verification):
         self.client.force_authenticate(None)
-        payload = {"username": "new-member", "email": "new@example.test", "display_name": "New Member", "password": "safe-example-password-394"}
+        payload = {"username": "new-member", "email": "new@example.test", "password": "safe-example-password-394"}
         rejected = self.client.post("/api/auth/register/", payload, format="json")
         self.assertEqual(rejected.status_code, 400)
         accepted = self.client.post("/api/auth/register/", {**payload, "terms_accepted": True}, format="json")
         self.assertEqual(accepted.status_code, 201, accepted.data)
         member = User.objects.get(username="new-member")
+        self.assertEqual(member.display_name, "new-member")
         self.assertIsNotNone(member.terms_accepted_at)
         self.assertEqual(member.legal_policy_version, "2026-09-30")
         send_verification.assert_called_once_with(member)

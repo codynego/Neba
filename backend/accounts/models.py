@@ -25,13 +25,28 @@ class User(AbstractUser):
     legal_policy_version = models.CharField(max_length=20, blank=True)
     email_verified_at = models.DateTimeField(null=True, blank=True)
     nearby_task_emails = models.BooleanField(default=False)
+    date_of_birth = models.DateField(null=True, blank=True)
+    gender = models.CharField(max_length=32, blank=True)
+    country = models.CharField(max_length=120, blank=True)
+    education_level = models.CharField(max_length=80, blank=True)
+    field_of_study = models.CharField(max_length=160, blank=True)
+    institution = models.CharField(max_length=180, blank=True)
+    graduation_year = models.PositiveSmallIntegerField(null=True, blank=True)
+    gpa = models.CharField(max_length=32, blank=True)
+    employment_status = models.CharField(max_length=80, blank=True)
+    years_experience = models.CharField(max_length=32, blank=True)
+    industry = models.CharField(max_length=120, blank=True)
+    opportunity_interests = models.JSONField(default=list, blank=True)
+    goals = models.JSONField(default=list, blank=True)
+    business_status = models.CharField(max_length=80, blank=True)
+    financial_need = models.CharField(max_length=80, blank=True)
 
     def __str__(self):
         return self.display_name or self.username
 
     @property
     def profile_complete(self):
-        return bool(self.phone and self.profile_photo_key and self.address and self.neighborhood and self.city and self.state)
+        return bool(self.country and self.education_level and self.opportunity_interests)
 
 class PhoneChallenge(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)

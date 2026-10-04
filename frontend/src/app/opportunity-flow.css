@@ -1,0 +1,10 @@
+@media (max-width: 760px) {
+  body:has(.opportunity-onboarding) .bottom-nav,
+  body:has(.opportunity-onboarding) .pwa-install {
+    display: none;
+  }
+
+  body:has(.opportunity-onboarding) .app-content {
+    padding-bottom: 0;
+  }
+}

@@ -1,158 +1,30 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useEffect, useState } from "react";
-import { ArrowRight, Camera, CheckCircle2, Home, LocateFixed, MapPin, ShieldCheck, UserRound } from "lucide-react";
+import { FormEvent, useState } from "react";
+import { ArrowRight, Check, CheckCircle2, Compass, GraduationCap, MapPin, Sparkles, Target, UserRound } from "lucide-react";
 import { api } from "@/lib/api";
 import { User } from "@/lib/types";
-import { compressImage } from "@/lib/image-compression";
 
-type UploadTicket = { upload_url: string; key: string; content_type: string };
-type Intent = "need-help" | "can-help" | "explore";
+const interests = ["Scholarships", "Grants", "Jobs", "Internships", "Fellowships", "Competitions", "Training", "Startup programs", "Business funding", "Remote opportunities"];
+const goals = ["Fund my education", "Find a job", "Start or grow a business", "Learn a skill", "Get international opportunities", "Get funding"];
+
+function ToggleGrid({ options, selected, onChange }: { options: string[]; selected: string[]; onChange: (value: string[]) => void }) {
+  return <div className="profile-toggle-grid">{options.map((option) => <button type="button" key={option} className={selected.includes(option) ? "selected" : ""} onClick={() => onChange(selected.includes(option) ? selected.filter((item) => item !== option) : [...selected, option])}><span>{selected.includes(option) && <Check size={14} />}</span>{option}</button>)}</div>;
+}
 
 export function OnboardingForm({ initialUser, nextPath }: { initialUser: User; nextPath?: string }) {
   const [user, setUser] = useState(initialUser);
-  const [step, setStep] = useState<1 | 2>(initialUser.profile_complete ? 2 : 1);
-  const [photo, setPhoto] = useState<File | null>(null);
-  const [compressing, setCompressing] = useState(false);
-  const [preview, setPreview] = useState("");
-  const [intent, setIntent] = useState<Intent>("need-help");
-  const [coordinates, setCoordinates] = useState({ latitude: initialUser.latitude || "", longitude: initialUser.longitude || "" });
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [selectedInterests, setSelectedInterests] = useState<string[]>(initialUser.opportunity_interests || []);
+  const [selectedGoals, setSelectedGoals] = useState<string[]>(initialUser.goals || []);
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState("");
+  const matches = Math.max(11, 7 + selectedInterests.length * 2 + selectedGoals.length);
 
-  useEffect(() => {
-    if (!photo) { setPreview(""); return; }
-    const url = URL.createObjectURL(photo);
-    setPreview(url);
-    return () => URL.revokeObjectURL(url);
-  }, [photo]);
+  async function save(payload: Record<string, unknown>) { const updated = await api<User>("/auth/me/", { method: "PATCH", body: JSON.stringify(payload) }); setUser(updated); return updated; }
+  async function saveInterests(event: FormEvent) { event.preventDefault(); if (!selectedInterests.length) { setFeedback("Choose at least one kind of opportunity to start your radar."); return; } setBusy(true); setFeedback(""); try { await save({ opportunity_interests: selectedInterests }); setStep(2); } catch (error) { setFeedback((error as Error).message); } finally { setBusy(false); } }
+  async function saveEligibility(event: FormEvent<HTMLFormElement>) { event.preventDefault(); setBusy(true); setFeedback(""); const data = Object.fromEntries(new FormData(event.currentTarget)); try { await save(data); setStep(3); } catch (error) { setFeedback((error as Error).message); } finally { setBusy(false); } }
+  async function finish(event?: FormEvent<HTMLFormElement>) { event?.preventDefault(); setBusy(true); setFeedback(""); try { if (event) { const data = Object.fromEntries(new FormData(event.currentTarget)); await save({ ...data, goals: selectedGoals, skills: String(data.skills || "").split(",").map((skill) => skill.trim()).filter(Boolean) }); } window.location.assign(nextPath && nextPath.startsWith("/") && !nextPath.startsWith("//") ? nextPath : "/dashboard"); } catch (error) { setFeedback((error as Error).message); setBusy(false); } }
 
-  async function choosePhoto(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0] || null;
-    setFeedback("");
-    if (!file) {
-      setPhoto(null);
-      return;
-    }
-    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
-      event.target.value = "";
-      setPhoto(null);
-      setFeedback("Choose a JPEG, PNG, or WebP photo.");
-      return;
-    }
-    if (file.size > 20 * 1024 * 1024) {
-      event.target.value = "";
-      setPhoto(null);
-      setFeedback("Choose a photo under 20 MB.");
-      return;
-    }
-    setCompressing(true);
-    try {
-      const compressed = await compressImage(file);
-      setPhoto(compressed);
-    } catch (error) {
-      event.target.value = "";
-      setPhoto(null);
-      setFeedback((error as Error).message || "Could not process this photo.");
-    } finally {
-      setCompressing(false);
-    }
-  }
-
-  function useCurrentLocation() {
-    setFeedback("");
-    if (!navigator.geolocation) { setFeedback("Location access is not supported by this browser. You can enter your area manually."); return; }
-    navigator.geolocation.getCurrentPosition(
-      ({ coords }) => setCoordinates({ latitude: coords.latitude.toFixed(6), longitude: coords.longitude.toFixed(6) }),
-      () => setFeedback("Location access was not available. You can enter your area manually."),
-      { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 },
-    );
-  }
-
-  async function saveProfile(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setBusy(true);
-    setFeedback("");
-    const data = new FormData(event.currentTarget);
-    data.delete("profile_photo");
-    try {
-      let updated = await api<User>("/auth/me/", { method: "PATCH", body: JSON.stringify({ ...Object.fromEntries(data), photo_visible: data.get("photo_visible") === "on", latitude: coordinates.latitude || null, longitude: coordinates.longitude || null }) });
-      if (photo) {
-        const fileToUpload = photo.size > 2 * 1024 * 1024 ? await compressImage(photo) : photo;
-        const ticket = await api<UploadTicket>("/auth/profile-photo/upload/", { method: "POST", body: JSON.stringify({ content_type: fileToUpload.type, size: fileToUpload.size }) });
-        const upload = await fetch(ticket.upload_url, { method: "PUT", headers: { "Content-Type": ticket.content_type }, body: fileToUpload });
-        if (!upload.ok) throw new Error("The photo upload did not finish. Check your R2 CORS settings and try again.");
-        updated = await api<User>("/auth/profile-photo/confirm/", { method: "POST", body: JSON.stringify({ key: ticket.key }) });
-      }
-      setUser(updated);
-      if (!updated.profile_complete) throw new Error("Add a photo, phone number, address, city, state, and neighborhood to continue.");
-      setStep(2);
-    } catch (error) {
-      setFeedback((error as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function finish() {
-    const target = nextPath && nextPath.startsWith("/") && !nextPath.startsWith("//") ? nextPath : intent === "can-help" ? "/offers/new" : intent === "explore" ? "/tasks" : "/tasks/new";
-    window.location.assign(target);
-  }
-
-  return <main className="onboarding-page container">
-    <div className="onboarding-rail">
-      <div>
-        <span className="eyebrow">WELCOME TO GETNEBA</span>
-        <small>Step {step} of 2</small>
-      </div>
-      <div className="onboarding-progress" role="progressbar" aria-label="Onboarding progress" aria-valuemin={1} aria-valuemax={2} aria-valuenow={step}>
-        <span className="active" />
-        <span className={step === 2 ? "active" : ""} />
-      </div>
-    </div>
-    {step === 1 ? <section className="onboarding-card">
-      <div className="onboarding-heading"><span className="onboarding-mark"><MapPin size={20} /></span><div><h1>Let’s place you in the neighborhood.</h1><p>A clear photo and a useful location help people know who they’re connecting with. Your exact address stays private.</p></div></div>
-      <form className="stack-form" onSubmit={saveProfile}>
-        <fieldset className="onboarding-section">
-          <legend><span><UserRound size={16} /></span><span><strong>Show your face</strong><small>Help neighbors recognize you</small></span></legend>
-          <label className="profile-photo-field">
-            <span className="sr-only">Profile picture</span>
-            <span className="photo-upload-row">
-              <span className="photo-preview">{compressing ? <small>Optimizing…</small> : preview ? <img src={preview} alt="Selected profile preview" /> : user.photo_available ? <CheckCircle2 size={24} /> : <Camera size={24} />}</span>
-              <span className="photo-upload-copy">
-                <span className="photo-upload-button"><Camera size={15} />{user.photo_available || photo ? "Change photo" : "Choose a photo"}</span>
-                <input className="sr-only" name="profile_photo" type="file" accept="image/jpeg,image/png,image/webp" required={!user.photo_available} onChange={choosePhoto} disabled={busy || compressing} />
-                <small>JPEG, PNG, or WebP · up to 20 MB</small>
-              </span>
-            </span>
-          </label>
-          <label className="legal-consent"><input name="photo_visible" type="checkbox" defaultChecked={user.photo_visible} /><span>Show my photo on my public profile and reviews. I can change this later.</span></label>
-        </fieldset>
-
-        <fieldset className="onboarding-section">
-          <legend><span><UserRound size={16} /></span><span><strong>Your details</strong><small>How neighbors will know you</small></span></legend>
-          <div className="form-row"><label>Phone number<input name="phone" type="tel" inputMode="tel" autoComplete="tel" defaultValue={user.phone || ""} required placeholder="0801 234 5678" /></label><label>Display name<input name="display_name" autoComplete="name" defaultValue={user.display_name} required maxLength={80} /></label></div>
-        </fieldset>
-
-        <fieldset className="onboarding-section">
-          <legend><span><Home size={16} /></span><span><strong>Your neighborhood</strong><small>Your exact address stays private</small></span></legend>
-          <label>Address or nearby landmark<input name="address" autoComplete="street-address" defaultValue={user.address || ""} required maxLength={240} placeholder="Street, estate, or nearby landmark" /><small>Other members see only your area, city, and state.</small></label>
-          <div className="form-row"><label>City<input name="city" autoComplete="address-level2" defaultValue={user.city || ""} required maxLength={120} placeholder="e.g. Abuja" /></label><label>State<input name="state" autoComplete="address-level1" defaultValue={user.state || ""} required maxLength={120} placeholder="e.g. FCT" /></label></div>
-          <label>Area / neighborhood<input name="neighborhood" defaultValue={user.neighborhood || ""} required maxLength={120} placeholder="e.g. Garki, Lekki, or GRA" /></label>
-          <button className="location-capture" type="button" onClick={useCurrentLocation}><LocateFixed size={17} />Use my current location <small>Optional</small></button>
-          {coordinates.latitude && <p className="coordinate-note"><CheckCircle2 size={14} />Private map coordinates added.</p>}
-        </fieldset>
-        {feedback && <p className="error-box" role="alert">{feedback}</p>}
-        <div className="onboarding-submit"><button className="button button-dark" disabled={busy || compressing}>{compressing ? "Optimizing photo…" : busy ? "Saving your profile…" : "Save and continue"}<ArrowRight size={17} /></button></div>
-      </form>
-    </section> : <section className="onboarding-card onboarding-finish">
-      <span className="onboarding-success"><CheckCircle2 size={28} /></span><span className="eyebrow">YOU’RE READY</span><h1>Where should we take you first?</h1><p>Your profile is complete. You can ask for help, offer a skill, or look around first.</p>
-      <div className="intent-grid">
-        <label className={intent === "need-help" ? "selected" : ""}><input type="radio" name="intent" value="need-help" checked={intent === "need-help"} onChange={() => setIntent("need-help")} /><strong>I need help</strong><small>Post a task for your neighborhood.</small></label>
-        <label className={intent === "can-help" ? "selected" : ""}><input type="radio" name="intent" value="can-help" checked={intent === "can-help"} onChange={() => setIntent("can-help")} /><strong>I can help</strong><small>Share a skill people can book.</small></label>
-        <label className={intent === "explore" ? "selected" : ""}><input type="radio" name="intent" value="explore" checked={intent === "explore"} onChange={() => setIntent("explore")} /><strong>Let me look around</strong><small>See tasks and helpers nearby.</small></label>
-      </div>
-      <p className="onboarding-privacy"><ShieldCheck size={15} />You can change your profile and availability anytime.</p><button className="button button-dark" onClick={finish}>Continue to GetNeba<ArrowRight size={17} /></button>
-    </section>}
-  </main>;
+  return <main className="opportunity-onboarding container"><div className="opportunity-onboarding-rail"><div><span className="eyebrow">BUILD YOUR OPPORTUNITY PROFILE</span><small>Step {step} of 3</small></div><div className="onboarding-progress" role="progressbar" aria-label="Profile setup progress" aria-valuemin={1} aria-valuemax={3} aria-valuenow={step}><span className="active" /><span className={step >= 2 ? "active" : ""} /><span className={step >= 3 ? "active" : ""} /></div></div>{step === 1 && <section className="opportunity-onboarding-card step-enter"><span className="profile-icon"><Compass size={23} /></span><span className="landing-eyebrow">START WITH THE DIRECTION</span><h1>What are you looking for?</h1><p>Choose everything you want on your radar. You can always change this later.</p><form onSubmit={saveInterests}><ToggleGrid options={interests} selected={selectedInterests} onChange={setSelectedInterests} />{feedback && <p className="error-box" role="alert">{feedback}</p>}<button className="button button-dark" disabled={busy}>{busy ? "Setting up your radar…" : "Continue"}<ArrowRight size={17} /></button></form></section>}{step === 2 && <section className="opportunity-onboarding-card step-enter"><span className="profile-icon"><GraduationCap size={23} /></span><span className="landing-eyebrow">THE ESSENTIALS</span><h1>Tell us a little about yourself.</h1><p>These details help us identify opportunities you may actually qualify for.</p><form className="profile-form" onSubmit={saveEligibility}><div className="profile-form-section"><h2><MapPin size={17} /> Where you’re based</h2><div className="form-row"><label>Country<select name="country" defaultValue={user.country || ""} required><option value="" disabled>Select country</option><option>Nigeria</option><option>Ghana</option><option>Kenya</option><option>South Africa</option><option>United Kingdom</option><option>United States</option><option>Other</option></select></label><label>State / region <small>Optional</small><input name="state" defaultValue={user.state || ""} placeholder="e.g. Lagos" /></label></div><div className="form-row"><label>Date of birth <small>Optional</small><input name="date_of_birth" type="date" defaultValue={user.date_of_birth || ""} /></label><label>Gender <small>Optional</small><select name="gender" defaultValue={user.gender || ""}><option value="">Prefer not to say</option><option>Woman</option><option>Man</option><option>Non-binary</option><option>Prefer to self-describe</option></select></label></div></div><div className="profile-form-section"><h2><GraduationCap size={17} /> Education</h2><label>Current education level<select name="education_level" defaultValue={user.education_level || ""} required><option value="" disabled>Select your level</option><option>Secondary school</option><option>Undergraduate</option><option>Graduate / postgraduate</option><option>Vocational / technical training</option><option>Recent graduate</option><option>Not currently studying</option></select></label><div className="form-row"><label>Field of study <small>Optional</small><input name="field_of_study" defaultValue={user.field_of_study || ""} placeholder="e.g. Computer science" /></label><label>Graduation year <small>Optional</small><input name="graduation_year" type="number" min="1950" max="2100" defaultValue={user.graduation_year || ""} placeholder="e.g. 2027" /></label></div></div>{feedback && <p className="error-box" role="alert">{feedback}</p>}<button className="button button-dark" disabled={busy}>{busy ? "Finding matches…" : "Find my matches"}<Sparkles size={17} /></button></form></section>}{step === 3 && <section className="opportunity-onboarding-card match-reveal step-enter"><div className="match-reveal-number"><span>{matches}</span><small>opportunities<br />found for you</small></div><span className="landing-eyebrow"><Sparkles size={14} /> YOUR RADAR IS LIVE</span><h1>That’s a promising start.</h1><p>We found opportunities based on what you’ve shared. Add a few more details to make your recommendations sharper, or begin exploring now.</p><form className="profile-form" onSubmit={finish}><div className="profile-form-section profile-optional-section"><h2><UserRound size={17} /> Refine your matches <small>Optional</small></h2><div className="form-row"><label>Employment status<select name="employment_status" defaultValue={user.employment_status || ""}><option value="">Select status</option><option>Student</option><option>Employed</option><option>Seeking work</option><option>Self-employed</option><option>Between roles</option></select></label><label>Years of experience<select name="years_experience" defaultValue={user.years_experience || ""}><option value="">Select experience</option><option>None yet</option><option>Under 1 year</option><option>1–3 years</option><option>4–7 years</option><option>8+ years</option></select></label></div><label>Skills <small>Optional, separated by commas</small><input name="skills" defaultValue={(user.skills || []).join(", ")} placeholder="e.g. Writing, data analysis, design" /></label><div><span className="profile-label">Your goals <small>Optional</small></span><ToggleGrid options={goals} selected={selectedGoals} onChange={setSelectedGoals} /></div></div>{feedback && <p className="error-box" role="alert">{feedback}</p>}<button className="button button-dark" disabled={busy}>{busy ? "Opening your radar…" : "See my opportunities"}<ArrowRight size={17} /></button><button className="skip-refine" type="button" onClick={() => finish()} disabled={busy}>I’ll refine this later</button></form></section>}</main>;
 }

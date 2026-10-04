@@ -6,6 +6,7 @@ import { PwaInstall } from "@/components/pwa-install";
 import { PushNotifications } from "@/components/push-notifications";
 import { siteUrl, siteDescription } from "@/lib/seo";
 import "./globals.css";
+import "./opportunity-flow.css";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-geist" });
 export const metadata: Metadata = {
