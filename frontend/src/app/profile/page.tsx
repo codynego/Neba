@@ -153,9 +153,9 @@ export default function ProfilePage() {
       {/* ── Passport Header ─────────────────────────── */}
       <header className="pp-header">
         <div className="pp-header-left">
-          <p className="pp-passport-label">OPPORTUNITY PASSPORT</p>
-          <h1 className="pp-name">{user.display_name || user.username}</h1>
-          <p className="pp-username">@{user.username}</p>
+          <p className="pp-passport-label">YOUR OPPORTUNITY PASSPORT</p>
+          <h1 className="pp-name">Profile</h1>
+          <p className="pp-header-intro">Your profile helps Getneba find opportunities that actually fit you.</p>
           <div className="pp-header-meta">
             {(user.city || user.state) && (
               <span><MapPin size={13} />{[user.city, user.state, user.country].filter(Boolean).join(", ")}</span>
@@ -164,9 +164,7 @@ export default function ProfilePage() {
         </div>
         <div className="pp-header-right">
           <MemberPhoto id={user.id} name={user.display_name || user.username} available={user.photo_available} />
-          <button className="pp-edit-photo-btn" onClick={() => setEditing("personal")}>
-            <Pencil size={13} /> Edit profile
-          </button>
+          <div className="pp-header-person"><strong>{user.display_name || user.username}</strong><span>@{user.username}</span><button className="pp-edit-photo-btn" onClick={() => setEditing("personal")}><Pencil size={13} /> Edit profile</button></div>
         </div>
       </header>
 
@@ -186,8 +184,8 @@ export default function ProfilePage() {
         </div>
         {score < 100 && (
           <p className="pp-strength-note">
-            A complete profile unlocks better opportunity matches.{" "}
-            <button className="pp-inline-link" onClick={() => setEditing("personal")}>Complete now →</button>
+            Complete your profile to improve your opportunity matches.{" "}
+            <button className="pp-inline-link" onClick={() => setEditing("personal")}>Complete your profile →</button>
           </p>
         )}
       </section>
@@ -284,7 +282,18 @@ export default function ProfilePage() {
           )}
         </section>
 
-        {/* 5. Eligibility Profile */}
+        {/* 5. Opportunity preferences */}
+        <section className="pp-section pp-section-preferences">
+          <SectionHeader icon={<MapPin size={16} />} eyebrow="OPPORTUNITY PREFERENCES" onEdit={() => setEditing("interests")} />
+          <p className="pp-section-desc">Keep your radar focused on opportunities that make sense for you.</p>
+          <div className="pp-preference-grid">
+            <div><span>Preferred locations</span><strong>{user.country || "Add a country"}{user.opportunity_interests?.includes("remote") ? " · Remote" : ""}</strong></div>
+            <div><span>Opportunity types</span><strong>{user.opportunity_interests?.length ? `${user.opportunity_interests.length} selected` : "Choose your interests"}</strong></div>
+            <div><span>Profile alerts</span><strong>Push notifications {user.nearby_task_emails ? "on" : "off"}</strong></div>
+          </div>
+        </section>
+
+        {/* 6. Eligibility Profile */}
         <section className="pp-section pp-section-eligibility">
           <SectionHeader icon={<Shield size={16} />} eyebrow="ELIGIBILITY PROFILE" />
           <p className="pp-section-desc">What Getneba knows about you — used to match you to real opportunities.</p>
