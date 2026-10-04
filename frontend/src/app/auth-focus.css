@@ -1,0 +1,16 @@
+@media (max-width: 760px) {
+  .auth-radar-intro {
+    display: none;
+  }
+
+  .auth-radar-page {
+    min-height: calc(100vh - var(--header-height));
+    background: #fff;
+  }
+
+  .auth-radar-panel {
+    min-height: calc(100vh - var(--header-height));
+    align-items: start;
+    padding-top: 42px;
+  }
+}
