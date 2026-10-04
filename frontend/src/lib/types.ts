@@ -39,6 +39,11 @@ export const availabilityLabels: Record<Availability, string> = { flexible: "Fle
 export const itemTypeLabels: Record<ItemType, string> = { documents: "Documents", food: "Food or groceries", clothing: "Clothing", electronics: "Electronics", furniture: "Furniture", other: "Other" };
 export const rewardTypeLabels: Record<RewardType, string> = { money: "Money", food: "Food", item: "Item / goods", skill: "Skill / knowledge", service: "Service", exchange: "Exchange / barter", combination: "Combination", other: "Other" };
 export type Page<T> = { count: number; next: string | null; previous: string | null; results: T[] };
+export type OpportunityCategory = "scholarship" | "grant" | "job" | "internship" | "fellowship" | "competition" | "training" | "startup" | "funding";
+export type Opportunity = { public_id: string; title: string; provider: string; summary: string; category: OpportunityCategory; application_url: string; deadline: string | null; country: string; location_label: string; is_remote: boolean; benefit: string; eligibility_notes: string; match: { score: number; reasons: string[]; missing: string[] } | null; saved_status: string | null; application_status: string | null };
+export type SavedOpportunity = { id: number; opportunity_id: string; opportunity: Opportunity; status: string; note: string; saved_at: string; updated_at: string };
+export type OpportunityApplication = { id: number; opportunity_id: string; opportunity: Opportunity; status: string; applied_at: string | null; next_action: string; next_action_at: string | null; notes: string; created_at: string; updated_at: string };
+export type OpportunityDashboard = { match_count: number; new_this_week: number; top_matches: Opportunity[]; urgent: Opportunity[]; saved: SavedOpportunity[]; applications: OpportunityApplication[]; profile_completion: number; missing_profile_fields: string[] };
 export const categories: { value: Category | ""; label: string }[] = [
   { value: "", label: "All categories" },
   { value: "errands", label: "Errands" },

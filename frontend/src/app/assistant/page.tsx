@@ -1,0 +1,3 @@
+import Link from "next/link";
+import { ArrowRight, Sparkles } from "lucide-react";
+export default function AssistantPage() { return <main className="tracker-page container"><header><span className="eyebrow">OPPORTUNITY ASSISTANT</span><h1>A clearer next step, not more noise.</h1><p>The assistant will help explain your matches, uncover eligibility gaps, and plan applications. This first release keeps discovery at the center.</p></header><div className="radar-empty"><Sparkles size={26} /><div><strong>Assistant workspace coming next.</strong><p>For now, open a match to see why it was surfaced and what you may need to check.</p></div><Link className="button button-dark compact" href="/matches">Open my matches <ArrowRight size={15} /></Link></div></main>; }

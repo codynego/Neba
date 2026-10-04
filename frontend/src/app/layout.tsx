@@ -7,6 +7,7 @@ import { PushNotifications } from "@/components/push-notifications";
 import { siteUrl, siteDescription } from "@/lib/seo";
 import "./globals.css";
 import "./opportunity-flow.css";
+import "./opportunity-dashboard.css";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-geist" });
 export const metadata: Metadata = {
