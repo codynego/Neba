@@ -125,6 +125,7 @@ h1,h2,h3,h4{font-weight:600;letter-spacing:-.035em;line-height:1.25}
 .container{width:min(1280px,calc(100% - 96px));margin:0 auto}
 .site-header{height:var(--header-height);background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:50}
 .site-header:not(.public-header){margin-left:var(--sidebar-width)}
+.site-header:not(.public-header) .nav-wrap>.brand{display:none}
 .nav-wrap{height:100%;padding:0 40px 0 32px;display:flex;align-items:center;gap:48px}
 .brand{display:inline-flex;align-items:center;min-width:174px;line-height:0}
 .brand-logo{display:block;width:174px;height:auto}
