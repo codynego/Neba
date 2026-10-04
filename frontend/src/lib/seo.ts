@@ -7,7 +7,7 @@ if (siteUrl.protocol !== "https:" || siteUrl.username || siteUrl.password || sit
 }
 export const indexPublicPages = process.env.NODE_ENV === "production" && process.env.SEO_INDEXABLE !== "false" && (!process.env.VERCEL_ENV || process.env.VERCEL_ENV === "production");
 export const publicSearchPaths = ["/", "/local-help", "/install", "/about", "/stories", "/help", "/community-guidelines", "/privacy", "/terms"];
-export const siteDescription = "Find local help and paid tasks in Nigeria. Post errands, moving, tutoring, tech and event tasks, or offer your skills to people in your city.";
+export const siteDescription = "GetNeba is your personal opportunity radar for scholarships, grants, jobs, internships, fellowships, competitions, training programs, and funding opportunities.";
 
 export function publicPageMetadata(title: string, description: string, path: string): Metadata {
   const url = new URL(path, siteUrl).toString();
@@ -16,7 +16,7 @@ export function publicPageMetadata(title: string, description: string, path: str
     description,
     alternates: { canonical: url },
     robots: { index: indexPublicPages, follow: true, "max-image-preview": "large" },
-    openGraph: { title, description, url, type: "website", siteName: "GetNeba", locale: "en_NG", images: [{ url: new URL("/brand/getneba-social-preview-1200x630.png", siteUrl).toString(), width: 1200, height: 630, alt: "GetNeba — good help is closer than you think" }] },
+    openGraph: { title, description, url, type: "website", siteName: "GetNeba", locale: "en_NG", images: [{ url: new URL("/brand/getneba-social-preview-1200x630.png", siteUrl).toString(), width: 1200, height: 630, alt: "GetNeba — your personal opportunity radar" }] },
     twitter: { card: "summary_large_image", title, description, images: [new URL("/brand/getneba-social-preview-1200x630.png", siteUrl).toString()] },
   };
 }
