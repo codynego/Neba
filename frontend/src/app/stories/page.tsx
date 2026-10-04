@@ -1,139 +1,27 @@
 import Link from "next/link";
-import {
-  ArrowRight,
-  ArrowUpRight,
-  BookOpenText,
-  BriefcaseBusiness,
-  Check,
-  Clock3,
-  HandHeart,
-  MapPin,
-  PackageCheck,
-  PartyPopper,
-  Sparkles,
-  Wrench,
-} from "lucide-react";
+import { ArrowRight, ArrowUpRight, BookOpenText, BriefcaseBusiness, Check, Clock3, Coins, FileText, GraduationCap, MapPin, Sparkles, Target } from "lucide-react";
 import { publicPageMetadata } from "@/lib/seo";
 
 export const metadata = publicPageMetadata(
-  "GetNeba stories: everyday needs, useful local skills",
-  "See illustrative stories of people using GetNeba to find practical help nearby, offer useful skills and make everyday tasks easier.",
+  "GetNeba stories: people finding opportunities that fit",
+  "Illustrative stories of people using GetNeba to discover scholarships, grants, jobs, training, and procurement opportunities that fit their goals.",
   "/stories",
 );
 
 const stories = [
-  {
-    name: "Zainab",
-    place: "Wuse, Abuja",
-    role: "A busy new parent",
-    initials: "ZA",
-    icon: PackageCheck,
-    tone: "mint",
-    challenge: "The baby finally fell asleep—and the week’s groceries were still waiting across town.",
-    detail: "Zainab does not need a delivery subscription. She needs one reliable person nearby who can collect a prepared order this afternoon.",
-    steps: ["Posts the pickup details and timing", "Adds the neighborhood and a clear reward", "Reviews nearby people who apply", "Shares the exact pickup details privately"],
-    outcome: "One errand off her mind, without losing the whole afternoon.",
-    action: ["Post an errand", "/tasks/new"],
-  },
-  {
-    name: "Tunde",
-    place: "Surulere, Lagos",
-    role: "Good with tools, free on Saturdays",
-    initials: "TU",
-    icon: Wrench,
-    tone: "gold",
-    challenge: "He has practical skills people need, but word of mouth only travels so far.",
-    detail: "Tunde can mount shelves, replace simple fittings and assemble furniture. He wants nearby work that fits around his weekday job.",
-    steps: ["Creates a clear offer for the work he does", "Sets his area, availability and starting price", "Responds only to tasks that fit", "Agrees on the full job before travelling"],
-    outcome: "Useful Saturdays, new local connections and a reputation built one completed task at a time.",
-    action: ["Offer a practical skill", "/offers/new"],
-  },
-  {
-    name: "Amaka",
-    place: "Independence Layout, Enugu",
-    role: "Running a growing food business",
-    initials: "AM",
-    icon: BriefcaseBusiness,
-    tone: "coral",
-    challenge: "A large lunch order came in. Her regular assistant is unavailable and prep starts tomorrow morning.",
-    detail: "She needs an extra pair of hands for washing, packing and labeling—not a permanent hire or a long recruitment process.",
-    steps: ["Explains the shift, tasks and expected hours", "Sets the reward before anyone applies", "Chooses someone with the right availability", "Keeps coordination in the task conversation"],
-    outcome: "The order leaves on time, and a capable local helper gets a fair short job.",
-    action: ["Find an extra pair of hands", "/tasks/new"],
-  },
-  {
-    name: "David",
-    place: "GRA, Benin City",
-    role: "New to the neighborhood",
-    initials: "DA",
-    icon: BookOpenText,
-    tone: "blue",
-    challenge: "His daughter needs help with maths, but he does not yet know the local tutors families recommend.",
-    detail: "David wants to understand who is available nearby, what they teach and what a first session would cost before making contact.",
-    steps: ["Browses tutoring offers in his city", "Reads profiles and relevant task reviews", "Sends a private request with the learning goal", "Confirms timing, location and price directly"],
-    outcome: "A clearer first introduction—and one less thing that feels unfamiliar in a new city.",
-    action: ["Explore nearby people", "/offers"],
-  },
-  {
-    name: "Ivie",
-    place: "Lekki, Lagos",
-    role: "Planning a family celebration",
-    initials: "IV",
-    icon: PartyPopper,
-    tone: "violet",
-    challenge: "The decorator is ready, but thirty chairs, welcome packs and table settings will not arrange themselves.",
-    detail: "Ivie needs two dependable people for a defined three-hour setup window—then the job is done and everyone can enjoy the day.",
-    steps: ["Posts one specific setup task", "States the number of helpers and finish time", "Reviews applications before choosing", "Confirms completion with the selected helpers"],
-    outcome: "The room is ready before the first guest arrives, without calling every cousin in her phone.",
-    action: ["Post an event task", "/tasks/new"],
-  },
+  { name: "Aisha", place: "Kaduna, Nigeria", role: "A computer science graduate", initials: "AI", icon: GraduationCap, tone: "mint", challenge: "Aisha knew she wanted a funded master's program, but every search returned a different set of requirements and deadlines.", detail: "She needed more than a list. She needed to know which programs fit her education, field, location, and goal of studying abroad.", steps: ["Adds her education and field of study", "Selects scholarships and study abroad", "Reviews match reasons and missing requirements", "Saves the strongest programs before their deadlines"], outcome: "A shorter, clearer shortlist of programs worth the application time.", action: ["Explore scholarships", "/opportunities?category=scholarship"] },
+  { name: "Emeka", place: "Enugu, Nigeria", role: "Building a small food business", initials: "EM", icon: Coins, tone: "gold", challenge: "Emeka was ready to grow his food business, but did not know which grants were open to an early-stage founder.", detail: "Getneba helped him keep business funding in the same place as other opportunities, with the eligibility details visible before he started an application.", steps: ["Adds his business status and industry", "Selects grants and startup programs", "Sees where his business profile fits", "Tracks the applications he is preparing"], outcome: "A focused funding search built around his actual stage, not a generic list of grants.", action: ["Explore grants", "/opportunities?category=grant"] },
+  { name: "Tobi", place: "Lagos, Nigeria", role: "Looking for a first developer role", initials: "TO", icon: BriefcaseBusiness, tone: "blue", challenge: "Tobi wanted experience, but the job search was full of roles asking for more years than he had.", detail: "He used his skills, interests, and experience to find internships and entry-level roles where the requirements made sense for his next step.", steps: ["Adds JavaScript, Python, and product skills", "Chooses jobs and internships", "Compares location, deadline, and requirements", "Saves roles and returns when he is ready to apply"], outcome: "A career search that feels like a path forward instead of an endless scroll.", action: ["Explore jobs and internships", "/opportunities"] },
+  { name: "Mariam", place: "Abuja, Nigeria", role: "A registered construction supplier", initials: "MA", icon: FileText, tone: "coral", challenge: "Mariam wanted to find procurement notices relevant to her company without checking several agency websites every morning.", detail: "Tenders are different from scholarships or jobs, but the same core questions matter: who qualifies, what is required, and when is the deadline?", steps: ["Adds her industry and business information", "Chooses Tenders & Procurement", "Reviews location, requirements, and closing date", "Keeps promising notices in one shortlist"], outcome: "A more deliberate tender search with less time lost to irrelevant notices.", action: ["Explore tenders", "/opportunities?category=tender"] },
+  { name: "Daniel", place: "Port Harcourt, Nigeria", role: "Changing direction through training", initials: "DA", icon: BookOpenText, tone: "violet", challenge: "Daniel wanted to move into data work, but needed a realistic way to build skills while working full time.", detail: "He looked for training and certification programs that matched his goals, schedule, and current experience.", steps: ["Adds his current skills and work status", "Selects training and certifications", "Checks the benefit, duration, and eligibility", "Uses reminders to act before enrollment closes"], outcome: "A practical learning plan connected to the kind of work he wants next.", action: ["Explore training", "/opportunities?category=training"] },
 ];
 
 export default function StoriesPage() {
   return <main className="stories-page">
-    <section className="stories-hero landing-container">
-      <div className="stories-hero-copy">
-        <span className="landing-eyebrow"><Sparkles size={15} /> PEOPLE OF GETNEBA</span>
-        <h1>Everybody arrives with a different kind of <em>Tuesday.</em></h1>
-        <p>A small job that suddenly feels big. A useful skill with nowhere to go. A busy day that needs one more pair of hands. GetNeba helps those stories meet nearby.</p>
-        <div className="stories-hero-actions"><Link className="button button-dark" href="/tasks/new">Ask for help<ArrowRight size={18} /></Link><Link href="/offers/new">Or offer what you know <ArrowUpRight size={16} /></Link></div>
-      </div>
-      <div className="stories-stack" aria-label="A neighborhood full of different needs and skills">
-        <div className="story-slip story-slip-one"><span>ZA</span><div><small>NEEDS A HAND</small><strong>One grocery pickup.<br />This afternoon.</strong></div><PackageCheck size={22} /></div>
-        <div className="story-slip story-slip-two"><span>TU</span><div><small>HAS A SKILL</small><strong>Furniture assembly.<br />Free on Saturdays.</strong></div><Wrench size={22} /></div>
-        <div className="story-slip story-slip-three"><span>AM</span><div><small>NEEDS A TEAMMATE</small><strong>Lunch order prep.<br />Tomorrow, 8am.</strong></div><BriefcaseBusiness size={22} /></div>
-        <div className="stories-stack-center"><HandHeart size={30} /><strong>Different days.<br />One neighborhood.</strong></div>
-      </div>
-    </section>
-
-    <section className="stories-note"><div className="landing-container"><strong>These are illustrative stories.</strong><p>They are realistic examples of how GetNeba can help—not quotes or claims from actual members. Real names, availability and outcomes will vary.</p></div></section>
-
-    <section className="stories-intro landing-container">
-      <div><span className="landing-eyebrow">FIVE PEOPLE. FIVE STARTING POINTS.</span><h2>Help looks different<br />from every front door.</h2></div>
-      <p>Some people arrive with a task. Others arrive with time, experience or a skill. One GetNeba account can do both.</p>
-    </section>
-
-    <section className="story-trail landing-container">
-      {stories.map(({ name, place, role, initials, icon: Icon, tone, challenge, detail, steps, outcome, action }, index) => <article className={`story-chapter story-${tone}`} key={name}>
-        <div className="story-person">
-          <div className="story-avatar" aria-hidden="true"><span>{initials}</span><Icon size={28} /></div>
-          <div><small>STORY {String(index + 1).padStart(2, "0")}</small><h2>{name}</h2><p>{role}</p><span><MapPin size={13} />{place}</span></div>
-        </div>
-        <div className="story-body">
-          <span className="story-kicker">THE CHALLENGE</span>
-          <h3>{challenge}</h3>
-          <p>{detail}</p>
-          <div className="story-help"><div className="story-help-heading"><span><HandHeart size={18} /></span><strong>How GetNeba helps</strong></div><ol>{steps.map((step) => <li key={step}><Check size={15} />{step}</li>)}</ol></div>
-        </div>
-        <div className="story-outcome">
-          <Clock3 size={20} />
-          <span>WHAT A GOOD OUTCOME LOOKS LIKE</span>
-          <blockquote>“{outcome}”</blockquote>
-          <Link href={action[1]}>{action[0]}<ArrowUpRight size={16} /></Link>
-        </div>
-      </article>)}
-    </section>
-
-    <section className="stories-bridge"><div className="landing-container"><div><span className="landing-eyebrow">YOUR STORY CAN START EITHER WAY</span><h2>“I need a hand.”<br /><em>“I can help with that.”</em></h2></div><div><p>GetNeba gives both sentences somewhere useful to go. Describe the task you need done, or make the skills you already have easier to find.</p><div className="stories-bridge-actions"><Link className="button button-light" href="/register">Join GetNeba<ArrowRight size={18} /></Link><Link href="/about">Why we built GetNeba<ArrowUpRight size={16} /></Link></div></div></div></section>
+    <section className="stories-hero landing-container"><div className="stories-hero-copy"><span className="landing-eyebrow"><Sparkles size={15} /> PEOPLE FINDING WHAT FITS</span><h1>Every opportunity story starts with a different <em>next step.</em></h1><p>These illustrative stories show how GetNeba can help people move from a broad goal to a clearer shortlist of opportunities worth pursuing.</p><div className="stories-hero-actions"><Link className="button button-dark" href="/opportunities">Explore opportunities <ArrowRight size={18} /></Link><Link href="/about">Why GetNeba exists <ArrowUpRight size={16} /></Link></div></div><div className="stories-stack" aria-label="Illustrative opportunity matches"><div className="story-slip story-slip-one"><span>92</span><div><small>NEW MATCH</small><strong>Fully funded scholarship.<br />18 days left.</strong></div><GraduationCap size={22} /></div><div className="story-slip story-slip-two"><span>87</span><div><small>BUSINESS FUNDING</small><strong>Grant for an early-stage<br />business.</strong></div><Coins size={22} /></div><div className="story-slip story-slip-three"><span>81</span><div><small>CAREER FIT</small><strong>Remote developer<br />internship.</strong></div><BriefcaseBusiness size={22} /></div><div className="stories-stack-center"><Target size={30} /><strong>Different goals.<br />Better direction.</strong></div></div></section>
+    <section className="stories-note"><div className="landing-container"><strong>These are illustrative stories.</strong><p>They are realistic examples of how GetNeba can help, not quotes or claims from actual members. Real names, opportunities, and outcomes will vary.</p></div></section>
+    <section className="stories-intro landing-container"><div><span className="landing-eyebrow">FIVE PEOPLE. FIVE STARTING POINTS.</span><h2>Opportunity looks different<br />for every person.</h2></div><p>Some people are looking for funding. Others are building a career, learning a skill, or finding a contract for their business. GetNeba helps each person start with context.</p></section>
+    <section className="story-trail landing-container">{stories.map(({ name, place, role, initials, icon: Icon, tone, challenge, detail, steps, outcome, action }, index) => <article className={`story-chapter story-${tone}`} key={name}><div className="story-person"><div className="story-avatar" aria-hidden="true"><span>{initials}</span><Icon size={28} /></div><div><small>STORY {String(index + 1).padStart(2, "0")}</small><h2>{name}</h2><p>{role}</p><span><MapPin size={13} />{place}</span></div></div><div className="story-body"><span className="story-kicker">THE STARTING POINT</span><h3>{challenge}</h3><p>{detail}</p><div className="story-help"><div className="story-help-heading"><span><Target size={18} /></span><strong>How GetNeba helps</strong></div><ol>{steps.map((step) => <li key={step}><Check size={15} />{step}</li>)}</ol></div></div><div className="story-outcome"><Clock3 size={20} /><span>WHAT A GOOD OUTCOME LOOKS LIKE</span><blockquote>{outcome}</blockquote><Link href={action[1]}>{action[0]} <ArrowUpRight size={16} /></Link></div></article>)}</section>
+    <section className="stories-bridge"><div className="landing-container"><div><span className="landing-eyebrow">YOUR STORY CAN START WITH A GOAL</span><h2>“I want to move forward.”<br /><em>“Show me what fits.”</em></h2></div><div><p>Tell Getneba about your education, experience, interests, and goals. We will help you discover opportunities worth a closer look and understand what to do next.</p><div className="stories-bridge-actions"><Link className="button button-light" href="/register">Build my profile <ArrowRight size={18} /></Link><Link href="/opportunities">Explore opportunities <ArrowUpRight size={16} /></Link></div></div></div></section>
   </main>;
 }

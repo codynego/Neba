@@ -41,7 +41,7 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
           <span className="app-launch-mark"><Image src="/brand/getneba-mark.svg" alt="" width={132} height={132} priority unoptimized /></span>
         </div>
         <Image className="app-launch-wordmark" src="/brand/getneba-wordmark.svg" alt="GetNeba" width={190} height={44} priority unoptimized />
-        <p>Good help. Close by.</p>
+        <p>Opportunities worth your next step.</p>
         <span className="app-launch-progress" aria-hidden="true"><i /></span>
       </main>
     : <main className="listing-page container"><div className="account-check" role="status" aria-label="Checking your account"><span aria-hidden="true"><LoaderCircle size={24} strokeWidth={1.75} /></span></div></main>;
