@@ -1,22 +1,22 @@
 "use client";
 
 import { ChangeEvent, FormEvent, useEffect, useState } from "react";
-import { Camera, CheckCircle2, LocateFixed, MailCheck, MapPin, Phone, Send, ShieldCheck } from "lucide-react";
+import { Camera, LocateFixed, MailCheck, Send, ShieldCheck } from "lucide-react";
 import { api } from "@/lib/api";
-import { User, categories, availabilityLabels } from "@/lib/types";
+import { User } from "@/lib/types";
 import { compressImage } from "@/lib/image-compression";
 
 type UploadTicket = { upload_url: string; key: string; content_type: string };
 
-export function ProfileEditor({ user, onSaved }: { user: User; onSaved: (user: User) => void }) {
-  const [busy, setBusy] = useState(false);
-  const [feedback, setFeedback] = useState("");
-  const [verificationFeedback, setVerificationFeedback] = useState("");
-  const [verificationBusy, setVerificationBusy] = useState(false);
+async function patchUser(data: Record<string, unknown>): Promise<User> {
+  return api<User>("/auth/me/", { method: "PATCH", body: JSON.stringify(data) });
+}
+
+function usePhotoUpload() {
   const [photo, setPhoto] = useState<File | null>(null);
-  const [compressing, setCompressing] = useState(false);
   const [preview, setPreview] = useState("");
-  const [coordinates, setCoordinates] = useState({ latitude: user.latitude || "", longitude: user.longitude || "" });
+  const [compressing, setCompressing] = useState(false);
+  const [photoError, setPhotoError] = useState("");
 
   useEffect(() => {
     if (!photo) { setPreview(""); return; }
@@ -27,138 +27,293 @@ export function ProfileEditor({ user, onSaved }: { user: User; onSaved: (user: U
 
   async function choosePhoto(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0] || null;
-    setFeedback("");
-    if (!file) {
-      setPhoto(null);
-      return;
-    }
+    setPhotoError("");
+    if (!file) { setPhoto(null); return; }
     if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
-      event.target.value = "";
-      setPhoto(null);
-      setFeedback("Choose a JPEG, PNG, or WebP photo.");
-      return;
+      event.target.value = ""; setPhoto(null);
+      setPhotoError("Choose a JPEG, PNG, or WebP photo."); return;
     }
     if (file.size > 20 * 1024 * 1024) {
-      event.target.value = "";
-      setPhoto(null);
-      setFeedback("Choose a photo under 20 MB.");
-      return;
+      event.target.value = ""; setPhoto(null);
+      setPhotoError("Choose a photo under 20 MB."); return;
     }
     setCompressing(true);
-    try {
-      const compressed = await compressImage(file);
-      setPhoto(compressed);
-    } catch (error) {
-      event.target.value = "";
-      setPhoto(null);
-      setFeedback((error as Error).message || "Could not process this photo.");
-    } finally {
-      setCompressing(false);
-    }
+    try { setPhoto(await compressImage(file)); }
+    catch (error) { event.target.value = ""; setPhoto(null); setPhotoError((error as Error).message || "Could not process photo."); }
+    finally { setCompressing(false); }
   }
 
-  function useCurrentLocation() {
-    setFeedback("");
-    if (!navigator.geolocation) { setFeedback("Location access is not supported by this browser."); return; }
+  async function uploadPhoto(): Promise<User | null> {
+    if (!photo) return null;
+    const f = photo.size > 2 * 1024 * 1024 ? await compressImage(photo) : photo;
+    const ticket = await api<UploadTicket>("/auth/profile-photo/upload/", { method: "POST", body: JSON.stringify({ content_type: f.type, size: f.size }) });
+    const up = await fetch(ticket.upload_url, { method: "PUT", headers: { "Content-Type": ticket.content_type }, body: f });
+    if (!up.ok) throw new Error("Photo upload failed.");
+    return api<User>("/auth/profile-photo/confirm/", { method: "POST", body: JSON.stringify({ key: ticket.key }) });
+  }
+
+  return { photo, preview, compressing, photoError, choosePhoto, uploadPhoto, setPhoto };
+}
+
+function EmailCard({ user }: { user: User }) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  async function resend() {
+    setBusy(true); setMsg("");
+    try { const r = await api<{ detail: string }>("/auth/email/resend/", { method: "POST", body: "{}" }); setMsg(r.detail); }
+    catch (e) { setMsg((e as Error).message); } finally { setBusy(false); }
+  }
+  return (
+    <section className={`email-verification-card${user.email_verified ? " is-verified" : ""}`} aria-live="polite">
+      <div className="email-verification-icon" aria-hidden="true">{user.email_verified ? <MailCheck size={21} /> : <ShieldCheck size={21} />}</div>
+      <div className="email-verification-content">
+        <div className="email-verification-heading">
+          <span className="email-verification-label">Account email</span>
+          <span className="email-verification-status">{user.email_verified ? "Verified" : "Action needed"}</span>
+        </div>
+        <strong>{user.email}</strong>
+        {user.email_verified ? <p>Your email is confirmed.</p> : <>
+          <p>Verify your email to enable notifications.</p>
+          <button className="email-verification-button" type="button" onClick={resend} disabled={busy}>
+            <Send size={14} />{busy ? "Sending…" : "Resend verification email"}
+          </button>
+        </>}
+        {msg && <p className="email-verification-feedback" role="status">{msg}</p>}
+      </div>
+    </section>
+  );
+}
+
+function PersonalSection({ user, onSaved }: { user: User; onSaved: (u: User) => void }) {
+  const { photo, preview, compressing, photoError, choosePhoto, uploadPhoto, setPhoto } = usePhotoUpload();
+  const [coords, setCoords] = useState({ latitude: user.latitude || "", longitude: user.longitude || "" });
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  function locateMe() {
+    if (!navigator.geolocation) { setMsg("Location not supported."); return; }
     navigator.geolocation.getCurrentPosition(
-      ({ coords }) => {
-        setCoordinates({ latitude: coords.latitude.toFixed(6), longitude: coords.longitude.toFixed(6) });
-        setFeedback("Location added. Confirm your area, city, and state before saving.");
-      },
-      () => setFeedback("Location access was not available. You can enter your area manually."),
+      ({ coords: c }) => setCoords({ latitude: c.latitude.toFixed(6), longitude: c.longitude.toFixed(6) }),
+      () => setMsg("Location unavailable. Enter manually."),
       { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 },
     );
   }
 
   async function save(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setBusy(true);
-    setFeedback("");
+    event.preventDefault(); setBusy(true); setMsg("");
     const data = new FormData(event.currentTarget);
     data.delete("profile_photo");
     try {
-      let updated = await api<User>("/auth/me/", {
-        method: "PATCH",
-        body: JSON.stringify({
-          ...Object.fromEntries(data),
-          skills: data.getAll("skills"),
-          photo_visible: data.get("photo_visible") === "on",
-          nearby_task_emails: data.get("nearby_task_emails") === "on",
-          latitude: coordinates.latitude || null,
-          longitude: coordinates.longitude || null,
-        }),
-      });
-      if (photo) {
-        const fileToUpload = photo.size > 2 * 1024 * 1024 ? await compressImage(photo) : photo;
-        const ticket = await api<UploadTicket>("/auth/profile-photo/upload/", {
-          method: "POST",
-          body: JSON.stringify({ content_type: fileToUpload.type, size: fileToUpload.size }),
-        });
-        const upload = await fetch(ticket.upload_url, { method: "PUT", headers: { "Content-Type": ticket.content_type }, body: fileToUpload });
-        if (!upload.ok) throw new Error("The photo upload did not finish. Check your R2 CORS settings and try again.");
-        updated = await api<User>("/auth/profile-photo/confirm/", { method: "POST", body: JSON.stringify({ key: ticket.key }) });
-        setPhoto(null);
-      }
-      onSaved(updated);
-      setFeedback(updated.profile_complete ? "Profile complete. You can now post, apply, and offer help." : "Saved. Add the remaining profile details to continue.");
-    } catch (error) {
-      setFeedback((error as Error).message);
-    } finally {
-      setBusy(false);
-    }
+      let updated = await patchUser({ ...Object.fromEntries(data), photo_visible: data.get("photo_visible") === "on", latitude: coords.latitude || null, longitude: coords.longitude || null });
+      if (photo) { const r = await uploadPhoto(); if (r) updated = r; setPhoto(null); }
+      onSaved(updated); setMsg("Saved.");
+    } catch (e) { setMsg((e as Error).message); } finally { setBusy(false); }
   }
 
-  async function resendVerification() {
-    setVerificationBusy(true);
-    setVerificationFeedback("");
-    try {
-      const result = await api<{ detail: string }>("/auth/email/resend/", { method: "POST", body: "{}" });
-      setVerificationFeedback(result.detail);
-    } catch (error) {
-      setVerificationFeedback((error as Error).message);
-    } finally {
-      setVerificationBusy(false);
-    }
-  }
-
-  return <details className="profile-editor profile-completion" open={!user.profile_complete}>
-    <summary>{user.profile_complete ? "Edit your profile & availability" : "Complete your profile"}</summary>
-    <div className="profile-requirements" aria-label="Profile requirements">
-      <span className={user.photo_available ? "done" : ""}><Camera size={15} />Photo{user.photo_available && <CheckCircle2 size={13} />}</span>
-      <span className={user.phone ? "done" : ""}><Phone size={15} />Phone{user.phone && <CheckCircle2 size={13} />}</span>
-      <span className={user.address && user.neighborhood && user.city && user.state ? "done" : ""}><MapPin size={15} />Location{user.address && user.neighborhood && user.city && user.state && <CheckCircle2 size={13} />}</span>
-    </div>
-    <form className="stack-form" onSubmit={save}>
-      <section className={`email-verification-card ${user.email_verified ? "is-verified" : ""}`} aria-live="polite">
-        <div className="email-verification-icon" aria-hidden="true">{user.email_verified ? <MailCheck size={21} /> : <ShieldCheck size={21} />}</div>
-        <div className="email-verification-content">
-          <div className="email-verification-heading"><span className="email-verification-label">Account email</span><span className="email-verification-status">{user.email_verified ? "Verified" : "Action needed"}</span></div>
-          <strong>{user.email}</strong>
-          {user.email_verified ? <p>Your email is confirmed and ready for account notifications.</p> : <><p>Verify your email to secure your account and enable email notifications.</p><button className="email-verification-button" type="button" onClick={resendVerification} disabled={verificationBusy}><Send size={14} />{verificationBusy ? "Sending…" : "Resend verification email"}</button></>}
-          {verificationFeedback && <p className={`email-verification-feedback ${verificationFeedback.toLowerCase().includes("temporarily") ? "is-error" : ""}`} role="status"><CheckCircle2 size={15} />{verificationFeedback}</p>}
-        </div>
-      </section>
-      <label className="profile-photo-field">Profile picture
+  return (
+    <form className="pp-editor-form stack-form" onSubmit={save}>
+      <EmailCard user={user} />
+      <label className="profile-photo-field">Profile photo
         <span className="photo-upload-row">
-          <span className="photo-preview">{compressing ? <small style={{ fontSize: "10px", textAlign: "center", lineHeight: "1.2" }}>Optimizing…</small> : preview ? <img src={preview} alt="Selected profile preview" /> : <Camera size={24} />}</span>
-          <span><input name="profile_photo" type="file" accept="image/jpeg,image/png,image/webp" required={!user.photo_available} onChange={choosePhoto} disabled={busy || compressing} /><small>Use a clear photo of yourself. JPEG, PNG, or WebP under 20 MB (compressed automatically).</small></span>
+          <span className="photo-preview">{compressing ? <small style={{ fontSize: "10px", textAlign: "center", lineHeight: "1.2" }}>Optimizing…</small> : preview ? <img src={preview} alt="Preview" /> : <Camera size={24} />}</span>
+          <span><input name="profile_photo" type="file" accept="image/jpeg,image/png,image/webp" required={!user.photo_available} onChange={choosePhoto} disabled={busy || compressing} /><small>JPEG, PNG or WebP under 20 MB.</small></span>
         </span>
       </label>
-      <label className="legal-consent"><input name="photo_visible" type="checkbox" defaultChecked={user.photo_visible} /><span>Show my profile photo on my public profile and next to my public reviews.</span></label>
-      <label>Display name<input name="display_name" defaultValue={user.display_name} required maxLength={80} /></label>
-      <label>Phone number<input name="phone" type="tel" autoComplete="tel" defaultValue={user.phone || ""} required placeholder="0801 234 5678" /></label>
-      <label>Address or nearby landmark<input name="address" autoComplete="street-address" defaultValue={user.address || ""} required maxLength={240} placeholder="Street, estate, or a nearby landmark" /><small>This stays private. Other members see only your area, city, and state.</small></label>
-      <div className="form-row"><label>City<input name="city" defaultValue={user.city} required maxLength={120} /></label><label>State<input name="state" defaultValue={user.state} required maxLength={120} /></label></div>
-      <label>Area / neighborhood<input name="neighborhood" defaultValue={user.neighborhood} required maxLength={120} placeholder="e.g. GRA, Lekki, Wuse 2" /></label>
-      <button className="location-capture" type="button" onClick={useCurrentLocation}><LocateFixed size={16} />Use my current location</button>
-      {(coordinates.latitude && coordinates.longitude) && <p className="coordinate-note">Location coordinates added privately.</p>}
-      <label>About you<textarea name="bio" defaultValue={user.bio} maxLength={600} rows={4} placeholder="Tell neighbors what you can help with and your experience." /></label>
-      <label>Availability<select name="availability" defaultValue={user.availability}>{Object.entries(availabilityLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-      <label className="legal-consent"><input name="nearby_task_emails" type="checkbox" defaultChecked={user.nearby_task_emails} disabled={!user.email_verified} /><span>Email me when a new task in my city matches one of my selected skills.</span></label>
-      <fieldset className="skill-checkboxes"><legend>Your skills</legend>{categories.filter((category) => category.value).map((category) => <label className="check-label" key={category.value}><input type="checkbox" name="skills" value={category.value} defaultChecked={user.skills?.includes(category.value as User["skills"][number])} />{category.label}</label>)}</fieldset>
-      <p className="form-note">“Not taking work” pauses new applications and direct requests. Existing bookings remain yours to manage.</p>
-      <button className="button button-dark compact" disabled={busy || compressing}>{compressing ? "Optimizing photo…" : busy ? "Saving profile…" : "Save profile"}</button>
-      {feedback && <p role="status" className="profile-feedback">{feedback}</p>}
+      {photoError && <p className="form-error">{photoError}</p>}
+      <label className="legal-consent"><input name="photo_visible" type="checkbox" defaultChecked={user.photo_visible} /><span>Show my photo on my public profile.</span></label>
+      <label>Full name<input name="display_name" defaultValue={user.display_name} required maxLength={80} /></label>
+      <label>Date of birth<input name="date_of_birth" type="date" defaultValue={user.date_of_birth || ""} /></label>
+      <label>Gender
+        <select name="gender" defaultValue={user.gender || ""}>
+          <option value="">Prefer not to say</option>
+          <option value="male">Male</option>
+          <option value="female">Female</option>
+          <option value="non_binary">Non-binary</option>
+          <option value="other">Other</option>
+        </select>
+      </label>
+      <label>Country<input name="country" defaultValue={user.country} maxLength={120} placeholder="Nigeria" /></label>
+      <div className="form-row">
+        <label>State<input name="state" defaultValue={user.state} maxLength={120} /></label>
+        <label>City<input name="city" defaultValue={user.city} maxLength={120} /></label>
+      </div>
+      <label>Area / neighborhood<input name="neighborhood" defaultValue={user.neighborhood} maxLength={120} placeholder="e.g. GRA, Lekki" /></label>
+      <label>Address (private)<input name="address" defaultValue={user.address} maxLength={240} placeholder="Street or landmark" /><small>Stays private. Others see only your area.</small></label>
+      <button className="location-capture" type="button" onClick={locateMe}><LocateFixed size={16} />Use my current location</button>
+      {coords.latitude && coords.longitude && <p className="coordinate-note">Location added privately.</p>}
+      <label>Phone<input name="phone" type="tel" autoComplete="tel" defaultValue={user.phone || ""} placeholder="0801 234 5678" /></label>
+      <label>About you<textarea name="bio" defaultValue={user.bio} maxLength={600} rows={3} placeholder="A short bio for your public profile." /></label>
+      <button className="button button-dark compact" disabled={busy || compressing}>{compressing ? "Optimizing photo…" : busy ? "Saving…" : "Save personal info"}</button>
+      {msg && <p role="status" className="profile-feedback">{msg}</p>}
     </form>
-  </details>;
+  );
+}
+
+function EducationSection({ user, onSaved }: { user: User; onSaved: (u: User) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setBusy(true); setMsg("");
+    const data = Object.fromEntries(new FormData(event.currentTarget));
+    try { const updated = await patchUser({ ...data, graduation_year: data.graduation_year ? Number(data.graduation_year) : null }); onSaved(updated); setMsg("Saved."); }
+    catch (e) { setMsg((e as Error).message); } finally { setBusy(false); }
+  }
+  return (
+    <form className="pp-editor-form stack-form" onSubmit={save}>
+      <label>Education level
+        <select name="education_level" defaultValue={user.education_level || ""}>
+          <option value="">Select…</option>
+          <option value="secondary">Secondary school</option>
+          <option value="ond">OND / Diploma</option>
+          <option value="hnd">HND</option>
+          <option value="university">University (Bachelor&apos;s)</option>
+          <option value="masters">Master&apos;s</option>
+          <option value="phd">PhD</option>
+          <option value="other">Other</option>
+        </select>
+      </label>
+      <label>Institution<input name="institution" defaultValue={user.institution} maxLength={200} placeholder="University of Lagos" /></label>
+      <label>Field of study<input name="field_of_study" defaultValue={user.field_of_study} maxLength={120} placeholder="Computer Science" /></label>
+      <label>Expected graduation year<input name="graduation_year" type="number" defaultValue={user.graduation_year ?? ""} min={1990} max={2040} placeholder="2027" /></label>
+      <label>CGPA / GPA<input name="gpa" defaultValue={user.gpa} maxLength={20} placeholder="3.4 / 5.0" /></label>
+      <button className="button button-dark compact" disabled={busy}>{busy ? "Saving…" : "Save education"}</button>
+      {msg && <p role="status" className="profile-feedback">{msg}</p>}
+    </form>
+  );
+}
+
+const SKILLS_PRESET = ["Python","JavaScript","TypeScript","React","Node.js","Django","SQL","Data Analysis","Machine Learning","AI","Design","Figma","Writing","Marketing","Sales","Finance","Project Management","Research","Teaching","Photography","Video Editing","Social Media","Content Creation","Business Development","Entrepreneurship","Agriculture"];
+
+function CareerSection({ user, onSaved }: { user: User; onSaved: (u: User) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [skills, setSkills] = useState<string[]>(user.skills || []);
+  const [customSkill, setCustomSkill] = useState("");
+
+  function toggleSkill(s: string) { setSkills((p) => p.includes(s) ? p.filter((x) => x !== s) : [...p, s]); }
+  function addCustom() { const t = customSkill.trim(); if (t && !skills.includes(t)) setSkills((p) => [...p, t]); setCustomSkill(""); }
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setBusy(true); setMsg("");
+    const data = Object.fromEntries(new FormData(event.currentTarget));
+    try { const updated = await patchUser({ ...data, skills }); onSaved(updated); setMsg("Saved."); }
+    catch (e) { setMsg((e as Error).message); } finally { setBusy(false); }
+  }
+
+  return (
+    <form className="pp-editor-form stack-form" onSubmit={save}>
+      <label>Employment status
+        <select name="employment_status" defaultValue={user.employment_status || ""}>
+          <option value="">Select…</option>
+          <option value="student">Student</option>
+          <option value="employed">Employed</option>
+          <option value="self_employed">Self-employed</option>
+          <option value="unemployed">Unemployed</option>
+          <option value="freelancer">Freelancer</option>
+        </select>
+      </label>
+      <label>Industry<input name="industry" defaultValue={user.industry} maxLength={120} placeholder="Technology" /></label>
+      <label>Years of experience
+        <select name="years_experience" defaultValue={user.years_experience || ""}>
+          <option value="">Select…</option>
+          <option value="0">Less than 1 year</option>
+          <option value="1">1 year</option>
+          <option value="2">2 years</option>
+          <option value="3">3 years</option>
+          <option value="5">5 years</option>
+          <option value="7">7+ years</option>
+          <option value="10">10+ years</option>
+        </select>
+      </label>
+      <label>Business status
+        <select name="business_status" defaultValue={user.business_status || ""}>
+          <option value="">None / not applicable</option>
+          <option value="idea">Idea stage</option>
+          <option value="early">Early stage</option>
+          <option value="established">Established</option>
+          <option value="scaling">Scaling</option>
+        </select>
+      </label>
+      <fieldset className="pp-skill-picker">
+        <legend>Your skills</legend>
+        <div className="pp-skill-chips">
+          {SKILLS_PRESET.map((s) => (
+            <button key={s} type="button" className={`pp-skill-chip${skills.includes(s) ? " selected" : ""}`} onClick={() => toggleSkill(s)}>{s}</button>
+          ))}
+          {skills.filter((s) => !SKILLS_PRESET.includes(s)).map((s) => (
+            <button key={s} type="button" className="pp-skill-chip selected" onClick={() => toggleSkill(s)}>{s}</button>
+          ))}
+        </div>
+        <div className="pp-skill-custom">
+          <input value={customSkill} onChange={(e) => setCustomSkill(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustom(); } }} placeholder="Add a skill…" maxLength={60} />
+          <button type="button" className="small-button" onClick={addCustom}>Add</button>
+        </div>
+      </fieldset>
+      <button className="button button-dark compact" disabled={busy}>{busy ? "Saving…" : "Save career info"}</button>
+      {msg && <p role="status" className="profile-feedback">{msg}</p>}
+    </form>
+  );
+}
+
+const INTEREST_OPTIONS = [
+  { value: "scholarship", label: "Scholarships" },{ value: "grant", label: "Grants" },{ value: "job", label: "Jobs" },
+  { value: "internship", label: "Internships" },{ value: "fellowship", label: "Fellowships" },{ value: "competition", label: "Competitions" },
+  { value: "training", label: "Training" },{ value: "startup", label: "Startup Programs" },{ value: "funding", label: "Business Funding" },{ value: "remote", label: "Remote Opportunities" },
+];
+const GOAL_OPTIONS = [
+  { value: "fund_education", label: "Fund my education" },{ value: "find_job", label: "Find a job" },{ value: "start_business", label: "Start a business" },
+  { value: "grow_business", label: "Grow my business" },{ value: "learn_skills", label: "Learn new skills" },{ value: "gain_experience", label: "Gain experience" },
+  { value: "study_abroad", label: "Study abroad" },{ value: "remote_work", label: "Find remote work" },{ value: "get_funding", label: "Get funding" },
+];
+
+function InterestsSection({ user, onSaved }: { user: User; onSaved: (u: User) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [interests, setInterests] = useState<string[]>(user.opportunity_interests || []);
+  const [goals, setGoals] = useState<string[]>(user.goals || []);
+
+  function toggle(list: string[], setList: (l: string[]) => void, value: string) {
+    setList(list.includes(value) ? list.filter((x) => x !== value) : [...list, value]);
+  }
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setBusy(true); setMsg("");
+    try { const updated = await patchUser({ opportunity_interests: interests, goals }); onSaved(updated); setMsg("Saved."); }
+    catch (e) { setMsg((e as Error).message); } finally { setBusy(false); }
+  }
+
+  return (
+    <form className="pp-editor-form stack-form" onSubmit={save}>
+      <fieldset className="pp-multi-select">
+        <legend>What are you looking for?</legend>
+        <div className="pp-select-chips">
+          {INTEREST_OPTIONS.map(({ value, label }) => (
+            <button key={value} type="button" className={`pp-select-chip${interests.includes(value) ? " selected" : ""}`} onClick={() => toggle(interests, setInterests, value)}>{label}</button>
+          ))}
+        </div>
+      </fieldset>
+      <fieldset className="pp-multi-select">
+        <legend>What are you trying to achieve?</legend>
+        <div className="pp-select-chips">
+          {GOAL_OPTIONS.map(({ value, label }) => (
+            <button key={value} type="button" className={`pp-select-chip${goals.includes(value) ? " selected" : ""}`} onClick={() => toggle(goals, setGoals, value)}>{label}</button>
+          ))}
+        </div>
+      </fieldset>
+      <button className="button button-dark compact" disabled={busy}>{busy ? "Saving…" : "Save interests & goals"}</button>
+      {msg && <p role="status" className="profile-feedback">{msg}</p>}
+    </form>
+  );
+}
+
+export function PassportEditor({ user, section, onSaved }: { user: User; section: string; onSaved: (u: User) => void }) {
+  if (section === "education") return <EducationSection user={user} onSaved={onSaved} />;
+  if (section === "career") return <CareerSection user={user} onSaved={onSaved} />;
+  if (section === "interests") return <InterestsSection user={user} onSaved={onSaved} />;
+  return <PersonalSection user={user} onSaved={onSaved} />;
+}
+
+// Keep ProfileEditor export for backward compatibility with any other imports
+export function ProfileEditor({ user, onSaved }: { user: User; onSaved: (u: User) => void }) {
+  return <PassportEditor user={user} section="personal" onSaved={onSaved} />;
 }
