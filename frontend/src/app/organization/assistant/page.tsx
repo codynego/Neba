@@ -1,0 +1,3 @@
+import Link from "next/link";
+import { ArrowRight, Sparkles } from "lucide-react";
+export default function OrganizationAssistantPage() { return <main className="organization-placeholder container"><span className="organization-placeholder-icon"><Sparkles size={24} /></span><span className="eyebrow">GETNEBA AI</span><h1>Your opportunity<br /><em>intelligence partner.</em></h1><p>Ask why an opportunity is underperforming, which audience may qualify, or how to make requirements clearer. The organization analyst is coming next.</p><span className="practice-coming-badge">COMING SOON</span><Link className="section-link" href="/organization/dashboard">Back to overview <ArrowRight size={16} /></Link></main>; }

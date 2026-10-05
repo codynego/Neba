@@ -1,0 +1,3 @@
+import Link from "next/link";
+import { ArrowRight, BarChart3 } from "lucide-react";
+export default function OrganizationAnalyticsPage() { return <main className="organization-placeholder container"><span className="organization-placeholder-icon"><BarChart3 size={24} /></span><span className="eyebrow">ANALYTICS</span><h1>Understand what<br /><em>moves people to apply.</em></h1><p>Performance analytics will show the path from matched people to views, applications, qualified applicants, and shortlisted candidates.</p><span className="practice-coming-badge">COMING SOON</span><Link className="section-link" href="/organization/dashboard">Back to overview <ArrowRight size={16} /></Link></main>; }

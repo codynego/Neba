@@ -5,8 +5,8 @@ from .models import Opportunity, OpportunityApplication, SavedOpportunity
 
 @admin.register(Opportunity)
 class OpportunityAdmin(admin.ModelAdmin):
-    list_display = ("title", "provider", "category", "deadline", "is_published", "is_remote")
-    list_filter = ("category", "is_published", "is_remote", "country")
+    list_display = ("title", "provider", "category", "review_status", "deadline", "is_published", "is_remote")
+    list_filter = ("category", "review_status", "is_published", "is_remote", "country")
     search_fields = ("title", "provider", "summary")
     readonly_fields = ("public_id", "created_at", "updated_at")
 

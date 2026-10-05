@@ -8,7 +8,7 @@ from tasks.product_api import TaskViewSet
 from offers.product_api import OfferViewSet
 from bookings.product_api import ApplicationViewSet
 from accounts.notification_views import NotificationViewSet
-from opportunities.views import OpportunityApplicationViewSet, OpportunityViewSet, SavedOpportunityViewSet
+from opportunities.views import OpportunityApplicationViewSet, OpportunityViewSet, OrganizationOpportunityViewSet, SavedOpportunityViewSet
 
 router = DefaultRouter()
 router.register("cities", CityViewSet, basename="city")
@@ -19,6 +19,7 @@ router.register("notifications", NotificationViewSet, basename="notification")
 router.register("opportunities", OpportunityViewSet, basename="opportunity")
 router.register("saved-opportunities", SavedOpportunityViewSet, basename="saved-opportunity")
 router.register("opportunity-applications", OpportunityApplicationViewSet, basename="opportunity-application")
+router.register("organization/opportunities", OrganizationOpportunityViewSet, basename="organization-opportunity")
 
 
 def health(request):

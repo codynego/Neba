@@ -1,0 +1,3 @@
+import Link from "next/link";
+import { ArrowRight, UsersRound } from "lucide-react";
+export default function OrganizationApplicantsPage() { return <main className="organization-placeholder container"><span className="organization-placeholder-icon"><UsersRound size={24} /></span><span className="eyebrow">APPLICANTS</span><h1>Qualified people,<br /><em>when you&apos;re ready.</em></h1><p>Applicant review will connect your published opportunities with people who apply and show the eligibility signals behind each application.</p><span className="practice-coming-badge">COMING SOON</span><Link className="section-link" href="/organization/dashboard">Back to overview <ArrowRight size={16} /></Link></main>; }

@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
-import { ArrowUpRight, House, Compass, ListChecks, UserRound, Search, MessageCircle, Bookmark, Bell, Sparkles, Settings, MoreHorizontal } from "lucide-react";
+import { ArrowUpRight, BarChart3, Bell, Bookmark, Building2, Compass, FileText, House, ListChecks, MessageCircle, MoreHorizontal, Search, Settings, Sparkles, UserRound, UsersRound } from "lucide-react";
 import { Brand } from "./brand";
 import { api, clearToken, getToken } from "@/lib/api";
 import { NotificationBell } from "./notification-bell";
@@ -19,6 +19,13 @@ const primaryLinks = [
 const secondaryLinks = [
   { href: "/profile", label: "Profile", icon: UserRound },
   { href: "/settings", label: "Settings", icon: Settings },
+];
+const organizationLinks = [
+  { href: "/organization/dashboard", label: "Overview", icon: House },
+  { href: "/organization/opportunities", label: "Opportunities", icon: FileText },
+  { href: "/organization/applicants", label: "Applicants", icon: UsersRound },
+  { href: "/organization/analytics", label: "Analytics", icon: BarChart3 },
+  { href: "/organization/assistant", label: "AI Assistant", icon: Sparkles },
 ];
 export function Header() {
   const path = usePathname();
@@ -50,6 +57,7 @@ export function Header() {
     event.preventDefault();
     router.push(`/tasks?search=${encodeURIComponent(search.trim())}`);
   }
+  if (path.startsWith("/organization")) return <><header className="site-header organization-header"><div className="nav-wrap"><Brand /><span className="organization-header-label">Organization</span><div className="header-account"><Link className="account-link" href="/settings"><Settings size={18} /> Settings</Link></div></div></header><aside className="sidebar organization-sidebar"><Brand /><span className="organization-sidebar-label">Organization</span><nav aria-label="Organization navigation">{organizationLinks.map(({ href, label, icon: Icon }) => <Link key={href} href={href} className={active(href) ? "side-link active" : "side-link"} aria-current={active(href) ? "page" : undefined}><Icon size={20} /><span>{label}</span></Link>)}</nav><div className="sidebar-divider" /><nav aria-label="Organization account navigation"><Link className={active("/organization/onboarding") ? "side-link active" : "side-link"} href="/organization/onboarding"><Building2 size={20} /><span>Organization</span></Link><Link className={active("/settings") ? "side-link active" : "side-link"} href="/settings"><Settings size={20} /><span>Settings</span></Link></nav></aside><nav className="bottom-nav organization-bottom-nav" aria-label="Organization mobile navigation">{organizationLinks.slice(0, 4).map(({ href, label, icon: Icon }) => <Link key={href} href={href} className={active(href) ? "active" : ""}><Icon size={21} /><span>{label}</span></Link>)}</nav></>;
   if (isPublicPath(path)) return <header className="site-header public-header"><div className="landing-container public-nav"><Brand /><nav className="public-links" aria-label="Website navigation"><Link href="/#opportunities">Explore opportunities</Link><Link href="/#how-it-works">How it works</Link><Link href="/assistant">Practice</Link><Link href="/about">Why GetNeba</Link><Link href="/help">Help center</Link></nav><div className="header-account">{signedIn ? <Link className="button button-dark compact" href="/dashboard">Open my radar <ArrowUpRight size={16} /></Link> : <><Link className="login-link" href="/login">Log in</Link><Link className="button button-dark compact" href="/register">Get started <ArrowUpRight size={16} /></Link></>}</div></div></header>;
   return <>
     <header className="site-header"><div className="nav-wrap"><Brand /><form className="header-search" onSubmit={(event) => { event.preventDefault(); router.push(`/opportunities?search=${encodeURIComponent(search.trim())}`); }}><Search size={18} /><input aria-label="Search opportunities" placeholder="Search opportunities…" value={search} onChange={(event) => setSearch(event.target.value)} /><button type="submit" aria-label="Search"><ArrowUpRight size={18} /></button></form><div className="header-account">{signedIn && <NotificationBell />}{signedIn ? <Link className="account-link" href="/profile"><UserRound size={19} /> My profile</Link> : <><Link className="login-link" href="/login">Log in</Link><Link className="button button-dark compact" href="/register">Join GetNeba <ArrowUpRight size={16} /></Link></>}</div></div></header>

@@ -5,6 +5,12 @@ from django.db import models
 
 
 class Opportunity(models.Model):
+    class ReviewStatus(models.TextChoices):
+        DRAFT = "draft", "Draft"
+        PENDING = "pending", "Awaiting review"
+        APPROVED = "approved", "Approved"
+        REJECTED = "rejected", "Changes requested"
+
     class Category(models.TextChoices):
         SCHOLARSHIP = "scholarship", "Scholarship"
         GRANT = "grant", "Grant"
@@ -38,6 +44,9 @@ class Opportunity(models.Model):
     requires_business = models.BooleanField(default=False)
     is_published = models.BooleanField(default=True, db_index=True)
     source_url = models.URLField(max_length=500, blank=True)
+    organization = models.ForeignKey("accounts.Organization", on_delete=models.SET_NULL, null=True, blank=True, related_name="opportunities")
+    review_status = models.CharField(max_length=16, choices=ReviewStatus.choices, default=ReviewStatus.APPROVED)
+    review_note = models.CharField(max_length=500, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

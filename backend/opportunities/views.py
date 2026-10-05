@@ -4,8 +4,10 @@ from django.db.models import Prefetch, Q
 from django.utils import timezone
 from rest_framework import permissions, serializers, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
+from accounts.models import User
 from .models import Opportunity, OpportunityApplication, SavedOpportunity
 
 
@@ -18,6 +20,10 @@ def profile_age(user):
 
 def normalized(values):
     return {str(value).strip().lower() for value in values if str(value).strip()}
+
+
+def matches_text(values, text):
+    return any(value in text for value in normalized(values))
 
 
 def match_for(user, opportunity):
@@ -52,8 +58,14 @@ def match_for(user, opportunity):
     if opportunity.requires_business:
         if user.business_status: score += 6; reasons.append("Relevant to your business status")
         else: missing.append("Business status needs checking")
-    if opportunity.category in normalized(user.opportunity_interests):
+    interests = normalized(user.opportunity_interests)
+    if opportunity.category in interests or f"{opportunity.category}s" in interests:
         score += 8; reasons.append(f"You’re looking for {opportunity.get_category_display().lower()} opportunities")
+    opportunity_text = f"{opportunity.title} {opportunity.summary} {opportunity.fields_of_study} ".lower()
+    if user.skills and matches_text(user.skills, opportunity_text):
+        score += 6; reasons.append("Uses skills in your profile")
+    if user.goals and matches_text(user.goals, opportunity_text):
+        score += 4; reasons.append("Connects with one of your goals")
     if opportunity.is_remote: score += 2; reasons.append("Available remotely")
     return {"score": min(score, 98), "reasons": reasons[:3], "missing": missing[:2]}
 
@@ -136,10 +148,14 @@ class OpportunityViewSet(viewsets.ReadOnlyModelViewSet):
         matched.sort(key=lambda row: (-row[0], row[1].deadline.timestamp() if row[1].deadline else float("inf")))
         urgent = [item for _, item in matched if item.deadline and item.deadline >= now][:3]
         saved = SavedOpportunity.objects.filter(user=request.user).select_related("opportunity")[:4]
-        applications = OpportunityApplication.objects.filter(user=request.user).select_related("opportunity")[:5]
+        all_applications = OpportunityApplication.objects.filter(user=request.user).select_related("opportunity")
+        applications = all_applications[:5]
         profile_fields = ("country", "education_level", "field_of_study", "employment_status", "skills", "goals")
         complete = sum(bool(getattr(request.user, field)) for field in profile_fields)
-        return Response({"match_count": len(matched), "new_this_week": len(matched), "top_matches": self.get_serializer([item for _, item in matched[:5]], many=True).data, "urgent": self.get_serializer(urgent, many=True).data, "saved": SavedOpportunitySerializer(saved, many=True, context={"request": request}).data, "applications": OpportunityApplicationSerializer(applications, many=True, context={"request": request}).data, "profile_completion": round(complete / len(profile_fields) * 100), "missing_profile_fields": [field for field in profile_fields if not getattr(request.user, field)]})
+        readiness = {"profile": bool(request.user.display_name and request.user.skills and request.user.opportunity_interests), "eligibility": bool(request.user.country and request.user.education_level and request.user.field_of_study), "statement": any(application.notes.strip() for application in applications), "interview": any(application.status in ("interview", "awarded") for application in applications)}
+        application_summary = {status: all_applications.filter(status=status).count() for status, _ in OpportunityApplication.Status.choices}
+        upcoming_deadlines = sum(1 for _, item in matched if item.deadline and item.deadline >= now)
+        return Response({"match_count": len(matched), "new_this_week": len(matched), "upcoming_deadlines": upcoming_deadlines, "application_summary": application_summary, "top_matches": self.get_serializer([item for _, item in matched[:5]], many=True).data, "urgent": self.get_serializer(urgent, many=True).data, "saved": SavedOpportunitySerializer(saved, many=True, context={"request": request}).data, "applications": OpportunityApplicationSerializer(applications, many=True, context={"request": request}).data, "profile_completion": round(complete / len(profile_fields) * 100), "missing_profile_fields": [field for field in profile_fields if not getattr(request.user, field)], "readiness": readiness})
 
     @action(detail=True, methods=["post", "delete"])
     def save(self, request, public_id=None):
@@ -173,3 +189,49 @@ class OpportunityApplicationViewSet(viewsets.ModelViewSet):
         if not created: raise serializers.ValidationError("This opportunity is already in your application tracker.")
         SavedOpportunity.objects.update_or_create(user=request.user, opportunity=opportunity, defaults={"status": "preparing"})
         return Response(self.get_serializer(item).data, status=201)
+
+
+class OrganizationOpportunitySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Opportunity
+        fields = ("public_id", "title", "provider", "summary", "category", "application_url", "deadline", "country", "location_label", "is_remote", "benefit", "eligibility_notes", "eligible_countries", "education_levels", "fields_of_study", "employment_statuses", "min_age", "max_age", "requires_business", "source_url", "review_status", "review_note", "is_published", "created_at", "updated_at")
+        read_only_fields = ("public_id", "provider", "review_status", "review_note", "is_published", "created_at", "updated_at")
+
+
+class OrganizationOpportunityViewSet(viewsets.ModelViewSet):
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = OrganizationOpportunitySerializer
+    lookup_field = "public_id"
+    http_method_names = ["get", "post", "patch", "head", "options"]
+
+    def get_queryset(self):
+        return Opportunity.objects.filter(organization__owner=self.request.user).order_by("-updated_at")
+
+    @action(detail=False, methods=["get"])
+    def overview(self, request):
+        organization = getattr(request.user, "organization", None)
+        if not organization:
+            return Response({"detail": "Organization setup is required."}, status=404)
+        opportunities = list(self.get_queryset())
+        published = [item for item in opportunities if item.is_published]
+        applications = OpportunityApplication.objects.filter(opportunity__organization=organization)
+        application_count = applications.count()
+        qualified_count = applications.filter(status__in=("shortlisted", "interview", "awarded")).count()
+        matched_people = {user.id for opportunity in published for user in User.objects.filter(is_active=True) if match_for(user, opportunity)["score"] >= 55}
+        now = timezone.now()
+        deadlines = [{"title": item.title, "days": max(0, (item.deadline - now).days)} for item in published if item.deadline and item.deadline >= now][:5]
+        rows = OrganizationOpportunitySerializer(opportunities, many=True).data
+        for row, opportunity in zip(rows, opportunities):
+            opportunity_applications = applications.filter(opportunity=opportunity)
+            row["application_count"] = opportunity_applications.count()
+            row["qualified_count"] = opportunity_applications.filter(status__in=("shortlisted", "interview", "awarded")).count()
+        return Response({"organization": {"name": organization.name, "status": organization.status}, "metrics": {"active_opportunities": len(published), "matched_people": len(matched_people), "applications": application_count, "qualified_applicants": qualified_count, "application_rate": round(application_count / len(matched_people) * 100, 1) if matched_people else 0}, "opportunities": rows, "deadlines": deadlines})
+
+    def perform_create(self, serializer):
+        organization = getattr(self.request.user, "organization", None)
+        if not organization or organization.status != organization.Status.VERIFIED:
+            raise PermissionDenied("Your organization must be verified before submitting an opportunity.")
+        serializer.save(organization=organization, provider=organization.name, review_status=Opportunity.ReviewStatus.PENDING, is_published=False)
+
+    def perform_update(self, serializer):
+        serializer.save(review_status=Opportunity.ReviewStatus.PENDING, is_published=False, review_note="")

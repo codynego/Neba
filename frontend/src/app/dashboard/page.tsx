@@ -224,8 +224,10 @@ export default function DashboardPage() {
             </div>
             <div className="dash-readiness-top"><strong>{data.profile_completion}%</strong><span>Complete enough context to make better decisions and prepare with purpose.</span></div>
             <div className="dash-readiness-progress"><span style={{ width: `${data.profile_completion}%` }} /></div>
-            <div className="dash-readiness-list"><span className="ready"><Check size={13} /> Profile</span><span className={data.profile_completion >= 50 ? "ready" : "needs"}>{data.profile_completion >= 50 ? <Check size={13} /> : <Bookmark size={13} />} Eligibility</span><span className={data.profile_completion >= 75 ? "ready" : "needs"}>{data.profile_completion >= 75 ? <Check size={13} /> : <Bookmark size={13} />} Statement</span><span className={data.profile_completion >= 100 ? "ready" : "needs"}>{data.profile_completion >= 100 ? <Check size={13} /> : <Bookmark size={13} />} Interview</span></div>
+            <div className="dash-readiness-list"><span className={data.readiness.profile ? "ready" : "needs"}>{data.readiness.profile ? <Check size={13} /> : <Bookmark size={13} />} Profile</span><span className={data.readiness.eligibility ? "ready" : "needs"}>{data.readiness.eligibility ? <Check size={13} /> : <Bookmark size={13} />} Eligibility</span><span className={data.readiness.statement ? "ready" : "needs"}>{data.readiness.statement ? <Check size={13} /> : <Bookmark size={13} />} Statement</span><span className={data.readiness.interview ? "ready" : "needs"}>{data.readiness.interview ? <Check size={13} /> : <Bookmark size={13} />} Interview</span></div>
           </section>
+
+          <section className="dash-analytics"><div><strong>{data.upcoming_deadlines}</strong><span>Upcoming deadlines</span></div><div><strong>{data.application_summary.preparing || 0}</strong><span>Preparing</span></div><div><strong>{(data.application_summary.applied || 0) + (data.application_summary.shortlisted || 0) + (data.application_summary.interview || 0)}</strong><span>Active applications</span></div></section>
 
           {/* ── Explore ──────────────────────────── */}
           <section className="dash-section">
