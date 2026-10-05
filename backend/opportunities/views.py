@@ -1,3 +1,4 @@
+from collections import Counter
 from datetime import date
 
 from django.db.models import Prefetch, Q
@@ -206,6 +207,47 @@ class OrganizationOpportunityViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         return Opportunity.objects.filter(organization__owner=self.request.user).order_by("-updated_at")
+
+    def _organization(self):
+        organization = getattr(self.request.user, "organization", None)
+        if not organization:
+            raise serializers.ValidationError("Organization setup is required.")
+        return organization
+
+    def _applicant_rows(self, opportunity):
+        applications = OpportunityApplication.objects.filter(opportunity=opportunity).select_related("user")
+        rows = []
+        for application in applications:
+            match = match_for(application.user, opportunity)
+            rows.append({"id": application.id, "applicant_id": application.user.id, "name": application.user.display_name or application.user.username, "country": application.user.country, "status": application.status, "match_score": match["score"], "match_reasons": match["reasons"], "missing": match["missing"], "notes": application.notes, "created_at": application.created_at})
+        return sorted(rows, key=lambda row: (-row["match_score"], row["created_at"]))
+
+    def _audience(self, opportunity):
+        eligible = [user for user in User.objects.filter(is_active=True) if match_for(user, opportunity)["score"] >= 55]
+        countries = Counter(user.country or "Not specified" for user in eligible)
+        interests = Counter(interest for user in eligible for interest in (user.opportunity_interests or []))
+        age_bands = Counter()
+        for user in eligible:
+            age = profile_age(user)
+            band = "Not specified" if age is None else "18–24" if age <= 24 else "25–34" if age <= 34 else "35+"
+            age_bands[band] += 1
+        return {"total_matches": len(eligible), "high_confidence": sum(1 for user in eligible if match_for(user, opportunity)["score"] >= 75), "countries": [{"label": label, "count": count} for label, count in countries.most_common(8)], "age_bands": [{"label": label, "count": count} for label, count in age_bands.most_common()], "interests": [{"label": label, "count": count} for label, count in interests.most_common(8)]}
+
+    @action(detail=True, methods=["get"])
+    def workspace(self, request, public_id=None):
+        opportunity = self.get_object()
+        applicants = self._applicant_rows(opportunity)
+        audience = self._audience(opportunity)
+        application_count = len(applicants)
+        qualified_count = sum(1 for applicant in applicants if applicant["status"] in ("shortlisted", "interview", "awarded"))
+        return Response({"opportunity": OrganizationOpportunitySerializer(opportunity).data, "metrics": {"matches": audience["total_matches"], "applications": application_count, "qualified": qualified_count, "shortlisted": sum(1 for applicant in applicants if applicant["status"] == "shortlisted"), "application_rate": round(application_count / audience["total_matches"] * 100, 1) if audience["total_matches"] else 0}, "applicants": applicants, "audience": audience})
+
+    @action(detail=False, methods=["get"])
+    def applicants(self, request):
+        organization = self._organization()
+        applications = OpportunityApplication.objects.filter(opportunity__organization=organization).select_related("user", "opportunity")
+        rows = [{"id": application.id, "opportunity_id": str(application.opportunity.public_id), "opportunity_title": application.opportunity.title, "name": application.user.display_name or application.user.username, "status": application.status, "match_score": match_for(application.user, application.opportunity)["score"], "country": application.user.country} for application in applications]
+        return Response(rows)
 
     @action(detail=False, methods=["get"])
     def overview(self, request):
