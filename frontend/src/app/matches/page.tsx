@@ -1,2 +1,2 @@
-import { OpportunityList } from "@/components/opportunity-list";
-export default function MatchesPage() { return <OpportunityList matches />; }
+import { redirect } from "next/navigation";
+export default function MatchesPage() { redirect("/opportunities"); }
