@@ -48,6 +48,38 @@ class User(AbstractUser):
     def profile_complete(self):
         return bool(self.country and self.education_level and self.opportunity_interests)
 
+
+class Organization(models.Model):
+    class OrganizationType(models.TextChoices):
+        COMPANY = "company", "Company"
+        UNIVERSITY = "university", "University"
+        NGO = "ngo", "NGO / Foundation"
+        GOVERNMENT = "government", "Government"
+        STARTUP = "startup", "Startup"
+        OTHER = "other", "Other"
+
+    class Status(models.TextChoices):
+        DRAFT = "draft", "Draft"
+        PENDING = "pending", "Awaiting verification"
+        VERIFIED = "verified", "Verified"
+
+    owner = models.OneToOneField(User, on_delete=models.CASCADE, related_name="organization")
+    name = models.CharField(max_length=180)
+    organization_type = models.CharField(max_length=24, choices=OrganizationType.choices, default=OrganizationType.OTHER)
+    website = models.URLField(max_length=300, blank=True)
+    country = models.CharField(max_length=120, blank=True)
+    location = models.CharField(max_length=160, blank=True)
+    description = models.TextField(max_length=1200, blank=True)
+    contact_name = models.CharField(max_length=120, blank=True)
+    contact_email = models.EmailField(blank=True)
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.DRAFT)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    verified_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return self.name
+
 class PhoneChallenge(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     phone = models.CharField(max_length=16)

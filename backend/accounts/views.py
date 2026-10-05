@@ -15,7 +15,7 @@ from rest_framework.exceptions import APIException, ValidationError
 from rest_framework.authtoken.models import Token
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from .models import User
+from .models import Organization, User
 from . import r2
 from .trust import normalize_phone
 from .emailing import EmailUnavailable, safely, send_password_reset_email, send_verification_email
@@ -53,6 +53,18 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = ("id", "public_id", "username", "email", "email_verified", "display_name", "city", "state", "date_joined", "phone", "phone_verified", "identity_verified", "photo_visible", "photo_available", "profile_complete", "bio", "skills", "neighborhood", "address", "latitude", "longitude", "availability", "nearby_task_emails", "date_of_birth", "gender", "country", "education_level", "field_of_study", "institution", "graduation_year", "gpa", "employment_status", "years_experience", "industry", "opportunity_interests", "goals", "business_status", "financial_need")
         read_only_fields = ("id", "public_id", "username", "email", "email_verified", "date_joined", "phone_verified", "identity_verified", "photo_available", "profile_complete")
+
+
+class OrganizationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Organization
+        fields = ("id", "name", "organization_type", "website", "country", "location", "description", "contact_name", "contact_email", "status", "created_at", "updated_at", "verified_at")
+        read_only_fields = ("id", "status", "created_at", "updated_at", "verified_at")
+
+    def validate_name(self, value):
+        if not value.strip():
+            raise serializers.ValidationError("Enter your organization name.")
+        return value.strip()
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[validate_password])
@@ -118,6 +130,21 @@ class MeView(generics.RetrieveUpdateAPIView):
     permission_classes = [permissions.IsAuthenticated]
     def get_object(self):
         return self.request.user
+
+
+class OrganizationView(generics.RetrieveUpdateAPIView):
+    serializer_class = OrganizationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_object(self):
+        organization, _ = Organization.objects.get_or_create(owner=self.request.user, defaults={"name": ""})
+        return organization
+
+    def perform_update(self, serializer):
+        organization = serializer.save()
+        if organization.status == Organization.Status.DRAFT and organization.name and organization.contact_email:
+            organization.status = Organization.Status.PENDING
+            organization.save(update_fields=("status", "updated_at"))
 
 class LogoutView(APIView):
     permission_classes = [permissions.IsAuthenticated]

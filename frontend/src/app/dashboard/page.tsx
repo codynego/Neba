@@ -217,6 +217,16 @@ export default function DashboardPage() {
             </section>
           )}
 
+          <section className="dash-readiness-panel">
+            <div className="dash-section-hd">
+              <span className="dash-eyebrow">YOUR OPPORTUNITY READINESS</span>
+              <Link href="/profile" className="dash-section-link">Improve readiness <ArrowRight size={13} /></Link>
+            </div>
+            <div className="dash-readiness-top"><strong>{data.profile_completion}%</strong><span>Complete enough context to make better decisions and prepare with purpose.</span></div>
+            <div className="dash-readiness-progress"><span style={{ width: `${data.profile_completion}%` }} /></div>
+            <div className="dash-readiness-list"><span className="ready"><Check size={13} /> Profile</span><span className={data.profile_completion >= 50 ? "ready" : "needs"}>{data.profile_completion >= 50 ? <Check size={13} /> : <Bookmark size={13} />} Eligibility</span><span className={data.profile_completion >= 75 ? "ready" : "needs"}>{data.profile_completion >= 75 ? <Check size={13} /> : <Bookmark size={13} />} Statement</span><span className={data.profile_completion >= 100 ? "ready" : "needs"}>{data.profile_completion >= 100 ? <Check size={13} /> : <Bookmark size={13} />} Interview</span></div>
+          </section>
+
           {/* ── Explore ──────────────────────────── */}
           <section className="dash-section">
             <div className="dash-section-hd">
