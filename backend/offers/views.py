@@ -1,4 +1,5 @@
-﻿from rest_framework import serializers, viewsets
+﻿from django.conf import settings
+from rest_framework import serializers, viewsets
 from rest_framework.response import Response
 from rest_framework import permissions
 from django.db.models import Q
@@ -71,6 +72,8 @@ class OfferViewSet(CachedListMixin, viewsets.ModelViewSet):
             queryset = queryset.filter(city__iexact=city)
         return queryset
     def perform_create(self, serializer):
+        if not settings.LEGACY_MARKETPLACE_ENABLED:
+            raise serializers.ValidationError("Offer publishing has been retired while Getneba moves to opportunities.")
         require_helper(self.request.user)
         serializer.save(provider=self.request.user)
     def update(self, request, *args, **kwargs):

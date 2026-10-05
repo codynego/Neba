@@ -14,6 +14,7 @@ def env_list(name, default=""):
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "development-only-change-me")
 DEBUG = os.getenv("DJANGO_DEBUG", "false").lower() == "true"
 IS_VERCEL = bool(os.getenv("VERCEL"))
+LEGACY_MARKETPLACE_ENABLED = os.getenv("LEGACY_MARKETPLACE_ENABLED", "false").lower() == "true"
 
 if IS_VERCEL and SECRET_KEY == "development-only-change-me":
     raise ImproperlyConfigured("DJANGO_SECRET_KEY must be set outside development.")

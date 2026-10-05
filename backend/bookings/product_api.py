@@ -1,5 +1,6 @@
 import uuid
 
+from django.conf import settings
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from rest_framework import serializers
@@ -62,6 +63,8 @@ class ApplicationViewSet(BaseApplicationViewSet):
 
     @transaction.atomic
     def perform_create(self, serializer):
+        if not settings.LEGACY_MARKETPLACE_ENABLED:
+            raise ValidationError("Legacy task applications are closed while Getneba moves to opportunities.")
         task = Task.objects.select_for_update().get(pk=serializer.validated_data["task"].pk)
         require_helper(self.request.user)
         if task.status != Task.Status.OPEN or task.is_private or not task.requester.is_active or are_blocked(self.request.user, task.requester):

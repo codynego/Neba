@@ -1,4 +1,5 @@
-﻿from django.db.models import Count
+﻿from django.conf import settings
+from django.db.models import Count
 from rest_framework import serializers, viewsets
 from django.db import transaction, models
 from rest_framework.decorators import action
@@ -103,6 +104,8 @@ class TaskViewSet(CachedListMixin, viewsets.ModelViewSet):
             queryset = queryset.filter(title__icontains=search)
         return queryset
     def perform_create(self, serializer):
+        if not settings.LEGACY_MARKETPLACE_ENABLED:
+            raise serializers.ValidationError("Task posting has been retired while Getneba moves to opportunities.")
         require_profile(self.request.user)
         task = serializer.save(requester=self.request.user)
         if not task.is_private and task.moderation_status == Task.ModerationStatus.APPROVED:
