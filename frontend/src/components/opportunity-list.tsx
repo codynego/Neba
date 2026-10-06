@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { ArrowRight, Bookmark, CalendarClock, Check, ChevronDown, Filter, Search, Sparkles } from "lucide-react";
 import { api } from "@/lib/api";
 import { Opportunity, OpportunityCategory, Page } from "@/lib/types";
+import { opportunityPath } from "@/lib/routes";
 
 const labels: Record<string, string> = { scholarship: "Scholarship", grant: "Grant", job: "Job", internship: "Internship", fellowship: "Fellowship", competition: "Competition", training: "Training", startup: "Startup program", funding: "Funding", tender: "Tenders & Procurement", remote: "Remote" };
 const tabs = ["all", "job", "internship", "scholarship", "grant", "fellowship", "training", "startup", "tender", "competition", "funding", "remote"];
@@ -19,7 +20,7 @@ function OpportunityCard({ item, onSave }: { item: Opportunity; onSave: (item: O
     <div className="opportunity-meta"><span>{item.benefit || labels[item.category]}</span><span>{location(item)}</span></div>
     <div className="opportunity-deadline"><CalendarClock size={15} /><span><small>Deadline</small>{deadline(item.deadline)}</span></div>
     {item.match?.reasons.length ? <div className="opportunity-card-reasons"><small>Why you match</small>{item.match.reasons.slice(0, 2).map((reason) => <span key={reason}><Check size={13} />{reason}</span>)}</div> : null}
-    <footer><button className={`opportunity-save${item.saved_status ? " saved" : ""}`} onClick={() => onSave(item)} aria-label={item.saved_status ? "Remove saved opportunity" : "Save opportunity"}><Bookmark size={16} fill={item.saved_status ? "currentColor" : "none"} />{item.saved_status ? "Saved" : "Save"}</button><Link className="opportunity-view" href={`/opportunities/${item.public_id}`}>View opportunity <ArrowRight size={15} /></Link></footer>
+    <footer><button className={`opportunity-save${item.saved_status ? " saved" : ""}`} onClick={() => onSave(item)} aria-label={item.saved_status ? "Remove saved opportunity" : "Save opportunity"}><Bookmark size={16} fill={item.saved_status ? "currentColor" : "none"} />{item.saved_status ? "Saved" : "Save"}</button><Link className="opportunity-view" href={opportunityPath(item.title, item.public_id)}>View opportunity <ArrowRight size={15} /></Link></footer>
   </article>;
 }
 

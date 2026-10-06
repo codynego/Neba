@@ -77,3 +77,94 @@ class InterviewText(APIView):
             })
         except requests.RequestException as error:
             return Response({"detail": f"Interview model could not respond: {error}"}, status=status.HTTP_502_BAD_GATEWAY)
+
+
+class InterviewTranscription(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        if not settings.OPENAI_API_KEY:
+            return Response({"detail": "Voice transcription is not configured yet."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        audio = request.FILES.get("file")
+        if not audio:
+            return Response({"detail": "An audio recording is required."}, status=status.HTTP_400_BAD_REQUEST)
+        if audio.size > 12 * 1024 * 1024:
+            return Response({"detail": "That recording is too large. Keep answers under 10 minutes."}, status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE)
+
+        try:
+            response = requests.post(
+                "https://api.openai.com/v1/audio/transcriptions",
+                headers={"Authorization": f"Bearer {settings.OPENAI_API_KEY}"},
+                files={"file": (audio.name or "answer.webm", audio.read(), audio.content_type or "audio/webm")},
+                data={
+                    "model": "gpt-4o-mini-transcribe",
+                    "language": "en",
+                    "response_format": "json",
+                    "temperature": "0",
+                },
+                timeout=30,
+            )
+            if not response.ok:
+                return Response({"detail": f"Voice transcription failed: {response.text[:500]}"}, status=status.HTTP_502_BAD_GATEWAY)
+            text = str(response.json().get("text", "")).strip()
+            if not text:
+                return Response({"detail": "No speech was detected."}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+            return Response({"text": text})
+        except requests.RequestException as error:
+            return Response({"detail": f"Voice transcription failed: {error}"}, status=status.HTTP_502_BAD_GATEWAY)
+
+
+class InterviewReport(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        if not settings.OPENAI_API_KEY:
+            return Response({"detail": "Interview reports are not configured yet."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        answers = request.data.get("answers") or []
+        if not isinstance(answers, list) or not answers:
+            return Response({"detail": "At least one interview answer is required."}, status=status.HTTP_400_BAD_REQUEST)
+        focus = request.data.get("focus", "role")
+        difficulty = request.data.get("difficulty", "realistic")
+        opportunity = request.data.get("opportunity_context") or {}
+        context = "\n".join(f"- {key}: {value}" for key, value in opportunity.items() if value)
+        strictness = {
+            "realistic": "Use a normal professional hiring bar.",
+            "challenging": "Use a high hiring bar and penalize vague, unsupported, or overly rehearsed answers.",
+            "very-challenging": "Use a strict hiring bar. Probe for ownership, evidence, trade-offs, measurable outcomes, and leadership under pressure.",
+        }.get(difficulty, "Use a normal professional hiring bar.")
+        instructions = (
+            "You are a rigorous but fair interview debrief coach. Analyze only the candidate's actual answers; never invent achievements or missing evidence. "
+            "Score the candidate relative to the role and interview bar, not against an imaginary perfect candidate. "
+            f"Interview focus: {focus}. Difficulty: {difficulty}. {strictness}\n"
+            f"Target context:\n{context or 'No specific role or company was supplied.'}\n\n"
+            "Return valid JSON only with this shape: "
+            '{"overall_score": number, "summary": string, "dimensions": [{"name": string, "score": number, "note": string}], '
+            '"strengths": [{"name": string, "score": number, "note": string}], '
+            '"improvements": [{"name": string, "score": number, "note": string, "practice_question": string}], '
+            '"readiness": {"score": number, "before_score": number, "ready_signals": [string], "gaps": [string], "note": string}, '
+            '"moments": [{"label": string, "question": string, "answer_excerpt": string, "assessment": string}], '
+            '"question_reviews": [{"question": string, "score": number, "label": string, "analysis": string, "better_approach": string}], '
+            '"next_steps": [{"title": string, "description": string}]}. '
+            "Use 4 to 6 dimensions, 2 or 3 strengths, 1 to 3 improvements, and 3 next steps. Keep notes concise and concrete."
+        )
+        prompt = f"Interview answers:\n{json.dumps(answers[-12:], ensure_ascii=False)}"
+        try:
+            response = requests.post(
+                "https://api.openai.com/v1/responses",
+                headers={"Authorization": f"Bearer {settings.OPENAI_API_KEY}", "Content-Type": "application/json"},
+                json={"model": settings.OPENAI_TEXT_MODEL, "instructions": instructions, "input": prompt},
+                timeout=30,
+            )
+            if not response.ok:
+                return Response({"detail": f"Interview report could not be generated: {response.text[:500]}"}, status=status.HTTP_502_BAD_GATEWAY)
+            data = response.json()
+            output = str(data.get("output_text", "")).strip()
+            if not output:
+                output = " ".join(content.get("text", "") for item in data.get("output", []) for content in item.get("content", []) if content.get("type") == "output_text").strip()
+            output = re.sub(r"^```(?:json)?\s*|\s*```$", "", output.strip(), flags=re.IGNORECASE)
+            report = json.loads(output)
+            return Response(report)
+        except (requests.RequestException, json.JSONDecodeError, TypeError, ValueError) as error:
+            return Response({"detail": f"Interview report could not be generated: {error}"}, status=status.HTTP_502_BAD_GATEWAY)

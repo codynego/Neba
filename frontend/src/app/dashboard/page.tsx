@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { ArrowRight, Bell, Bookmark, CalendarClock, Check, Compass, Search, Sparkles } from "lucide-react";
 import { api, getToken } from "@/lib/api";
 import { Opportunity, OpportunityDashboard, User } from "@/lib/types";
+import { opportunityPath } from "@/lib/routes";
 import { useRouter } from "next/navigation";
 
 const categoryMeta: Record<string, string> = {
@@ -78,7 +79,7 @@ function TopMatchCard({ opp }: { opp: Opportunity }) {
         </div>
       )}
 
-      <Link href={`/opportunities/${opp.public_id}`} className="dash-hero-cta">
+      <Link href={opportunityPath(opp.title, opp.public_id)} className="dash-hero-cta">
         View opportunity <ArrowRight size={16} />
       </Link>
     </article>
@@ -87,7 +88,7 @@ function TopMatchCard({ opp }: { opp: Opportunity }) {
 
 function MiniMatchRow({ opp }: { opp: Opportunity }) {
   return (
-    <Link href={`/opportunities/${opp.public_id}`} className="dash-mini-row">
+    <Link href={opportunityPath(opp.title, opp.public_id)} className="dash-mini-row">
       <span className="dash-mini-score">{opp.match?.score ?? 0}%</span>
       <div className="dash-mini-info">
         <strong>{opp.title}</strong>
@@ -101,7 +102,7 @@ function MiniMatchRow({ opp }: { opp: Opportunity }) {
 function UrgentChip({ opp }: { opp: Opportunity }) {
   const days = deadlineDays(opp.deadline);
   return (
-    <Link href={`/opportunities/${opp.public_id}`} className="dash-urgent-chip">
+    <Link href={opportunityPath(opp.title, opp.public_id)} className="dash-urgent-chip">
       <span className="dash-urgent-cat">{categoryMeta[opp.category] || opp.category}</span>
       <span className="dash-urgent-days">
         {days !== null && days >= 0 ? `${days} day${days === 1 ? "" : "s"} left` : "Closing today"}

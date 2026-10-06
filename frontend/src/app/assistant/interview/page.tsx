@@ -7,9 +7,17 @@ import { api } from "@/lib/api";
 import { Opportunity } from "@/lib/types";
 
 type Phase = "setup" | "live" | "report";
-type RecognitionEvent = { results: { length: number; [index: number]: { [index: number]: { transcript: string } } } };
-type Recognition = { continuous: boolean; interimResults: boolean; lang: string; onresult: ((event: RecognitionEvent) => void) | null; onend: (() => void) | null; start: () => void; stop: () => void };
-type RecognitionConstructor = new () => Recognition;
+type InterviewReport = {
+  overall_score: number;
+  summary: string;
+  dimensions: { name: string; score: number; note: string }[];
+  strengths: { name: string; score: number; note: string }[];
+  improvements: { name: string; score: number; note: string; practice_question: string }[];
+  readiness: { score: number; before_score: number; ready_signals: string[]; gaps: string[]; note: string };
+  moments: { label: string; question: string; answer_excerpt: string; assessment: string }[];
+  question_reviews: { question: string; score: number; label: string; analysis: string; better_approach: string }[];
+  next_steps: { title: string; description: string }[];
+};
 
 const questions = [
   "Tell me about yourself and what you have been building recently.",
@@ -38,8 +46,13 @@ export default function InterviewPracticePage() {
   const [error, setError] = useState("");
   const [aiMessage, setAiMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
   const [currentQuestion, setCurrentQuestion] = useState(questions[0]);
-  const recognitionRef = useRef<Recognition | null>(null);
+  const [answerQuestions, setAnswerQuestions] = useState<string[]>([]);
+  const [report, setReport] = useState<InterviewReport | null>(null);
+  const [reportBusy, setReportBusy] = useState(false);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const recordingStreamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get("opportunity");
@@ -52,41 +65,64 @@ export default function InterviewPracticePage() {
     return () => window.clearInterval(timer);
   }, [phase]);
 
-  const hasVoice = typeof window !== "undefined" && Boolean((window as Window & { SpeechRecognition?: RecognitionConstructor; webkitSpeechRecognition?: RecognitionConstructor }).SpeechRecognition || (window as Window & { webkitSpeechRecognition?: RecognitionConstructor }).webkitSpeechRecognition);
+  const hasVoice = typeof window !== "undefined" && Boolean(navigator.mediaDevices) && typeof MediaRecorder !== "undefined";
 
   async function startInterview() {
     if (!opportunity && !targetRole.trim()) { setError("Add the role you want to practise for."); return; }
-    setPhase("live"); setQuestionIndex(0); setAnswers([]); setAnswer(""); setSeconds(0); setError(""); setAiMessage("");
+    setPhase("live"); setQuestionIndex(0); setAnswers([]); setAnswerQuestions([]); setReport(null); setAnswer(""); setSeconds(0); setError(""); setAiMessage("");
     try {
       const result = await api<{ question: string }>("/ai/interview/text/", { method: "POST", body: JSON.stringify({ action: "start", focus, difficulty, opportunity_context: opportunity ? { title: opportunity.title, provider: opportunity.provider, summary: opportunity.summary, eligibility: opportunity.eligibility_notes, benefit: opportunity.benefit } : { role: targetRole.trim(), company: targetCompany.trim() || "Not specified" } }) });
       setQuestionIndex(0); setAiMessage(""); setAnswer(""); setCurrentQuestion(result.question);
     } catch (startError) { console.error("Text interview session failed", startError); setError("We couldn’t start the interview. Please try again."); }
   }
-  function startListening() {
-    const browserWindow = window as Window & { SpeechRecognition?: RecognitionConstructor; webkitSpeechRecognition?: RecognitionConstructor };
-    const Constructor = browserWindow.SpeechRecognition || browserWindow.webkitSpeechRecognition;
-    if (!Constructor) { setError("Voice input is not available in this browser. Type your answer below instead."); return; }
-    const recognition = new Constructor(); recognition.continuous = true; recognition.interimResults = true; recognition.lang = "en-NG";
-    recognition.onresult = (event) => { let transcript = ""; for (let index = 0; index < event.results.length; index += 1) transcript += event.results[index][0].transcript; setAnswer(transcript); };
-    recognition.onend = () => setListening(false); recognitionRef.current = recognition; recognition.start(); setListening(true); setError("");
+  async function startListening() {
+    if (transcribing || listening) return;
+    if (!navigator.mediaDevices || typeof MediaRecorder === "undefined") { setError("Voice input is not available in this browser. Type your answer below instead."); return; }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const preferredType = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"].find((type) => MediaRecorder.isTypeSupported(type));
+      const recorder = new MediaRecorder(stream, preferredType ? { mimeType: preferredType } : undefined);
+      const chunks: Blob[] = [];
+      recorder.ondataavailable = (event) => { if (event.data.size > 0) chunks.push(event.data); };
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((track) => track.stop()); recordingStreamRef.current = null; setListening(false); setTranscribing(true); setError("");
+        try {
+          const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+          const form = new FormData(); form.append("file", blob, recorder.mimeType.includes("mp4") ? "answer.mp4" : "answer.webm");
+          const result = await api<{ text: string }>("/ai/interview/transcribe/", { method: "POST", body: form });
+          setAnswer((value) => `${value}${value.trim() ? " " : ""}${result.text}`.trim());
+        } catch (transcriptionError) { console.error("Voice transcription failed", transcriptionError); setError("We couldn’t transcribe that recording. You can type your answer instead."); }
+        finally { setTranscribing(false); }
+      };
+      recordingStreamRef.current = stream; recorderRef.current = recorder; recorder.start(); setListening(true); setError("");
+    } catch (voiceError) { console.error("Microphone access failed", voiceError); setError("Microphone access was not granted. You can type your answer instead."); }
   }
-  function stopListening() { recognitionRef.current?.stop(); setListening(false); }
+  function stopListening() { if (recorderRef.current && recorderRef.current.state !== "inactive") recorderRef.current.stop(); }
   async function submitAnswer() {
     if (!answer.trim() || busy) { if (!answer.trim()) setError("Add an answer before continuing."); return; }
     stopListening(); setBusy(true); setError("");
     const submittedAnswer = answer.trim();
     try {
       const result = await api<{ feedback: string; question: string }>("/ai/interview/text/", { method: "POST", body: JSON.stringify({ action: "answer", answer: submittedAnswer, focus, difficulty, history: answers.map((item, index) => ({ question: index === 0 ? currentQuestion : questions[index % questions.length], answer: item })), opportunity_context: opportunity ? { title: opportunity.title, provider: opportunity.provider, summary: opportunity.summary, eligibility: opportunity.eligibility_notes, benefit: opportunity.benefit } : { role: targetRole.trim(), company: targetCompany.trim() || "Not specified" } }) });
-      setAnswers((items) => [...items, submittedAnswer]); setAnswer(""); setAiMessage(result.feedback); setCurrentQuestion(result.question); setQuestionIndex((value) => value + 1);
+      setAnswers((items) => [...items, submittedAnswer]); setAnswerQuestions((items) => [...items, currentQuestion]); setAnswer(""); setAiMessage(result.feedback); setCurrentQuestion(result.question); setQuestionIndex((value) => value + 1);
     } catch (submitError) { console.error("Text interview answer failed", submitError); setError("Your answer could not be evaluated. Please try again."); }
     finally { setBusy(false); }
   }
-  function closeRealtime() { stopListening(); }
-  function reset() { closeRealtime(); setPhase("setup"); setAnswers([]); setQuestionIndex(0); setCurrentQuestion(questions[0]); setSeconds(0); setAnswer(""); setAiMessage(""); }
+  function closeInterview() { stopListening(); recordingStreamRef.current?.getTracks().forEach((track) => track.stop()); recordingStreamRef.current = null; }
+  async function endInterview() {
+    if (!answers.length || reportBusy) { if (!answers.length) setError("Answer at least one question before ending the interview."); return; }
+    closeInterview(); setReportBusy(true); setError("");
+    try {
+      const result = await api<InterviewReport>("/ai/interview/report/", { method: "POST", body: JSON.stringify({ focus, difficulty, answers: answers.map((item, index) => ({ question: answerQuestions[index] || questions[index % questions.length], answer: item })), opportunity_context: opportunity ? { title: opportunity.title, provider: opportunity.provider, summary: opportunity.summary, eligibility: opportunity.eligibility_notes, benefit: opportunity.benefit } : { role: targetRole.trim(), company: targetCompany.trim() || "Not specified" } }) });
+      setReport(result); setPhase("report");
+    } catch (reportError) { console.error("Interview report failed", reportError); setError("The interview ended, but its debrief could not be generated. Please try again."); }
+    finally { setReportBusy(false); }
+  }
+  function reset() { closeInterview(); setPhase("setup"); setAnswers([]); setAnswerQuestions([]); setReport(null); setQuestionIndex(0); setCurrentQuestion(questions[0]); setSeconds(0); setAnswer(""); setAiMessage(""); }
 
   if (phase === "setup") return <main className="interview-page container"><Link className="back-link" href="/assistant"><ArrowLeft size={15} /> Practice workspace</Link><header className="interview-header"><div><span className="eyebrow"><Sparkles size={13} /> AI INTERVIEW PRACTICE</span><h1>Practice like<br /><em>it is the real thing.</em></h1><p>Speak naturally. Work through realistic questions, then leave with a clearer idea of what to strengthen.</p></div><div className="interview-header-mark"><span>●</span><small>TEXT<br />PRACTICE</small></div></header><section className="interview-setup-card"><div className="interview-context"><span className="eyebrow">WHAT ARE YOU PREPARING FOR?</span>{opportunity ? <><h2>{opportunity.title}</h2><p>{opportunity.provider} · {opportunity.location_label || (opportunity.is_remote ? "Remote" : "Open location")}</p><span className="interview-context-note">Your practice will use this opportunity as context.</span></> : <><h2>Build your interview target</h2><p>Give the interviewer a role and company so the questions feel like a real hiring conversation.</p><span className="interview-context-note">You can practise for a real opening or simulate one.</span><div className="interview-target-fields"><label><span>Role or position <b>*</b></span><input value={targetRole} onChange={(event) => setTargetRole(event.target.value)} placeholder="e.g. Product Designer" /></label><label><span>Company</span><input value={targetCompany} onChange={(event) => setTargetCompany(event.target.value)} placeholder="e.g. Flutterwave" /></label></div></>}</div><div className="interview-options"><label><span>Interview focus</span><select value={focus} onChange={(event) => setFocus(event.target.value)}>{Object.entries(focusLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label><label><span>Difficulty</span><select value={difficulty} onChange={(event) => setDifficulty(event.target.value)}><option value="realistic">Realistic</option><option value="challenging">Challenging</option><option value="very-challenging">Very challenging</option></select></label><label><span>Duration</span><select value={duration} onChange={(event) => setDuration(event.target.value)}><option value="10">10 minutes</option><option value="20">20 minutes</option><option value="30">30 minutes</option></select></label></div><button className="button button-dark" onClick={startInterview}>Start interview <ArrowRight size={16} /></button></section><section className="interview-promise"><div><Clock3 size={18} /><span><strong>Pressure, with purpose.</strong><small>The interviewer will ask follow-ups, challenge vague answers, and probe for evidence at higher difficulties.</small></span></div><div><Mic size={18} /><span><strong>Speak or type.</strong><small>Voice input converts your answer to text in supported browsers. Nothing is streamed live.</small></span></div></section></main>;
 
-  if (phase === "report") { const answered = answers.length; const clarity = Math.min(92, 52 + answered * 9); return <main className="interview-page interview-report container"><Link className="back-link" href="/assistant"><ArrowLeft size={15} /> Practice workspace</Link><header className="report-header"><span className="eyebrow"><Check size={13} /> INTERVIEW COMPLETE</span><h1>Good work. Now<br /><em>make it useful.</em></h1><p>Here is a first read on this practice session. Strong interviews get clearer with repetition.</p></header><section className="report-score-card"><div className="report-score"><strong>{clarity}</strong><span>/ 100<br />practice signal</span></div><div><span className="eyebrow">SESSION READOUT</span><h2>{answered >= 3 ? "You gave yourself enough room to think." : "You have a useful starting point."}</h2><p>{opportunity ? `Prepared for ${opportunity.title}.` : "Prepared for a general opportunity interview."} You answered {answered} of {questions.length} questions in {formatSeconds(seconds)}.</p></div></section><section className="report-grid"><article><span className="eyebrow">KEEP DOING</span><h2>Specific examples</h2><p>Grounding an answer in what you personally did makes your contribution easier to understand.</p></article><article><span className="eyebrow">PRACTICE NEXT</span><h2>Go one layer deeper</h2><p>After describing the action, explain the trade-off, decision, or result that followed.</p><button className="section-link" onClick={reset}>Practice again <RotateCcw size={15} /></button></article></section><section className="report-answers"><div className="interview-section-heading"><div><span className="eyebrow">YOUR ANSWERS</span><h2>What you said</h2></div><span>{answers.length} responses</span></div>{answers.map((item, index) => <div className="report-answer" key={`${item}-${index}`}><span>0{index + 1}</span><div><strong>{questions[index]}</strong><p>{item}</p></div></div>)}</section></main>; }
+  if (phase === "report" && report) return <main className="interview-page interview-report container"><Link className="back-link" href="/assistant"><ArrowLeft size={15} /> Practice workspace</Link><header className="report-header"><span className="eyebrow"><Check size={13} /> INTERVIEW DEBRIEF</span><h1>Make the feedback<br /><em>useful.</em></h1><p>{opportunity ? `Debrief for ${opportunity.title} at ${opportunity.provider}.` : `Debrief for ${targetRole}${targetCompany ? ` at ${targetCompany}` : ""}.`} Completed in {formatSeconds(seconds)}.</p></header><section className="report-score-card"><div className="report-score"><strong>{report.overall_score}</strong><span>/ 100<br />overall performance</span></div><div><span className="eyebrow">OVERALL PERFORMANCE</span><h2>{report.summary}</h2><p>Scored against a {difficulty.replace("-", " ")} hiring bar, based on the answers you actually gave.</p></div></section><section className="report-dimensions"><div className="interview-section-heading"><div><span className="eyebrow">PERFORMANCE DIMENSIONS</span><h2>What the interview measured</h2></div></div>{report.dimensions.map((item) => <article key={item.name}><div><strong>{item.name}</strong><p>{item.note}</p></div><b>{item.score}</b></article>)}</section><section className="report-grid"><article><span className="eyebrow">STRONGEST AREAS</span>{report.strengths.map((item) => <div className="report-insight" key={item.name}><strong>{item.name} <b>{item.score}</b></strong><p>{item.note}</p></div>)}</article><article><span className="eyebrow">AREAS TO IMPROVE</span>{report.improvements.map((item) => <div className="report-insight" key={item.name}><strong>{item.name} <b>{item.score}</b></strong><p>{item.note}</p><small>Practice: “{item.practice_question}”</small></div>)}</article></section><section className="readiness-card"><div><span className="eyebrow">OPPORTUNITY READINESS</span><h2>{report.readiness.score}% ready for this interview</h2><p>{report.readiness.note}</p></div><div className="readiness-meter"><span>Before practice <b>{report.readiness.before_score}%</b></span><i><em style={{ width: `${Math.min(100, report.readiness.score)}%` }} /></i><span>After this session <b>{report.readiness.score}%</b></span></div><div className="readiness-signals"><div><strong>Signals you showed</strong>{report.readiness.ready_signals.map((item) => <span key={item}>✓ {item}</span>)}</div><div><strong>Still to strengthen</strong>{report.readiness.gaps.map((item) => <span key={item}>△ {item}</span>)}</div></div></section><section className="report-moments"><div className="interview-section-heading"><div><span className="eyebrow">KEY MOMENTS</span><h2>Where the interview turned</h2></div></div>{report.moments.map((moment) => <article key={`${moment.label}-${moment.question}`}><span className="eyebrow">{moment.label}</span><strong>{moment.question}</strong><p>“{moment.answer_excerpt}”</p><small>{moment.assessment}</small></article>)}</section><section className="report-answers"><div className="interview-section-heading"><div><span className="eyebrow">QUESTION-BY-QUESTION</span><h2>How each answer landed</h2></div></div>{report.question_reviews.map((item, index) => <details className="report-review" key={`${item.question}-${index}`}><summary><span>0{index + 1}</span><div><strong>{item.question}</strong><small>{item.label}</small></div><b>{item.score}</b></summary><div><p>{item.analysis}</p><strong>Better approach</strong><p>{item.better_approach}</p></div></details>)}</section><section className="report-next-steps"><span className="eyebrow">RECOMMENDED NEXT STEPS</span><h2>Turn the debrief into practice.</h2><div>{report.next_steps.map((item, index) => <article key={item.title}><b>0{index + 1}</b><strong>{item.title}</strong><p>{item.description}</p></article>)}</div><button className="button button-dark" onClick={reset}>Practice again <RotateCcw size={15} /></button></section></main>;
 
-  return <main className="interview-room"><div className="interview-room-top"><Link href="/assistant"><ArrowLeft size={15} /> Leave practice</Link><span>{opportunity?.title || "General interview"}</span><strong>{formatSeconds(seconds)}</strong></div><section className="interview-room-body"><div className="interviewer-orb"><span /><span /><span /></div><span className="eyebrow">{listening ? "LISTENING" : "YOUR TURN"}</span><h1>{currentQuestion}</h1><p className="interview-room-hint">{listening ? "Take your time. I am listening for the detail behind your answer." : "Answer in your own words. A specific example is more useful than a perfect one."}</p>{aiMessage && <p className="interview-room-hint interview-feedback">{aiMessage}</p>}{error && <p className="error-box" role="alert">{error}</p>}<div className="interview-answer"><textarea value={answer} onChange={(event) => setAnswer(event.target.value)} placeholder="Type your answer here…" rows={5} /><div className="interview-controls">{hasVoice && <button className={`voice-button${listening ? " active" : ""}`} onClick={listening ? stopListening : startListening} aria-label={listening ? "Stop listening" : "Start voice input"}>{listening ? <MicOff size={20} /> : <Mic size={20} />}<span>{listening ? "Stop" : "Speak"}</span></button>}<button className="button button-dark" onClick={submitAnswer} disabled={busy}>{busy ? "Thinking…" : "Continue"} {!busy && <ChevronRight size={16} />}</button></div></div><div className="interview-progress"><span>Question {questionIndex + 1}</span><div><i style={{ width: `${Math.min(100, ((questionIndex + 1) / questions.length) * 100)}%` }} /></div><button onClick={() => setPhase("report")}><Square size={13} /> End interview</button></div></section></main>;
+  return <main className="interview-room"><div className="interview-room-top"><Link href="/assistant"><ArrowLeft size={15} /> Leave practice</Link><span>{opportunity?.title || "General interview"}</span><strong>{formatSeconds(seconds)}</strong></div><section className="interview-room-body"><div className="interviewer-orb"><span /><span /><span /></div><span className="eyebrow">{listening ? "LISTENING" : transcribing ? "TRANSCRIBING" : "YOUR TURN"}</span><h1>{currentQuestion}</h1><p className="interview-room-hint">{listening ? "Speak naturally. Tap Stop when you finish." : transcribing ? "Turning your answer into editable text…" : "Answer in your own words. A specific example is more useful than a perfect one."}</p>{aiMessage && <p className="interview-room-hint interview-feedback">{aiMessage}</p>}{error && <p className="error-box" role="alert">{error}</p>}<div className="interview-answer"><textarea value={answer} onChange={(event) => setAnswer(event.target.value)} placeholder="Type your answer here…" rows={5} /><div className="interview-controls">{hasVoice && <button className={`voice-button${listening ? " active" : ""}`} onClick={listening ? stopListening : startListening} disabled={transcribing} aria-label={listening ? "Stop recording" : "Start voice input"}>{listening ? <MicOff size={20} /> : <Mic size={20} />}<span>{listening ? "Stop" : transcribing ? "Transcribing" : "Speak"}</span></button>}<button className="button button-dark" onClick={submitAnswer} disabled={busy || transcribing}>{busy ? "Thinking…" : "Continue"} {!busy && <ChevronRight size={16} />}</button></div></div><div className="interview-progress"><span>Question {questionIndex + 1}</span><div><i style={{ width: `${Math.min(100, ((questionIndex + 1) / questions.length) * 100)}%` }} /></div><button onClick={endInterview} disabled={reportBusy || busy || transcribing}><Square size={13} /> End interview</button></div></section></main>;
 }
