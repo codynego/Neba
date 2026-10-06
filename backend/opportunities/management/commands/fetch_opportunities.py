@@ -112,7 +112,7 @@ def parse_feed(content, content_type, source_url):
         title = clean_text(text("title"), 220)
         description = clean_text(text("description", "summary", "content"), 1800)
         if title and link:
-            rows.append({"title": title, "description": description, "link": link, "deadline": text("deadline", "closingDate", "published"), "provider": ""})
+            rows.append({"title": title, "description": description, "link": link, "deadline": text("deadline", "closingDate"), "provider": ""})
     return rows
 
 

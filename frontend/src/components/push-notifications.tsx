@@ -19,8 +19,15 @@ export async function subscribeToPush(key: string) {
   const ready = await navigator.serviceWorker.ready;
   let subscription = await ready.pushManager.getSubscription();
   if (!subscription) subscription = await ready.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(key) });
-  await api("/notifications/push-subscription/", { method: "POST", body: JSON.stringify(subscription.toJSON()) });
+  const payload = subscription.toJSON();
+  if (!payload.endpoint || !payload.keys?.p256dh || !payload.keys?.auth) throw new Error("Your browser returned an incomplete push subscription. Try refreshing the page.");
+  await api("/notifications/push-subscription/", { method: "POST", body: JSON.stringify({ endpoint: payload.endpoint, keys: { p256dh: payload.keys.p256dh, auth: payload.keys.auth } }) });
   return registration;
+}
+
+function pushError(error: unknown) {
+  const message = error instanceof Error ? error.message : "Unknown notification error.";
+  return message.length > 220 ? `${message.slice(0, 217)}…` : message;
 }
 
 function pushSupported() {
@@ -55,8 +62,8 @@ export function PushNotificationSettings() {
       if (nextPermission !== "granted") return;
       await subscribeToPush(publicKey);
       setEnabled(true);
-    } catch {
-      setError("Notifications could not be enabled. Check your browser settings and try again.");
+    } catch (error) {
+      setError(`Notifications could not be enabled: ${pushError(error)}`);
     } finally { setBusy(false); }
   }
 
@@ -107,8 +114,8 @@ export function PushNotifications() {
       if (permission !== "granted") { setVisible(false); return; }
       await subscribe(publicKey);
       setVisible(false);
-    } catch {
-      setError("Notifications could not be enabled. Check your browser settings and try again.");
+    } catch (error) {
+      setError(`Notifications could not be enabled: ${pushError(error)}`);
     } finally { setBusy(false); }
   }
 
