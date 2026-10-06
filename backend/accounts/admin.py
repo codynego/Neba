@@ -3,7 +3,7 @@ from django.contrib.auth.admin import UserAdmin
 from django.utils.html import format_html
 from rest_framework.authtoken.models import Token
 from rest_framework.exceptions import APIException
-from .models import User, IdentityVerification, SafetyReport, Review, TrustAudit, PushSubscription
+from .models import User, IdentityVerification, SafetyReport, TrustAudit, PushSubscription
 from .trust import review_identity
 
 @admin.register(User)
@@ -67,23 +67,13 @@ class IdentityAdmin(admin.ModelAdmin):
 class ReportAdmin(admin.ModelAdmin):
     list_display = ("reporter", "reported_user", "reason", "status", "created_at")
     list_filter = ("status", "reason")
-    readonly_fields = ("reporter", "reported_user", "task", "reason", "details", "created_at", "reviewed_by")
+    readonly_fields = ("reporter", "reported_user", "reason", "details", "created_at", "reviewed_by")
     def has_add_permission(self, request):
         return False
     def save_model(self, request, obj, form, change):
         obj.reviewed_by = request.user
         super().save_model(request, obj, form, change)
         TrustAudit.objects.create(actor=request.user, subject=obj.reported_user, action="report_reviewed", note=f"report {obj.pk}: {obj.status}")
-
-@admin.register(Review)
-class ReviewAdmin(admin.ModelAdmin):
-    list_display = ("task", "reviewer", "subject", "rating", "visible")
-    readonly_fields = ("task", "reviewer", "subject", "rating", "comment", "created_at")
-    def has_add_permission(self, request):
-        return False
-    def save_model(self, request, obj, form, change):
-        super().save_model(request, obj, form, change)
-        TrustAudit.objects.create(actor=request.user, subject=obj.subject, action="review_moderated", note=f"review {obj.pk}: visible={obj.visible}")
 
 @admin.register(TrustAudit)
 class AuditAdmin(admin.ModelAdmin):

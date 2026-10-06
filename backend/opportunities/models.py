@@ -89,6 +89,7 @@ class OpportunityApplication(models.Model):
         UNSUCCESSFUL = "unsuccessful", "Unsuccessful"
         WITHDRAWN = "withdrawn", "Withdrawn"
 
+    public_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False, db_index=True)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="opportunity_applications")
     opportunity = models.ForeignKey(Opportunity, on_delete=models.CASCADE, related_name="applications")
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.PREPARING)

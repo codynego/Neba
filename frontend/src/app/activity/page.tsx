@@ -1,2 +1,2 @@
-import { ActivityOverview } from "@/components/activity-overview";
-export default function ActivityPage() { return <ActivityOverview />; }
+import { redirect } from "next/navigation";
+export default function ActivityPage() { redirect("/dashboard"); }

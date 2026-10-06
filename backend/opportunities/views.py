@@ -110,7 +110,7 @@ class OpportunityApplicationSerializer(serializers.ModelSerializer):
     opportunity_id = serializers.UUIDField(source="opportunity.public_id", read_only=True)
     class Meta:
         model = OpportunityApplication
-        fields = ("id", "opportunity_id", "opportunity", "status", "applied_at", "next_action", "next_action_at", "notes", "created_at", "updated_at")
+        fields = ("id", "public_id", "opportunity_id", "opportunity", "status", "applied_at", "next_action", "next_action_at", "notes", "created_at", "updated_at")
 
 
 class OpportunityViewSet(viewsets.ReadOnlyModelViewSet):
@@ -182,6 +182,7 @@ class SavedOpportunityViewSet(viewsets.ModelViewSet):
 class OpportunityApplicationViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = OpportunityApplicationSerializer
+    lookup_field = "public_id"
     def get_queryset(self): return OpportunityApplication.objects.filter(user=self.request.user).select_related("opportunity")
     def create(self, request, *args, **kwargs):
         opportunity = Opportunity.objects.filter(public_id=request.data.get("opportunity_id"), is_published=True).first()

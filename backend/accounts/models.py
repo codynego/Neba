@@ -150,7 +150,6 @@ class Block(models.Model):
 class SafetyReport(models.Model):
     reporter = models.ForeignKey(User, on_delete=models.CASCADE, related_name="reports_made")
     reported_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="reports_received")
-    task = models.ForeignKey("tasks.Task", on_delete=models.SET_NULL, null=True, blank=True)
     reason = models.CharField(max_length=24, choices=[
         ("unsafe", "Unsafe behavior"), ("harassment", "Harassment"),
         ("fraud", "Fraud or impersonation"), ("conduct", "Inappropriate conduct"), ("other", "Other"),
@@ -162,22 +161,6 @@ class SafetyReport(models.Model):
     staff_note = models.TextField(blank=True)
 
     class Meta:
-        ordering = ("-created_at",)
-
-class Review(models.Model):
-    task = models.ForeignKey("tasks.Task", on_delete=models.CASCADE, related_name="reviews")
-    reviewer = models.ForeignKey(User, on_delete=models.CASCADE, related_name="reviews_given")
-    subject = models.ForeignKey(User, on_delete=models.CASCADE, related_name="reviews_received")
-    rating = models.PositiveSmallIntegerField()
-    comment = models.TextField(max_length=800, blank=True)
-    visible = models.BooleanField(default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        constraints = [
-            models.UniqueConstraint(fields=("task", "reviewer"), name="one_review_per_participant"),
-            models.CheckConstraint(condition=models.Q(rating__gte=1, rating__lte=5), name="valid_review_rating"),
-        ]
         ordering = ("-created_at",)
 
 class TrustAudit(models.Model):

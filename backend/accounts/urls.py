@@ -24,5 +24,4 @@ urlpatterns = [
     path("members/<str:identifier>/", safety.PublicProfile.as_view()),
     path("blocks/", safety.Blocks.as_view()),
     path("reports/", safety.Reports.as_view()),
-    path("reviews/", safety.Reviews.as_view()),
 ]

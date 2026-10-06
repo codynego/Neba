@@ -1,4 +1,2 @@
-"use client";
-import { use } from "react";
-import { TaskDetail } from "@/components/task-detail";
-export default function TaskPage({ params }: { params: Promise<{ id: string }> }) { const { id } = use(params); return <TaskDetail id={id} />; }
+import { redirect } from "next/navigation";
+export default function TaskPage() { redirect("/opportunities"); }

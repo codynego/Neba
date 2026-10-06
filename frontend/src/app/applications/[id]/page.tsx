@@ -1,9 +1,9 @@
 "use client";
 
 import { use } from "react";
-import { CandidateWorkspace } from "@/components/candidate-workspace";
+import { ApplicationDetailRouter } from "@/components/application-detail-router";
 
 export default function ApplicationPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  return <CandidateWorkspace key={id} applicationId={id} />;
+  return <ApplicationDetailRouter key={id} applicationId={id} />;
 }

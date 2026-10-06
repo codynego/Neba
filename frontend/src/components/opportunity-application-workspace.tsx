@@ -1,0 +1,60 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { ArrowLeft, ArrowRight, CalendarClock, Check, Circle, ExternalLink, FileText, MessageCircle, Pencil, Sparkles } from "lucide-react";
+import { api } from "@/lib/api";
+import { OpportunityApplication } from "@/lib/types";
+
+const statuses = ["preparing", "applied", "shortlisted", "interview", "awarded"];
+const statusLabels: Record<string, string> = { preparing: "Preparing", applied: "Applied", shortlisted: "Shortlisted", interview: "Interview", awarded: "Decision", unsuccessful: "Closed", withdrawn: "Withdrawn" };
+const statusCopy: Record<string, string> = { preparing: "You are preparing to apply.", applied: "Your application has been submitted.", shortlisted: "You have been shortlisted.", interview: "Your next step is an interview.", awarded: "A decision has been recorded.", unsuccessful: "This application is closed.", withdrawn: "You withdrew this application." };
+
+export function OpportunityApplicationWorkspace({ applicationId }: { applicationId: string }) {
+  const [application, setApplication] = useState<OpportunityApplication | null>(null);
+  const [notes, setNotes] = useState("");
+  const [tasks, setTasks] = useState([true, true, true, false, false]);
+  const [busy, setBusy] = useState(false);
+  const [feedback, setFeedback] = useState("");
+  const [error, setError] = useState("");
+
+  useEffect(() => { api<OpportunityApplication>(`/opportunity-applications/${applicationId}/`).then((item) => { setApplication(item); setNotes(item.notes || ""); }).catch((err) => setError(err.message)); }, [applicationId]);
+
+  const completed = tasks.filter(Boolean).length;
+  const currentIndex = useMemo(() => Math.max(0, statuses.indexOf(application?.status || "preparing")), [application?.status]);
+  const deadline = application?.opportunity.deadline ? new Date(application.opportunity.deadline) : null;
+  const remaining = deadline ? Math.max(0, Math.ceil((deadline.getTime() - Date.now()) / 86400000)) : null;
+
+  async function updateStatus(status: string) {
+    if (!application || busy) return;
+    setBusy(true); setFeedback("");
+    try { const updated = await api<OpportunityApplication>(`/opportunity-applications/${application.public_id}/`, { method: "PATCH", body: JSON.stringify({ status }) }); setApplication(updated); setFeedback(`Status updated to ${statusLabels[status]}.`); } catch (err) { setError((err as Error).message); } finally { setBusy(false); }
+  }
+
+  async function saveNotes() {
+    if (!application || busy) return;
+    setBusy(true); setFeedback("");
+    try { const updated = await api<OpportunityApplication>(`/opportunity-applications/${application.public_id}/`, { method: "PATCH", body: JSON.stringify({ notes }) }); setApplication(updated); setFeedback("Notes saved."); } catch (err) { setError((err as Error).message); } finally { setBusy(false); }
+  }
+
+  if (error) return <main className="application-workspace-page container"><p className="error-box">{error}</p><Link className="text-link" href="/applications">Back to applications</Link></main>;
+  if (!application) return <main className="application-workspace-page container"><p role="status">Loading application...</p></main>;
+
+  const { opportunity } = application;
+  return <main className="application-workspace-page container">
+    <Link className="back-link" href="/applications"><ArrowLeft size={15} /> Applications</Link>
+    <header className="application-workspace-header"><div><span className="eyebrow">APPLICATION WORKSPACE</span><h1>{opportunity.title}</h1><p><Link href={`/opportunities/${application.opportunity_id}`}>{opportunity.provider}</Link> · {opportunity.is_remote ? "Remote" : opportunity.location_label || opportunity.country || "Open location"}</p></div><span className={`application-status application-status-large ${application.status}`}>{statusLabels[application.status] || application.status}</span></header>
+    <section className="application-progress-card-v1"><div className="application-progress-top"><div><span className="eyebrow">APPLICATION STATUS</span><h2>{statusCopy[application.status] || "Keep moving forward."}</h2></div>{deadline && <div className="application-countdown"><CalendarClock size={16} /><strong>{remaining} days</strong><span>remaining</span></div>}</div><div className="application-status-steps" aria-label="Application progress">{statuses.map((status, index) => <div key={status} className={index <= currentIndex ? "reached" : ""}><span>{index < currentIndex ? <Check size={13} /> : index + 1}</span><small>{statusLabels[status]}</small></div>)}</div></section>
+    <div className="application-workspace-grid"><div className="application-workspace-main">
+      <section className="application-v1-card"><div className="application-v1-heading"><div><span className="eyebrow">YOUR PROGRESS</span><h2>{completed} / {tasks.length} tasks completed</h2></div><span className="application-progress-percent">{Math.round(completed / tasks.length * 100)}%</span></div><div className="application-task-list">{["Review eligibility", "Complete your Getneba profile", "Prepare your CV", "Prepare your founder statement", "Submit the application"].map((label, index) => <button key={label} className={tasks[index] ? "completed" : ""} onClick={() => setTasks((current) => current.map((task, taskIndex) => taskIndex === index ? !task : task))}><span>{tasks[index] ? <Check size={14} /> : <Circle size={14} />}</span>{label}</button>)}</div><Link href={`/opportunities/${application.opportunity_id}`} className="button button-outline compact">Continue preparing <ArrowRight size={14} /></Link></section>
+      <section className="application-v1-card"><div className="application-v1-heading"><div><span className="eyebrow">APPLICATION ACTIVITY</span><h2>What has happened</h2></div><FileText size={20} className="application-v1-icon" /></div><div className="application-activity-list"><div><span className="activity-dot"><Check size={12} /></span><div><strong>Added to your tracker</strong><small>{new Date(application.created_at).toLocaleDateString("en-NG", { month: "short", day: "numeric", year: "numeric" })}</small></div></div>{application.status !== "preparing" && <div><span className="activity-dot"><Check size={12} /></span><div><strong>Application marked {statusLabels[application.status].toLowerCase()}</strong><small>Current status</small></div></div>}</div></section>
+      <section className="application-v1-card"><div className="application-v1-heading"><div><span className="eyebrow">YOUR PREPARATION</span><h2>Get ready with purpose</h2></div><Sparkles size={20} className="application-v1-icon" /></div><div className="application-preparation-grid"><Link href="/profile"><FileText size={16} /><span><strong>CV</strong><small>Review your experience</small></span><ArrowRight size={14} /></Link><Link href="/assistant"><Sparkles size={16} /><span><strong>Founder story</strong><small>Prepare with AI</small></span><ArrowRight size={14} /></Link><Link href="/assistant"><MessageCircle size={16} /><span><strong>Interview practice</strong><small>Practice for this role</small></span><ArrowRight size={14} /></Link></div></section>
+      <section className="application-v1-card application-notes"><div className="application-v1-heading"><div><span className="eyebrow">APPLICATION NOTES</span><h2>Keep your thinking here</h2></div><Pencil size={18} className="application-v1-icon" /></div><textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Example: Ask about equity structure before the interview." rows={4} maxLength={2000} /><button className="button button-outline compact" onClick={saveNotes} disabled={busy}>Save notes</button></section>
+    </div><aside className="application-workspace-aside">
+      <section className="application-next-action"><span className="eyebrow">NEXT ACTION</span><h2>{application.next_action || "Prepare your next application step."}</h2><p>Small, focused progress is better than waiting until the deadline.</p><Link href={`/opportunities/${application.opportunity_id}`} className="button button-dark full-width">Start <ArrowRight size={15} /></Link></section>
+      <section className="application-v1-card application-official-card"><span className="eyebrow">OFFICIAL APPLICATION</span><h2>{application.status === "applied" || application.status === "shortlisted" ? "Application submitted externally" : "Not submitted yet"}</h2><p>When you apply, use the provider&apos;s official website.</p><a className="button button-outline full-width" href={opportunity.application_url} target="_blank" rel="noreferrer">Open {opportunity.provider} <ExternalLink size={14} /></a>{application.status === "preparing" && <button className="text-button" onClick={() => updateStatus("applied")} disabled={busy}>I applied <Check size={14} /></button>}</section>
+      <section className="application-v1-card application-status-actions"><span className="eyebrow">UPDATE STATUS</span><div>{statuses.slice(0, 4).map((status) => <button key={status} className={application.status === status ? "active" : ""} onClick={() => updateStatus(status)} disabled={busy}>{statusLabels[status]}</button>)}</div></section>
+      {feedback && <p className="form-feedback" role="status">{feedback}</p>}
+    </aside></div>
+  </main>;
+}

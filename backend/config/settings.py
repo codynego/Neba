@@ -106,8 +106,6 @@ if redis_url:
 
 API_CACHE_TTLS = {
     "cities": int(os.getenv("CITY_CACHE_TTL_SECONDS", "3600")),
-    "tasks": int(os.getenv("TASK_LIST_CACHE_TTL_SECONDS", "60")),
-    "offers": int(os.getenv("OFFER_LIST_CACHE_TTL_SECONDS", "60")),
     "profiles": int(os.getenv("PUBLIC_PROFILE_CACHE_TTL_SECONDS", "120")),
 }
 

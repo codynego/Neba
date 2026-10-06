@@ -2,7 +2,6 @@ import secrets
 from datetime import timedelta
 from django.conf import settings
 from django.db import IntegrityError, transaction
-from django.db.models import Avg
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -10,9 +9,7 @@ from rest_framework import permissions, serializers
 from rest_framework.exceptions import PermissionDenied, ValidationError, Throttled
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from bookings.models import Application
-from tasks.models import Task
-from .models import User, PhoneChallenge, PhoneSendAttempt, CaptureChallenge, IdentityVerification, Block, SafetyReport, Review, TrustAudit
+from .models import User, PhoneChallenge, PhoneSendAttempt, CaptureChallenge, IdentityVerification, Block, SafetyReport, TrustAudit
 from .trust import normalize_phone, destination_hash, twilio_request, phone_configured, encrypt_image, decrypt_image, require_phone, are_blocked
 from . import r2
 from config.api_cache import cache_ttl, request_cache_key
@@ -20,12 +17,11 @@ from django.core.cache import cache
 
 
 def trust_summary(user):
-    reviews = user.reviews_received.filter(visible=True, reviewer__is_active=True)
     return {"public_id": str(user.public_id), "username": user.username, "phone_verified": bool(user.is_active and user.phone and user.phone_verified_at),
             "identity_verified": bool(user.is_active and user.phone and user.phone_verified_at and user.identity_verified_at),
             "photo_available": bool(user.is_active and user.photo_visible and (user.profile_photo_key or user.profile_photo)),
             "profile_complete": bool(user.is_active and user.profile_complete),
-            "review_count": reviews.count(), "rating": reviews.aggregate(value=Avg("rating"))["value"]}
+            "review_count": 0, "rating": None}
 
 
 class PrivateView(APIView):
@@ -241,16 +237,9 @@ class PublicProfile(APIView):
                 response = Response(cached)
                 response["X-Neba-Cache"] = "HIT"
                 return response
-        reviews = user.reviews_received.filter(visible=True, reviewer__is_active=True).select_related("reviewer")[:20]
-        from offers.product_api import OfferSerializer
-        offers = user.offers.filter(active=True) if user.profile_complete else user.offers.none()
         data = {"id": user.pk, "public_id": str(user.public_id), "username": user.username, "display_name": user.display_name, "city": user.city, "state": user.state,
             "bio": user.bio, "skills": user.skills, "neighborhood": user.neighborhood, "availability": user.availability,
-            "offers": OfferSerializer(offers, many=True).data, **trust_summary(user),
-            "completed_tasks": Application.objects.filter(applicant=user, status="accepted", task__status="completed").count(),
-            "reviews": [{"rating": review.rating, "comment": review.comment, "created_at": review.created_at,
-                "reviewer_username": review.reviewer.username, "reviewer_public_id": str(review.reviewer.public_id),
-                "reviewer_photo_available": bool(review.reviewer.photo_visible and (review.reviewer.profile_photo_key or review.reviewer.profile_photo))} for review in reviews]}
+            "offers": [], "completed_tasks": 0, "reviews": [], **trust_summary(user)}
         response = Response(data)
         if cache_key:
             cache.set(cache_key, data, timeout=cache_ttl("profiles", 120))
@@ -276,13 +265,10 @@ class Blocks(PrivateView):
 class ReportInput(serializers.ModelSerializer):
     class Meta:
         model = SafetyReport
-        fields = ("reported_user", "task", "reason", "details")
+        fields = ("reported_user", "reason", "details")
     def validate(self, data):
         if data["reported_user"] == self.context["request"].user:
             raise ValidationError("You cannot report yourself.")
-        task = data.get("task")
-        if task and not (task.requester_id == data["reported_user"].pk or task.applications.filter(applicant=data["reported_user"]).exists()):
-            raise ValidationError("The reported member is not associated with this task.")
         return data
 
 
@@ -297,41 +283,3 @@ class Reports(PrivateView):
         return Response({"id": report.pk, "status": report.status, "detail": "Report sent to the moderation queue."}, status=201)
 
 
-class Reviews(PrivateView):
-    def post(self, request):
-        try:
-            rating = int(request.data.get("rating"))
-        except (TypeError, ValueError):
-            raise ValidationError("Choose a rating from 1 to 5.") from None
-        comment = str(request.data.get("comment", "")).strip()
-        if rating not in range(1, 6) or len(comment) > 800:
-            raise ValidationError("Choose a rating from 1 to 5 and keep the comment under 800 characters.")
-        with transaction.atomic():
-            task = get_object_or_404(Task.objects.select_for_update(), pk=numeric_id(request.data.get("task")))
-            completed_changes = list(task.changes.filter(kind="complete", status="accepted").values("proposer_id", "decided_by_id"))
-            if task.status != "completed" and not completed_changes:
-                raise Http404
-            accepted_qs = task.applications.filter(status="accepted")
-            if task.status == "completed":
-                accepted = accepted_qs.first()
-            elif request.user.pk == task.requester_id:
-                helper_ids = {participant for change in completed_changes for participant in (change["proposer_id"], change["decided_by_id"]) if participant != task.requester_id}
-                accepted = accepted_qs.filter(applicant_id__in=helper_ids).first()
-            else:
-                accepted = accepted_qs.filter(applicant_id=request.user.pk).first()
-                if accepted and not any({change["proposer_id"], change["decided_by_id"]} == {task.requester_id, request.user.pk} for change in completed_changes):
-                    accepted = None
-            if not accepted:
-                raise ValidationError("There is no completed booking to review.")
-            if request.user.pk == task.requester_id:
-                subject = accepted.applicant
-            elif request.user.pk == accepted.applicant_id:
-                subject = task.requester
-            else:
-                raise PermissionDenied("Only participants in this completed task can review it.")
-            if are_blocked(request.user, subject):
-                raise PermissionDenied("Reviews are unavailable between blocked members.")
-            if Review.objects.filter(task=task, reviewer=request.user).exists():
-                raise ValidationError("You already reviewed this task.")
-            review = Review.objects.create(task=task, reviewer=request.user, subject=subject, rating=rating, comment=comment)
-        return Response({"id": review.pk, "detail": "Review published."}, status=201)
