@@ -35,8 +35,14 @@ class InterviewRealtimeCall(APIView):
             response = requests.post(
                 "https://api.openai.com/v1/realtime/calls",
                 headers={"Authorization": f"Bearer {settings.OPENAI_API_KEY}"},
-                files={"sdp": ("offer.sdp", offer_sdp, "application/sdp")},
-                data={"session": session},
+                # The Realtime Calls endpoint expects both values as multipart
+                # form fields.  Sending SDP with a filename makes requests
+                # encode it as an uploaded file, which the endpoint does not
+                # recognize as the required `sdp` string field.
+                files={
+                    "sdp": (None, offer_sdp, "application/sdp"),
+                    "session": (None, session, "application/json"),
+                },
                 timeout=20,
             )
             if not response.ok:
