@@ -7,6 +7,7 @@ import { Brand } from "./brand";
 import { api, clearToken, getToken } from "@/lib/api";
 import { NotificationBell } from "./notification-bell";
 import { isPublicPath } from "@/lib/routes";
+import { OperationsHeader } from "./operations-header";
 
 const primaryLinks = [
   { href: "/dashboard", label: "Overview", icon: House },
@@ -57,6 +58,7 @@ export function Header() {
     event.preventDefault();
     router.push(`/tasks?search=${encodeURIComponent(search.trim())}`);
   }
+  if (path.startsWith("/operations")) return <OperationsHeader />;
   if (path.startsWith("/organization")) return <><header className="site-header organization-header"><div className="nav-wrap"><Brand /><span className="organization-header-label">Organization</span><div className="header-account"><Link className="account-link" href="/settings"><Settings size={18} /> Settings</Link></div></div></header><aside className="sidebar organization-sidebar"><Brand /><span className="organization-sidebar-label">Organization</span><nav aria-label="Organization navigation">{organizationLinks.map(({ href, label, icon: Icon }) => <Link key={href} href={href} className={active(href) ? "side-link active" : "side-link"} aria-current={active(href) ? "page" : undefined}><Icon size={20} /><span>{label}</span></Link>)}</nav><div className="sidebar-divider" /><nav aria-label="Organization account navigation"><Link className={active("/organization/onboarding") ? "side-link active" : "side-link"} href="/organization/onboarding"><Building2 size={20} /><span>Organization</span></Link><Link className={active("/settings") ? "side-link active" : "side-link"} href="/settings"><Settings size={20} /><span>Settings</span></Link></nav></aside><nav className="bottom-nav organization-bottom-nav" aria-label="Organization mobile navigation">{organizationLinks.slice(0, 4).map(({ href, label, icon: Icon }) => <Link key={href} href={href} className={active(href) ? "active" : ""}><Icon size={21} /><span>{label}</span></Link>)}</nav></>;
   if (isPublicPath(path)) return <header className="site-header public-header"><div className="landing-container public-nav"><Brand /><nav className="public-links" aria-label="Website navigation"><Link href="/#opportunities">Explore opportunities</Link><Link href="/#how-it-works">How it works</Link><Link href="/assistant">Practice</Link><Link href="/about">Why GetNeba</Link><Link href="/help">Help center</Link></nav><div className="header-account">{signedIn ? <Link className="button button-dark compact" href="/dashboard">Open my radar <ArrowUpRight size={16} /></Link> : <><Link className="login-link" href="/login">Log in</Link><Link className="button button-dark compact" href="/register">Get started <ArrowUpRight size={16} /></Link></>}</div></div></header>;
   return <>
