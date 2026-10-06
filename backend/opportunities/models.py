@@ -44,6 +44,7 @@ class Opportunity(models.Model):
     requires_business = models.BooleanField(default=False)
     is_published = models.BooleanField(default=True, db_index=True)
     source_url = models.URLField(max_length=500, blank=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="created_opportunities")
     organization = models.ForeignKey("accounts.Organization", on_delete=models.SET_NULL, null=True, blank=True, related_name="opportunities")
     review_status = models.CharField(max_length=16, choices=ReviewStatus.choices, default=ReviewStatus.APPROVED)
     review_note = models.CharField(max_length=500, blank=True)

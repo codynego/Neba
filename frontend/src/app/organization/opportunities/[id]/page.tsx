@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ArrowLeft, BarChart3, Check, ChevronRight, Edit3, Eye, Link2, MessageCircle, Share2, UsersRound } from "lucide-react";
 import { api } from "@/lib/api";
@@ -13,16 +13,18 @@ const statusLabels: Record<string, string> = { preparing: "Interested", applied:
 
 export default function OrganizationOpportunityWorkspace() {
   const { id } = useParams<{ id: string }>();
+  const pathname = usePathname();
+  const base = pathname.startsWith("/my-opportunities") ? "/my-opportunities" : "/organization/opportunities";
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [tab, setTab] = useState<Tab>("overview");
   const [error, setError] = useState("");
-  useEffect(() => { api<Workspace>(`/organization/opportunities/${id}/workspace/`).then(setWorkspace).catch((err) => setError(err.message)); }, [id]);
-  if (error) return <main className="organization-workspace container"><p className="error-box">{error}</p><Link className="text-link" href="/organization/opportunities">Back to my opportunities</Link></main>;
+  useEffect(() => { api<Workspace>(`${base}/${id}/workspace/`).then(setWorkspace).catch((err) => setError(err.message)); }, [base, id]);
+  if (error) return <main className="organization-workspace container"><p className="error-box">{error}</p><Link className="text-link" href={base}>Back to my opportunities</Link></main>;
   if (!workspace) return <main className="organization-workspace container"><p role="status">Loading opportunity workspace...</p></main>;
   const { opportunity, metrics, applicants, audience } = workspace;
   const views = Math.max(metrics.matches, metrics.applications * 5 + 7);
   return <main className="opportunity-workspace-v1 container">
-    <Link className="back-link" href="/organization/opportunities"><ArrowLeft size={15} /> My opportunities</Link>
+    <Link className="back-link" href={base}><ArrowLeft size={15} /> My opportunities</Link>
     <header className="opportunity-workspace-header"><div><div className="workspace-title-row"><span className={`my-opportunity-status ${opportunity.is_published ? "active" : "closed"}`}><i />{opportunity.is_published ? "Active" : "Draft"}</span><span className="eyebrow">OPPORTUNITY WORKSPACE</span></div><h1>{opportunity.title}</h1><p>{opportunity.category} · {opportunity.is_remote ? "Remote" : opportunity.location_label || "Open location"}{opportunity.deadline ? ` · Closes ${new Date(opportunity.deadline).toLocaleDateString("en-NG", { month: "short", day: "numeric" })}` : ""}</p></div><div className="workspace-header-actions"><button className="button button-outline compact"><Edit3 size={14} /> Edit</button><button className="button button-outline compact"><Share2 size={14} /> Share</button><button className="icon-button" aria-label="More actions"><ChevronRight size={18} /></button></div></header>
     <div className="workspace-metrics workspace-metrics-v1"><div><strong>{views}</strong><span>Views</span></div><div><strong>{metrics.applications}</strong><span>Interested</span></div><div><strong>{metrics.application_rate}%</strong><span>Interest rate</span></div></div>
     <nav className="workspace-tabs" aria-label="Opportunity workspace sections">{([['overview', 'Overview'], ['interested', 'Interested'], ['analytics', 'Analytics']] as [Tab, string][]).map(([value, label]) => <button key={value} className={tab === value ? "active" : ""} onClick={() => setTab(value)}>{label}{value === "interested" && metrics.applications > 0 ? <span className="workspace-tab-count">{metrics.applications}</span> : null}</button>)}</nav>

@@ -198,7 +198,7 @@ export default function ProfilePage() {
           <h2>Have an opportunity to share?</h2>
           <p>Post it on Getneba and find people who can help make it happen.</p>
         </div>
-        <Link href="/organization/opportunities" className="button button-dark compact">My opportunities <ArrowRight size={15} /></Link>
+        <Link href="/my-opportunities" className="button button-dark compact">My opportunities <ArrowRight size={15} /></Link>
       </section>
 
       {/* ── Edit Drawer ─────────────────────────────── */}

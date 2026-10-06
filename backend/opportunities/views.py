@@ -278,3 +278,30 @@ class OrganizationOpportunityViewSet(viewsets.ModelViewSet):
 
     def perform_update(self, serializer):
         serializer.save(review_status=Opportunity.ReviewStatus.PENDING, is_published=False, review_note="")
+
+
+class PersonalOpportunityViewSet(OrganizationOpportunityViewSet):
+    def get_queryset(self):
+        return Opportunity.objects.filter(created_by=self.request.user).order_by("-updated_at")
+
+    def perform_create(self, serializer):
+        serializer.save(
+            created_by=self.request.user,
+            provider=self.request.user.display_name or self.request.user.username,
+            review_status=Opportunity.ReviewStatus.APPROVED,
+            is_published=True,
+        )
+
+    def perform_update(self, serializer):
+        serializer.save(is_published=True, review_status=Opportunity.ReviewStatus.APPROVED, review_note="")
+
+    @action(detail=False, methods=["get"])
+    def overview(self, request):
+        opportunities = list(self.get_queryset())
+        applications = OpportunityApplication.objects.filter(opportunity__in=opportunities)
+        rows = OrganizationOpportunitySerializer(opportunities, many=True).data
+        for row, opportunity in zip(rows, opportunities):
+            opportunity_applications = applications.filter(opportunity=opportunity)
+            row["application_count"] = opportunity_applications.count()
+            row["qualified_count"] = opportunity_applications.filter(status__in=("shortlisted", "interview", "awarded")).count()
+        return Response({"opportunities": rows})
