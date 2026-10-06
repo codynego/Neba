@@ -11,7 +11,9 @@ const promptSeenKey = "neba_push_prompt_seen_v1";
 function keyBytes(value: string) {
   const padded = value.padEnd(value.length + (4 - value.length % 4) % 4, "=").replace(/-/g, "+").replace(/_/g, "/");
   const raw = atob(padded);
-  return Uint8Array.from(raw, (character) => character.charCodeAt(0));
+  const bytes = Uint8Array.from(raw, (character) => character.charCodeAt(0));
+  if (bytes.length !== 65 || bytes[0] !== 4) throw new Error("Push notifications are misconfigured: the VAPID public key is invalid.");
+  return bytes;
 }
 
 export async function subscribeToPush(key: string) {

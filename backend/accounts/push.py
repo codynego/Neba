@@ -1,5 +1,6 @@
 import json
 import logging
+import base64
 
 from django.conf import settings
 
@@ -9,8 +10,22 @@ from .models import Notification, PushSubscription
 logger = logging.getLogger(__name__)
 
 
+def _decode_base64url(value):
+    try:
+        return base64.urlsafe_b64decode(value + "=" * ((4 - len(value) % 4) % 4))
+    except (ValueError, TypeError):
+        return b""
+
+
 def configured():
-    return bool(settings.WEB_PUSH_VAPID_PUBLIC_KEY and settings.WEB_PUSH_VAPID_PRIVATE_KEY and settings.WEB_PUSH_VAPID_SUBJECT)
+    public_key = _decode_base64url(settings.WEB_PUSH_VAPID_PUBLIC_KEY)
+    private_key = _decode_base64url(settings.WEB_PUSH_VAPID_PRIVATE_KEY)
+    return bool(
+        settings.WEB_PUSH_VAPID_SUBJECT
+        and len(public_key) == 65
+        and public_key[:1] == b"\x04"
+        and len(private_key) == 32
+    )
 
 
 def deliver(notification_id):
