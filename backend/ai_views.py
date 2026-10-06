@@ -1,7 +1,6 @@
 import json
-import uuid
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+
+import requests
 
 from django.conf import settings
 from rest_framework import permissions, status
@@ -31,27 +30,17 @@ class InterviewRealtimeCall(APIView):
             f"Interview focus: {focus}. Difficulty: {difficulty}. "
             f"Opportunity context:\n{context or 'No specific opportunity was selected.'}"
         )
-        boundary = f"GetNeba{uuid.uuid4().hex}"
         session = json.dumps({"type": "realtime", "model": settings.OPENAI_REALTIME_MODEL})
-        body = (
-            f"--{boundary}\r\nContent-Disposition: form-data; name=\"sdp\"; filename=\"offer.sdp\"\r\n"
-            "Content-Type: application/sdp\r\n\r\n"
-            f"{offer_sdp}\r\n"
-            f"--{boundary}\r\nContent-Disposition: form-data; name=\"session\"\r\n"
-            "Content-Type: application/json\r\n\r\n"
-            f"{session}\r\n"
-            f"--{boundary}--\r\n"
-        ).encode()
         try:
-            response = urlopen(Request(
+            response = requests.post(
                 "https://api.openai.com/v1/realtime/calls",
-                data=body,
-                headers={"Authorization": f"Bearer {settings.OPENAI_API_KEY}", "Content-Type": f"multipart/form-data; boundary={boundary}"},
-                method="POST",
-            ), timeout=20)
-            return Response({"sdp": response.read().decode("utf-8")})
-        except HTTPError as error:
-            detail = error.read().decode("utf-8", errors="replace")
-            return Response({"detail": f"Realtime session could not start: {detail[:500]}"}, status=status.HTTP_502_BAD_GATEWAY)
-        except (URLError, TimeoutError) as error:
+                headers={"Authorization": f"Bearer {settings.OPENAI_API_KEY}"},
+                files={"sdp": ("offer.sdp", offer_sdp, "application/sdp")},
+                data={"session": session},
+                timeout=20,
+            )
+            if not response.ok:
+                return Response({"detail": f"Realtime session could not start: {response.text[:500]}"}, status=status.HTTP_502_BAD_GATEWAY)
+            return Response({"sdp": response.text})
+        except requests.RequestException as error:
             return Response({"detail": f"Realtime session could not start: {error}"}, status=status.HTTP_502_BAD_GATEWAY)
