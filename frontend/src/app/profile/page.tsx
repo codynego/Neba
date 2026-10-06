@@ -80,7 +80,6 @@ function completionScore(user: User): number {
     user.skills?.length,
     user.opportunity_interests?.length,
     user.goals?.length,
-    user.business_status || "not-applicable",
   ];
   const done = fields.filter(Boolean).length;
   return Math.round((done / fields.length) * 100);

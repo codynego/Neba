@@ -79,19 +79,25 @@ class OpportunitySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Opportunity
-        fields = ("public_id", "title", "provider", "summary", "category", "application_url", "deadline", "country", "location_label", "is_remote", "benefit", "eligibility_notes", "eligible_countries", "education_levels", "fields_of_study", "employment_statuses", "min_age", "max_age", "requires_business", "source_url", "view_count", "application_count", "created_at", "match", "saved_status", "application_status")
+        fields = ("public_id", "title", "provider", "summary", "category", "application_mode", "application_url", "deadline", "country", "location_label", "is_remote", "benefit", "eligibility_notes", "eligible_countries", "education_levels", "fields_of_study", "employment_statuses", "min_age", "max_age", "requires_business", "source_url", "view_count", "application_count", "created_at", "match", "saved_status", "application_status")
 
     def get_match(self, opportunity):
         user = self.context["request"].user
+        if not user.is_authenticated:
+            return None
         return match_for(user, opportunity) if user.is_authenticated else None
 
     def get_saved_status(self, opportunity):
+        if not self.context["request"].user.is_authenticated:
+            return None
         user = self.context["request"].user
         if not user.is_authenticated: return None
         item = next((save for save in getattr(opportunity, "user_saves", []) if save.user_id == user.pk), None)
         return item.status if item else None
 
     def get_application_status(self, opportunity):
+        if not self.context["request"].user.is_authenticated:
+            return None
         user = self.context["request"].user
         if not user.is_authenticated: return None
         item = next((application for application in getattr(opportunity, "user_applications", []) if application.user_id == user.pk), None)
@@ -115,25 +121,46 @@ class OpportunityApplicationSerializer(serializers.ModelSerializer):
     applicant_name = serializers.SerializerMethodField()
     is_poster = serializers.SerializerMethodField()
     messages = serializers.SerializerMethodField()
+    shared_profile = serializers.SerializerMethodField()
     def get_applicant_name(self, application): return application.user.display_name or application.user.username
     def get_is_poster(self, application): return application.opportunity.created_by_id == self.context["request"].user.id or application.opportunity.organization_id == getattr(getattr(self.context["request"].user, "organization", None), "id", None)
     def get_messages(self, application): return [{"id": message.id, "sender": message.sender_id, "sender_name": message.sender.display_name or message.sender.username, "text": message.text, "created_at": message.created_at} for message in application.messages.select_related("sender").all()]
+    def get_shared_profile(self, application):
+        user = application.user
+        shared = set(application.shared_fields or [])
+        profile = {}
+        if "profile" in shared:
+            profile["profile"] = {"name": user.display_name or user.username, "country": user.country, "city": user.city, "bio": user.bio}
+        if "skills" in shared:
+            profile["skills"] = user.skills or []
+            profile["experience"] = user.years_experience
+        if "education" in shared:
+            profile["education"] = {"level": user.education_level, "institution": user.institution, "field": user.field_of_study, "graduation_year": user.graduation_year}
+        if "business" in shared:
+            profile["business"] = {"name": user.business_name, "stage": user.business_status, "industry": user.business_industry or user.industry, "description": user.business_description, "website": user.business_website}
+        if "documents" in shared:
+            profile["documents"] = [{"name": document.name, "type": document.get_document_type_display(), "created_at": document.created_at} for document in user.profile_documents.all()]
+        return profile
     class Meta:
         model = OpportunityApplication
-        fields = ("id", "public_id", "opportunity_id", "opportunity", "status", "applied_at", "next_action", "next_action_at", "notes", "application_message", "additional_information", "shared_fields", "applicant_name", "is_poster", "messages", "created_at", "updated_at")
+        fields = ("id", "public_id", "opportunity_id", "opportunity", "status", "applied_at", "next_action", "next_action_at", "notes", "application_message", "additional_information", "shared_fields", "shared_profile", "applicant_name", "is_poster", "messages", "created_at", "updated_at")
 
 
 class OpportunityViewSet(viewsets.ReadOnlyModelViewSet):
-    permission_classes = [permissions.IsAuthenticated]
     serializer_class = OpportunitySerializer
     lookup_field = "public_id"
 
+    def get_permissions(self):
+        return [permissions.AllowAny()] if self.action in ("list", "retrieve") else [permissions.IsAuthenticated()]
+
     def get_queryset(self):
         user = self.request.user
-        queryset = Opportunity.objects.filter(is_published=True).prefetch_related(
-            Prefetch("saves", queryset=SavedOpportunity.objects.filter(user=user), to_attr="user_saves"),
-            Prefetch("applications", queryset=OpportunityApplication.objects.filter(user=user), to_attr="user_applications"),
-        )
+        queryset = Opportunity.objects.filter(is_published=True, review_status=Opportunity.ReviewStatus.APPROVED)
+        if user.is_authenticated:
+            queryset = queryset.prefetch_related(
+                Prefetch("saves", queryset=SavedOpportunity.objects.filter(user=user), to_attr="user_saves"),
+                Prefetch("applications", queryset=OpportunityApplication.objects.filter(user=user), to_attr="user_applications"),
+            )
         query = self.request.query_params.get("search", "").strip()
         category = self.request.query_params.get("category", "").strip()
         if query: queryset = queryset.filter(Q(title__icontains=query) | Q(provider__icontains=query) | Q(summary__icontains=query))
@@ -167,7 +194,7 @@ class OpportunityViewSet(viewsets.ReadOnlyModelViewSet):
         saved = SavedOpportunity.objects.filter(user=request.user).select_related("opportunity")[:4]
         all_applications = OpportunityApplication.objects.filter(user=request.user).select_related("opportunity")
         applications = all_applications[:5]
-        profile_fields = ("country", "education_level", "field_of_study", "employment_status", "skills", "goals")
+        profile_fields = ("display_name", "country", "education_level", "field_of_study", "employment_status", "skills", "opportunity_interests", "goals")
         complete = sum(bool(getattr(request.user, field)) for field in profile_fields)
         readiness = {"profile": bool(request.user.display_name and request.user.skills and request.user.opportunity_interests), "eligibility": bool(request.user.country and request.user.education_level and request.user.field_of_study), "statement": any(application.notes.strip() for application in applications), "interview": any(application.status in ("interview", "awarded") for application in applications)}
         application_summary = {status: all_applications.filter(status=status).count() for status, _ in OpportunityApplication.Status.choices}
@@ -229,9 +256,16 @@ class OpportunityApplicationViewSet(viewsets.ModelViewSet):
 
 
 class OrganizationOpportunitySerializer(serializers.ModelSerializer):
+    def validate(self, attrs):
+        mode = attrs.get("application_mode", getattr(self.instance, "application_mode", Opportunity.ApplicationMode.EXTERNAL))
+        url = attrs.get("application_url", getattr(self.instance, "application_url", ""))
+        if mode == Opportunity.ApplicationMode.EXTERNAL and not url:
+            raise serializers.ValidationError({"application_url": "Add an application URL for an external application."})
+        return attrs
+
     class Meta:
         model = Opportunity
-        fields = ("public_id", "title", "provider", "summary", "category", "application_url", "deadline", "country", "location_label", "is_remote", "benefit", "eligibility_notes", "eligible_countries", "education_levels", "fields_of_study", "employment_statuses", "min_age", "max_age", "requires_business", "source_url", "review_status", "review_note", "is_published", "view_count", "created_at", "updated_at")
+        fields = ("public_id", "title", "provider", "summary", "category", "application_mode", "application_url", "deadline", "country", "location_label", "is_remote", "benefit", "eligibility_notes", "eligible_countries", "education_levels", "fields_of_study", "employment_statuses", "min_age", "max_age", "requires_business", "source_url", "review_status", "review_note", "is_published", "view_count", "created_at", "updated_at")
         read_only_fields = ("public_id", "provider", "review_status", "review_note", "is_published", "created_at", "updated_at")
 
 
