@@ -3,8 +3,15 @@ from pathlib import Path
 
 import dj_database_url
 from django.core.exceptions import ImproperlyConfigured
+from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Load local development settings for plain Django commands such as
+# `python manage.py migrate`. Vercel's environment variables remain the
+# source of truth in deployment because existing variables are not replaced.
+load_dotenv(BASE_DIR / ".env.local", override=False)
+load_dotenv(BASE_DIR / ".env", override=False)
 
 
 def env_list(name, default=""):
