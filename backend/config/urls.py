@@ -4,6 +4,7 @@ from django.http import JsonResponse
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 from accounts.notification_views import NotificationViewSet
+from accounts.staff_views import StaffDashboard, StaffIdentityDecision, StaffOrganizationDecision, StaffOpportunityDecision
 from opportunities.views import OpportunityApplicationViewSet, OpportunityViewSet, OrganizationOpportunityViewSet, PersonalOpportunityViewSet, SavedOpportunityViewSet
 
 router = DefaultRouter()
@@ -25,5 +26,9 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/health/", health),
     path("api/auth/", include("accounts.urls")),
+    path("api/staff/dashboard/", StaffDashboard.as_view()),
+    path("api/staff/identity/<int:pk>/decision/", StaffIdentityDecision.as_view()),
+    path("api/staff/organizations/<int:pk>/decision/", StaffOrganizationDecision.as_view()),
+    path("api/staff/opportunities/<uuid:public_id>/decision/", StaffOpportunityDecision.as_view()),
     path("api/", include(router.urls)),
 ]
