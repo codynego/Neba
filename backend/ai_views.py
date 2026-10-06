@@ -1,4 +1,5 @@
 import json
+import uuid
 
 import requests
 
@@ -16,8 +17,13 @@ class InterviewRealtimeCall(APIView):
             return Response({"detail": "AI interview is not configured yet."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
         offer_sdp = str(request.data.get("sdp", "")).strip()
-        if not offer_sdp or not offer_sdp.startswith("v="):
-            return Response({"detail": "A WebRTC offer is required."}, status=status.HTTP_400_BAD_REQUEST)
+        if (
+            not offer_sdp
+            or not offer_sdp.startswith("v=")
+            or "m=audio " not in offer_sdp
+            or "m=application " not in offer_sdp
+        ):
+            return Response({"detail": "The browser sent an incomplete WebRTC offer."}, status=status.HTTP_400_BAD_REQUEST)
 
         opportunity = request.data.get("opportunity_context") or {}
         context = "\n".join(f"- {key}: {value}" for key, value in opportunity.items() if value)
@@ -31,17 +37,27 @@ class InterviewRealtimeCall(APIView):
             f"Opportunity context:\n{context or 'No specific opportunity was selected.'}"
         )
         session = json.dumps({"type": "realtime", "model": settings.OPENAI_REALTIME_MODEL})
+        boundary = f"----neba-{uuid.uuid4().hex}"
+        multipart_body = (
+            f"--{boundary}\r\n"
+            'Content-Disposition: form-data; name="sdp"\r\n'
+            "Content-Type: application/sdp\r\n\r\n"
+            f"{offer_sdp}\r\n"
+            f"--{boundary}\r\n"
+            'Content-Disposition: form-data; name="session"\r\n'
+            "Content-Type: application/json\r\n\r\n"
+            f"{session}\r\n"
+            f"--{boundary}--\r\n"
+        ).encode("utf-8")
         try:
             response = requests.post(
                 "https://api.openai.com/v1/realtime/calls",
                 headers={
                     "Authorization": f"Bearer {settings.OPENAI_API_KEY}",
                     "Accept": "application/sdp",
+                    "Content-Type": f"multipart/form-data; boundary={boundary}",
                 },
-                # Keep SDP as a regular multipart form field.  The JSON
-                # session part is enough to make requests use multipart/form-data.
-                data={"sdp": offer_sdp},
-                files={"session": (None, session, "application/json")},
+                data=multipart_body,
                 timeout=20,
             )
             if not response.ok:

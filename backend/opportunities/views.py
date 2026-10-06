@@ -1,5 +1,12 @@
 from collections import Counter
 from datetime import date
+import ipaddress
+import json
+import re
+import socket
+from html.parser import HTMLParser
+from urllib.parse import urlparse
+from urllib.request import Request, urlopen
 
 from django.db.models import F, Prefetch, Q
 from django.utils import timezone
@@ -10,6 +17,94 @@ from rest_framework.response import Response
 
 from accounts.models import User
 from .models import Opportunity, OpportunityApplication, OpportunityMessage, SavedOpportunity
+
+
+class OpportunityPageParser(HTMLParser):
+    """Read public metadata without depending on a third-party scraping package."""
+
+    def __init__(self):
+        super().__init__()
+        self.meta = {}
+        self.title = ""
+        self._in_title = False
+        self._title_parts = []
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if tag == "meta":
+            key = attrs.get("property") or attrs.get("name")
+            value = attrs.get("content")
+            if key and value:
+                self.meta[key.lower()] = value.strip()
+        elif tag == "title":
+            self._in_title = True
+
+    def handle_endtag(self, tag):
+        if tag == "title":
+            self._in_title = False
+            self.title = " ".join(self._title_parts).strip()
+
+    def handle_data(self, data):
+        if self._in_title:
+            self._title_parts.append(data.strip())
+
+
+def _safe_fetch_url(url):
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        raise serializers.ValidationError({"url": "Enter a complete public http(s) link."})
+    hostname = parsed.hostname
+    try:
+        addresses = socket.getaddrinfo(hostname, None)
+        for address in addresses:
+            ip = ipaddress.ip_address(address[4][0])
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+                raise serializers.ValidationError({"url": "That link points to a private address."})
+    except socket.gaierror:
+        raise serializers.ValidationError({"url": "We could not find that website."})
+    request = Request(url, headers={"User-Agent": "GetNebaOpportunityImporter/1.0"})
+    try:
+        with urlopen(request, timeout=8) as response:
+            content_type = response.headers.get("Content-Type", "")
+            if "text/html" not in content_type:
+                raise serializers.ValidationError({"url": "That link does not contain a readable web page."})
+            return response.read(1_500_000).decode(response.headers.get_content_charset() or "utf-8", errors="replace")
+    except serializers.ValidationError:
+        raise
+    except Exception:
+        raise serializers.ValidationError({"url": "We could not read that page. Check the link and try again."})
+
+
+def _infer_category(text):
+    choices = ("scholarship", "grant", "internship", "fellowship", "competition", "training", "startup", "funding", "tender", "job")
+    lowered = text.lower()
+    for choice in choices:
+        if choice in lowered:
+            return choice
+    return "job"
+
+
+def _extract_opportunity_from_url(url):
+    parser = OpportunityPageParser()
+    parser.feed(_safe_fetch_url(url))
+    meta = parser.meta
+    title = meta.get("og:title") or meta.get("twitter:title") or parser.title
+    summary = meta.get("og:description") or meta.get("description") or meta.get("twitter:description") or ""
+    provider = meta.get("author") or meta.get("og:site_name") or urlparse(url).netloc.removeprefix("www.")
+    page_text = " ".join((title, summary, provider))
+    deadline = None
+    deadline_match = re.search(r"(?:deadline|closes?|closing date)\D{0,30}(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4}[/-]\d{1,2}[/-]\d{1,2})", page_text, re.I)
+    if deadline_match:
+        raw = deadline_match.group(1).replace("/", "-")
+        parts = raw.split("-")
+        if len(parts[0]) == 4:
+            deadline = f"{parts[0]}-{int(parts[1]):02d}-{int(parts[2]):02d}T23:59"
+        else:
+            year = int(parts[2]) + (2000 if int(parts[2]) < 100 else 0)
+            deadline = f"{year:04d}-{int(parts[1]):02d}-{int(parts[0]):02d}T23:59"
+    if not title:
+        raise serializers.ValidationError({"url": "We could not find an opportunity title on that page."})
+    return {"title": title[:220], "summary": summary[:1800], "provider": provider[:180], "category": _infer_category(page_text), "application_mode": "external", "application_url": url, "source_url": url, "deadline": deadline, "location_label": "", "is_remote": False, "benefit": "", "eligibility_notes": "", "eligible_countries": [], "education_levels": [], "fields_of_study": [], "employment_statuses": [], "min_age": None, "max_age": None, "requires_business": False}
 
 
 def profile_age(user):
