@@ -22,7 +22,7 @@ const secondaryLinks = [
 ];
 const organizationLinks = [
   { href: "/organization/dashboard", label: "Overview", icon: House },
-  { href: "/organization/opportunities", label: "Opportunities", icon: FileText },
+  { href: "/organization/opportunities", label: "My opportunities", icon: FileText },
   { href: "/organization/applicants", label: "Applicants", icon: UsersRound },
   { href: "/organization/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/organization/assistant", label: "AI Assistant", icon: Sparkles },

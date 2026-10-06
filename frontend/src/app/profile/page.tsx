@@ -191,6 +191,16 @@ export default function ProfilePage() {
         )}
       </section>
 
+      <section className="pp-publisher-card">
+        <span className="pp-publisher-icon"><FileText size={19} /></span>
+        <div>
+          <span className="pp-section-eyebrow">SHARE SOMETHING OF YOUR OWN</span>
+          <h2>Have an opportunity to share?</h2>
+          <p>Post it on Getneba and find people who can help make it happen.</p>
+        </div>
+        <Link href="/organization/opportunities" className="button button-dark compact">My opportunities <ArrowRight size={15} /></Link>
+      </section>
+
       {/* ── Edit Drawer ─────────────────────────────── */}
       {editing && (
         <div className="pp-drawer-backdrop" onClick={() => setEditing(null)}>
