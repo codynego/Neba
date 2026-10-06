@@ -81,7 +81,7 @@ export default function InterviewPracticePage() {
       await peer.setRemoteDescription({ type: "answer", sdp: session.sdp });
       peerRef.current = peer; streamRef.current = stream; dataChannelRef.current = channel; setRealtime(true);
       channel.onopen = () => { channel.send(JSON.stringify({ type: "session.update", session: { type: "realtime", instructions: `You are GetNeba's live interview coach. Conduct a ${difficulty} ${focus} interview one question at a time. Ask concise follow-ups. Use this opportunity context: ${opportunity ? `${opportunity.title} at ${opportunity.provider}. ${opportunity.summary || ""}` : "general opportunity preparation"}. Start by greeting the candidate and asking your first question.`, voice: "marin", turn_detection: { type: "semantic_vad", eagerness: "auto", create_response: true, interrupt_response: true }, input_audio_transcription: { model: "gpt-4o-mini-transcribe", language: "en" }, output_modalities: ["audio"] } })); channel.send(JSON.stringify({ type: "response.create" })); };
-    } catch (startError) { streamRef.current?.getTracks().forEach((track) => track.stop()); peerRef.current?.close(); setRealtime(false); setError((startError as Error).message || "Live AI interview is unavailable. You can still use text practice."); }
+    } catch (startError) { console.error("Realtime interview session failed", startError); streamRef.current?.getTracks().forEach((track) => track.stop()); peerRef.current?.close(); setRealtime(false); setError("We couldn’t start the live interview. Check your microphone permission and try again, or continue with text practice."); }
   }
   function startListening() {
     if (realtime) return;
