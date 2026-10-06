@@ -17,7 +17,7 @@ class InterviewRealtimeCall(APIView):
             return Response({"detail": "AI interview is not configured yet."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
         offer_sdp = str(request.data.get("sdp", "")).strip()
-        if not offer_sdp:
+        if not offer_sdp or not offer_sdp.startswith("v="):
             return Response({"detail": "A WebRTC offer is required."}, status=status.HTTP_400_BAD_REQUEST)
 
         opportunity = request.data.get("opportunity_context") or {}
