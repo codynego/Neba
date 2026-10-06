@@ -98,7 +98,9 @@ def parse_feed(content, content_type, source_url):
     for item in root.findall(".//item") + root.findall(".//{http://www.w3.org/2005/Atom}entry"):
         def text(*names):
             for name in names:
-                node = item.find(name) or item.find(f"{{http://www.w3.org/2005/Atom}}{name}")
+                node = item.find(name)
+                if node is None:
+                    node = item.find(f"{{http://www.w3.org/2005/Atom}}{name}")
                 if node is not None and (node.text or node.attrib.get("href")):
                     return node.text or node.attrib.get("href")
             return ""
