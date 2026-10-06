@@ -26,9 +26,9 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/health/", health),
     path("api/auth/", include("accounts.urls")),
-    path("api/staff/dashboard/", StaffDashboard.as_view()),
-    path("api/staff/identity/<int:pk>/decision/", StaffIdentityDecision.as_view()),
-    path("api/staff/organizations/<int:pk>/decision/", StaffOrganizationDecision.as_view()),
-    path("api/staff/opportunities/<uuid:public_id>/decision/", StaffOpportunityDecision.as_view()),
+    path("api/operations/dashboard/", StaffDashboard.as_view()),
+    path("api/operations/identity/<int:pk>/decision/", StaffIdentityDecision.as_view()),
+    path("api/operations/organizations/<int:pk>/decision/", StaffOrganizationDecision.as_view()),
+    path("api/operations/opportunities/<uuid:public_id>/decision/", StaffOpportunityDecision.as_view()),
     path("api/", include(router.urls)),
 ]

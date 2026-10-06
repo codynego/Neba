@@ -19,7 +19,7 @@ export default function StaffDashboardPage() {
   const [data, setData] = useState<Dashboard | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
-  async function load() { try { setData(await api<Dashboard>("/staff/dashboard/")); } catch (err) { setError((err as Error).message); } }
+  async function load() { try { setData(await api<Dashboard>("/operations/dashboard/")); } catch (err) { setError((err as Error).message); } }
   useEffect(() => { load(); }, []);
   async function decide(path: string, approve: boolean, key: string, extra: Record<string, unknown> = {}) { setBusy(key); setError(""); try { await api(path, { method: "POST", body: JSON.stringify({ approve, note: approve ? "Approved after staff review." : "Please review and correct the submitted information.", ...extra }) }); await load(); } catch (err) { setError((err as Error).message); } finally { setBusy(""); } }
   if (error && !data) return <main className="organization-dashboard container"><p className="error-box">{error}</p><p className="form-note">This dashboard is restricted to authorized staff accounts.</p></main>;
