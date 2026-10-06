@@ -1,3 +1,7 @@
+import io
+
+from django.conf import settings
+from django.core.management import call_command
 from django.db.models import Count, Sum
 from django.utils import timezone
 from rest_framework import permissions, serializers
@@ -43,6 +47,20 @@ class StaffDashboard(APIView):
                 "opportunities": [{"public_id": str(item.public_id), "title": item.title, "provider": item.provider, "category": item.category, "created_at": item.created_at, "owner": (item.created_by.display_name or item.created_by.username) if item.created_by else (item.organization.name if item.organization else item.provider)} for item in pending_opportunities],
             },
         })
+
+
+class OpportunityFetch(APIView):
+    authentication_classes = []
+    permission_classes = []
+
+    def get(self, request):
+        cron_secret = getattr(settings, "CRON_SECRET", "")
+        supplied_secret = request.headers.get("Authorization", "").removeprefix("Bearer ") or request.headers.get("X-Cron-Secret", "")
+        if not ((cron_secret and supplied_secret == cron_secret) or request.user.is_authenticated and request.user.is_staff):
+            return Response({"detail": "Not authorized."}, status=403)
+        output = io.StringIO()
+        call_command("fetch_opportunities", stdout=output, stderr=output)
+        return Response({"status": "completed", "output": output.getvalue()})
 
 
 class StaffIdentityDecision(APIView):

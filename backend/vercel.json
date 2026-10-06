@@ -4,5 +4,11 @@
     "config/wsgi.py": {
       "maxDuration": 60
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/operations/opportunities/fetch/",
+      "schedule": "0 */6 * * *"
+    }
+  ]
 }
