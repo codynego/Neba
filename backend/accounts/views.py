@@ -36,7 +36,7 @@ class UserSerializer(serializers.ModelSerializer):
     def get_identity_verified(self, user):
         return bool(user.identity_verified_at and self.get_phone_verified(user))
     def get_photo_available(self, user):
-        return bool(user.profile_photo_key or user.profile_photo)
+        return bool(user.photo_visible and (user.profile_photo_key or user.profile_photo))
     def get_email_verified(self, user):
         return bool(user.email and user.email_verified_at)
     def validate_phone(self, value):
