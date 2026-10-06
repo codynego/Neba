@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import LoginView, LogoutView, MeView, OrganizationView, RegisterView, ProfilePhotoUpload, ProfilePhotoConfirm, PasswordResetRequestView, PasswordResetConfirmView, VerifyEmailView, ResendVerificationView
+from .views import LoginView, LogoutView, MeView, OrganizationView, RegisterView, ProfilePhotoUpload, ProfilePhotoConfirm, ProfileDocuments, ProfileDocumentConfirm, ProfileDocumentDelete, PasswordResetRequestView, PasswordResetConfirmView, VerifyEmailView, ResendVerificationView
 from . import safety_views as safety
 urlpatterns = [
     path("register/", RegisterView.as_view()),
@@ -13,6 +13,9 @@ urlpatterns = [
     path("email/resend/", ResendVerificationView.as_view()),
     path("profile-photo/upload/", ProfilePhotoUpload.as_view()),
     path("profile-photo/confirm/", ProfilePhotoConfirm.as_view()),
+    path("documents/", ProfileDocuments.as_view()),
+    path("documents/confirm/", ProfileDocumentConfirm.as_view()),
+    path("documents/<uuid:public_id>/", ProfileDocumentDelete.as_view()),
     path("verification/", safety.VerificationStatus.as_view()),
     path("verification/phone/send/", safety.SendPhoneCode.as_view()),
     path("verification/phone/check/", safety.CheckPhoneCode.as_view()),

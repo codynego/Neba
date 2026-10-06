@@ -15,7 +15,7 @@ from rest_framework.exceptions import APIException, ValidationError
 from rest_framework.authtoken.models import Token
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from .models import Organization, User
+from .models import Organization, ProfileDocument, User
 from . import r2
 from .trust import normalize_phone
 from .emailing import EmailUnavailable, safely, send_password_reset_email, send_verification_email
@@ -51,7 +51,7 @@ class UserSerializer(serializers.ModelSerializer):
         return value
     class Meta:
         model = User
-        fields = ("id", "public_id", "username", "email", "email_verified", "display_name", "city", "state", "date_joined", "phone", "phone_verified", "identity_verified", "photo_visible", "photo_available", "profile_complete", "bio", "skills", "neighborhood", "address", "latitude", "longitude", "availability", "nearby_task_emails", "date_of_birth", "gender", "country", "education_level", "field_of_study", "institution", "graduation_year", "gpa", "employment_status", "years_experience", "industry", "opportunity_interests", "goals", "business_status", "financial_need")
+        fields = ("id", "public_id", "username", "email", "email_verified", "display_name", "city", "state", "date_joined", "phone", "phone_verified", "identity_verified", "photo_visible", "photo_available", "profile_complete", "bio", "skills", "neighborhood", "address", "latitude", "longitude", "availability", "nearby_task_emails", "date_of_birth", "gender", "country", "education_level", "field_of_study", "institution", "graduation_year", "gpa", "employment_status", "years_experience", "industry", "opportunity_interests", "goals", "business_status", "financial_need", "business_name", "business_industry", "business_description", "business_website")
         read_only_fields = ("id", "public_id", "username", "email", "email_verified", "date_joined", "phone_verified", "identity_verified", "photo_available", "profile_complete")
 
 
@@ -285,3 +285,89 @@ class ProfilePhotoConfirm(APIView):
             except (BotoCoreError, ClientError):
                 pass
         return Response(UserSerializer(request.user).data)
+
+
+class ProfileDocumentSerializer(serializers.ModelSerializer):
+    document_type_label = serializers.CharField(source="get_document_type_display", read_only=True)
+    download_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ProfileDocument
+        fields = ("public_id", "document_type", "document_type_label", "name", "content_type", "size", "created_at", "download_url")
+        read_only_fields = fields
+
+    def get_download_url(self, document):
+        if not r2.configured():
+            return None
+        try:
+            return r2.download_url(document.storage_key, document.name)
+        except (BotoCoreError, ClientError):
+            return None
+
+
+class ProfileDocuments(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    allowed_types = {choice for choice, _ in ProfileDocument.DocumentType.choices}
+    allowed_content_types = {
+        "application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "text/plain",
+    }
+
+    def get(self, request):
+        return Response(ProfileDocumentSerializer(request.user.profile_documents.all(), many=True).data)
+
+    def post(self, request):
+        document_type = serializers.ChoiceField(choices=tuple(self.allowed_types)).run_validation(request.data.get("document_type"))
+        name = serializers.CharField(max_length=180).run_validation(request.data.get("name"))
+        content_type = serializers.CharField(max_length=120).run_validation(request.data.get("content_type"))
+        size = serializers.IntegerField(min_value=1, max_value=10 * 1024 * 1024).run_validation(request.data.get("size"))
+        if content_type not in self.allowed_content_types:
+            raise ValidationError("Upload a PDF, Word document, spreadsheet, or text file.")
+        extension = name.rsplit(".", 1)[-1].lower() if "." in name else "bin"
+        if not r2.configured():
+            raise R2Unavailable()
+        key = f"profile-documents/{request.user.pk}/{uuid.uuid4().hex}.{extension}"
+        try:
+            upload_url = r2.upload_url(key, content_type)
+        except (BotoCoreError, ClientError):
+            raise R2Unavailable() from None
+        return Response({"upload_url": upload_url, "key": key, "document_type": document_type, "name": name, "content_type": content_type, "size": size, "expires_in": 600})
+
+
+class ProfileDocumentConfirm(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        key = serializers.CharField(max_length=300).run_validation(request.data.get("key"))
+        prefix = f"profile-documents/{request.user.pk}/"
+        if not key.startswith(prefix) or "/" in key[len(prefix):]:
+            raise ValidationError("This upload does not belong to your profile.")
+        try:
+            metadata = r2.object_metadata(key)
+            size = int(metadata.get("ContentLength", 0))
+            content_type = str(metadata.get("ContentType", "")).lower()
+            if not 0 < size <= 10 * 1024 * 1024 or content_type not in ProfileDocuments.allowed_content_types:
+                raise ValidationError("The document type or size is not supported.")
+        except ValidationError:
+            try: r2.delete_object(key)
+            except (BotoCoreError, ClientError): pass
+            raise
+        except (BotoCoreError, ClientError):
+            raise ValidationError("The uploaded document could not be verified.") from None
+        document_type = serializers.ChoiceField(choices=tuple(ProfileDocument.DocumentType.choices)).run_validation(request.data.get("document_type"))
+        name = serializers.CharField(max_length=180).run_validation(request.data.get("name"))
+        document = ProfileDocument.objects.create(user=request.user, document_type=document_type, name=name, storage_key=key, content_type=content_type, size=size)
+        return Response(ProfileDocumentSerializer(document).data, status=201)
+
+
+class ProfileDocumentDelete(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def delete(self, request, public_id):
+        document = ProfileDocument.objects.filter(user=request.user, public_id=public_id).first()
+        if not document:
+            raise ValidationError("Document not found.")
+        try: r2.delete_object(document.storage_key)
+        except (BotoCoreError, ClientError): pass
+        document.delete()
+        return Response(status=204)

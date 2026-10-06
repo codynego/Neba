@@ -44,6 +44,7 @@ class Opportunity(models.Model):
     requires_business = models.BooleanField(default=False)
     is_published = models.BooleanField(default=True, db_index=True)
     source_url = models.URLField(max_length=500, blank=True)
+    view_count = models.PositiveIntegerField(default=0)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="created_opportunities")
     organization = models.ForeignKey("accounts.Organization", on_delete=models.SET_NULL, null=True, blank=True, related_name="opportunities")
     review_status = models.CharField(max_length=16, choices=ReviewStatus.choices, default=ReviewStatus.APPROVED)
@@ -98,9 +99,22 @@ class OpportunityApplication(models.Model):
     next_action = models.CharField(max_length=240, blank=True)
     next_action_at = models.DateTimeField(null=True, blank=True)
     notes = models.TextField(max_length=4000, blank=True)
+    application_message = models.TextField(max_length=2000, blank=True)
+    additional_information = models.TextField(max_length=3000, blank=True)
+    shared_fields = models.JSONField(default=list, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=("user", "opportunity"), name="one_application_per_user_opportunity")]
         ordering = ("next_action_at", "-updated_at")
+
+
+class OpportunityMessage(models.Model):
+    application = models.ForeignKey(OpportunityApplication, on_delete=models.CASCADE, related_name="messages")
+    sender = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    text = models.TextField(max_length=2000)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("created_at", "id")

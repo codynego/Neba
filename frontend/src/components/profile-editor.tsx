@@ -3,7 +3,7 @@
 import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import { Camera, LocateFixed, MailCheck, Send, ShieldCheck } from "lucide-react";
 import { api } from "@/lib/api";
-import { User } from "@/lib/types";
+import { ProfileDocument, User } from "@/lib/types";
 import { compressImage } from "@/lib/image-compression";
 
 type UploadTicket = { upload_url: string; key: string; content_type: string };
@@ -255,6 +255,21 @@ function CareerSection({ user, onSaved }: { user: User; onSaved: (u: User) => vo
   );
 }
 
+function BusinessSection({ user, onSaved }: { user: User; onSaved: (u: User) => void }) {
+  const [busy, setBusy] = useState(false); const [msg, setMsg] = useState("");
+  async function save(event: FormEvent<HTMLFormElement>) { event.preventDefault(); setBusy(true); setMsg(""); try { const updated = await patchUser(Object.fromEntries(new FormData(event.currentTarget))); onSaved(updated); setMsg("Saved."); } catch (e) { setMsg((e as Error).message); } finally { setBusy(false); } }
+  return <form className="pp-editor-form stack-form" onSubmit={save}><p className="pp-section-desc">Add context if you run a business, are building an idea, or want funding and procurement opportunities.</p><label>Business or project name<input name="business_name" defaultValue={user.business_name || ""} maxLength={180} placeholder="e.g. Kora Foods" /></label><label>Business stage<select name="business_status" defaultValue={user.business_status || ""}><option value="">Not applicable</option><option value="idea">Idea stage</option><option value="early">Early stage</option><option value="established">Established</option><option value="scaling">Scaling</option></select></label><label>Industry<input name="business_industry" defaultValue={user.business_industry || user.industry || ""} maxLength={120} placeholder="e.g. Food, technology, fashion" /></label><label>Website <small>Optional</small><input name="business_website" type="url" defaultValue={user.business_website || ""} placeholder="https://example.com" /></label><label>What are you building?<textarea name="business_description" defaultValue={user.business_description || ""} maxLength={1000} rows={4} placeholder="Briefly describe your business or idea." /></label><button className="button button-dark compact" disabled={busy}>{busy ? "Saving…" : "Save business info"}</button>{msg && <p role="status" className="profile-feedback">{msg}</p>}</form>;
+}
+
+export function DocumentsSection() {
+  const [documents, setDocuments] = useState<ProfileDocument[]>([]); const [busy, setBusy] = useState(false); const [msg, setMsg] = useState("");
+  async function load() { setDocuments(await api<ProfileDocument[]>("/auth/documents/")); }
+  useEffect(() => { load().catch(() => {}); }, []);
+  async function upload(event: ChangeEvent<HTMLInputElement>) { const file = event.target.files?.[0]; event.target.value = ""; if (!file) return; setBusy(true); setMsg(""); try { const documentType = file.name.toLowerCase().includes("cv") || file.name.toLowerCase().includes("resume") ? "cv" : file.name.toLowerCase().includes("business") ? "business_plan" : "other"; const ticket = await api<{ upload_url: string; key: string }>("/auth/documents/", { method: "POST", body: JSON.stringify({ document_type: documentType, name: file.name, content_type: file.type || "application/octet-stream", size: file.size }) }); const result = await fetch(ticket.upload_url, { method: "PUT", headers: { "Content-Type": file.type }, body: file }); if (!result.ok) throw new Error("Document upload failed."); await api("/auth/documents/confirm/", { method: "POST", body: JSON.stringify({ key: ticket.key, document_type: documentType, name: file.name }) }); await load(); setMsg("Document added."); } catch (e) { setMsg((e as Error).message); } finally { setBusy(false); } }
+  async function remove(publicId: string) { setBusy(true); try { await api(`/auth/documents/${publicId}/`, { method: "DELETE" }); await load(); } catch (e) { setMsg((e as Error).message); } finally { setBusy(false); } }
+  return <div className="profile-documents"><div className="profile-documents-actions"><label className="button button-outline compact">{busy ? "Uploading…" : "Add document"}<input type="file" accept=".pdf,.doc,.docx,.xlsx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain" onChange={upload} disabled={busy} hidden /></label><small>PDF, Word, spreadsheet or text · up to 10 MB</small></div>{documents.length ? <div className="profile-document-list">{documents.map((document) => <div className="profile-document-row" key={document.public_id}><div><strong>{document.name}</strong><small>{document.document_type_label} · {(document.size / 1024 / 1024).toFixed(1)} MB</small></div><div>{document.download_url && <a className="small-button" href={document.download_url} target="_blank" rel="noreferrer">Open</a>}<button className="small-button" type="button" onClick={() => remove(document.public_id)} disabled={busy}>Remove</button></div></div>)}</div> : <p className="pp-coming-soon">No documents yet. Add a CV, business plan, portfolio, or certificate when you are ready.</p>}{msg && <p role="status" className="profile-feedback">{msg}</p>}</div>;
+}
+
 const INTEREST_OPTIONS = [
   { value: "scholarship", label: "Scholarships" },{ value: "grant", label: "Grants" },{ value: "job", label: "Jobs" },
   { value: "internship", label: "Internships" },{ value: "fellowship", label: "Fellowships" },{ value: "competition", label: "Competitions" },
@@ -309,6 +324,7 @@ function InterestsSection({ user, onSaved }: { user: User; onSaved: (u: User) =>
 export function PassportEditor({ user, section, onSaved }: { user: User; section: string; onSaved: (u: User) => void }) {
   if (section === "education") return <EducationSection user={user} onSaved={onSaved} />;
   if (section === "career") return <CareerSection user={user} onSaved={onSaved} />;
+  if (section === "business") return <BusinessSection user={user} onSaved={onSaved} />;
   if (section === "interests") return <InterestsSection user={user} onSaved={onSaved} />;
   return <PersonalSection user={user} onSaved={onSaved} />;
 }

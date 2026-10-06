@@ -40,13 +40,38 @@ class User(AbstractUser):
     goals = models.JSONField(default=list, blank=True)
     business_status = models.CharField(max_length=80, blank=True)
     financial_need = models.CharField(max_length=80, blank=True)
+    business_name = models.CharField(max_length=180, blank=True)
+    business_industry = models.CharField(max_length=120, blank=True)
+    business_description = models.TextField(max_length=1000, blank=True)
+    business_website = models.URLField(max_length=300, blank=True)
+
+
+class ProfileDocument(models.Model):
+    class DocumentType(models.TextChoices):
+        CV = "cv", "CV / Resume"
+        BUSINESS_PLAN = "business_plan", "Business plan"
+        PORTFOLIO = "portfolio", "Portfolio"
+        CERTIFICATE = "certificate", "Certificate"
+        OTHER = "other", "Other"
+
+    public_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False, db_index=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="profile_documents")
+    document_type = models.CharField(max_length=24, choices=DocumentType.choices)
+    name = models.CharField(max_length=180)
+    storage_key = models.CharField(max_length=300, unique=True)
+    content_type = models.CharField(max_length=120)
+    size = models.PositiveIntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-created_at",)
 
     def __str__(self):
         return self.display_name or self.username
 
     @property
     def profile_complete(self):
-        return bool(self.country and self.education_level and self.opportunity_interests)
+        return bool(self.display_name and self.country and self.education_level and self.field_of_study and self.employment_status and self.skills and self.opportunity_interests and self.goals)
 
 
 class Organization(models.Model):

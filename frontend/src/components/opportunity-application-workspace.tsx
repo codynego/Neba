@@ -17,6 +17,7 @@ export function OpportunityApplicationWorkspace({ applicationId }: { application
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState("");
   const [error, setError] = useState("");
+  const [messageText, setMessageText] = useState("");
 
   useEffect(() => { api<OpportunityApplication>(`/opportunity-applications/${applicationId}/`).then((item) => { setApplication(item); setNotes(item.notes || ""); }).catch((err) => setError(err.message)); }, [applicationId]);
 
@@ -37,10 +38,17 @@ export function OpportunityApplicationWorkspace({ applicationId }: { application
     try { const updated = await api<OpportunityApplication>(`/opportunity-applications/${application.public_id}/`, { method: "PATCH", body: JSON.stringify({ notes }) }); setApplication(updated); setFeedback("Notes saved."); } catch (err) { setError((err as Error).message); } finally { setBusy(false); }
   }
 
+  async function sendMessage() {
+    if (!application || !messageText.trim() || busy) return;
+    setBusy(true); setFeedback("");
+    try { const message = await api<OpportunityApplication["messages"][number]>(`/opportunity-applications/${application.public_id}/messages/`, { method: "POST", body: JSON.stringify({ text: messageText.trim() }) }); setApplication({ ...application, messages: [...application.messages, message] }); setMessageText(""); } catch (err) { setError((err as Error).message); } finally { setBusy(false); }
+  }
+
   if (error) return <main className="application-workspace-page container"><p className="error-box">{error}</p><Link className="text-link" href="/applications">Back to applications</Link></main>;
   if (!application) return <main className="application-workspace-page container"><p role="status">Loading application...</p></main>;
 
   const { opportunity } = application;
+  if (application.is_poster) return <main className="application-workspace-page container"><Link className="back-link" href="/my-opportunities"><ArrowLeft size={15} /> My opportunities</Link><header className="application-workspace-header"><div><span className="eyebrow">INTERNAL APPLICATION</span><h1>{application.applicant_name}</h1><p>{opportunity.title}</p></div><span className={`application-status application-status-large ${application.status}`}>{statusLabels[application.status] || application.status}</span></header><div className="application-workspace-grid"><div className="application-workspace-main"><section className="application-v1-card"><div className="application-v1-heading"><div><span className="eyebrow">APPLICATION MESSAGE</span><h2>Why they applied</h2></div></div><p>{application.application_message || "No introduction was added."}</p>{application.additional_information && <><span className="eyebrow">ADDITIONAL INFORMATION</span><p>{application.additional_information}</p></>}<p className="form-note">Shared from profile: {application.shared_fields.length ? application.shared_fields.join(", ") : "Nothing selected"}</p></section><section className="application-v1-card"><div className="application-v1-heading"><div><span className="eyebrow">CONVERSATION</span><h2>Message applicant</h2></div><MessageCircle size={20} className="application-v1-icon" /></div><div className="application-activity-list">{application.messages.length ? application.messages.map((message) => <div key={message.id}><span className="activity-dot"><MessageCircle size={12} /></span><div><strong>{message.sender_name}</strong><small>{message.text}</small></div></div>) : <p className="panel-empty">No messages yet.</p>}</div><div className="message-compose-row"><textarea value={messageText} onChange={(event) => setMessageText(event.target.value)} rows={3} placeholder="Ask a question or invite them to continue the conversation." /><button className="button button-dark compact" onClick={sendMessage} disabled={busy || !messageText.trim()}>Send</button></div></section></div><aside className="application-workspace-aside"><section className="application-v1-card application-status-actions"><span className="eyebrow">REVIEW DECISION</span><div>{["shortlisted", "interview", "awarded", "unsuccessful"].map((status) => <button key={status} className={application.status === status ? "active" : ""} onClick={() => updateStatus(status)} disabled={busy}>{statusLabels[status]}</button>)}</div></section>{feedback && <p className="form-feedback" role="status">{feedback}</p>}</aside></div></main>;
   return <main className="application-workspace-page container">
     <Link className="back-link" href="/applications"><ArrowLeft size={15} /> Applications</Link>
     <header className="application-workspace-header"><div><span className="eyebrow">APPLICATION WORKSPACE</span><h1>{opportunity.title}</h1><p><Link href={`/opportunities/${application.opportunity_id}`}>{opportunity.provider}</Link> · {opportunity.is_remote ? "Remote" : opportunity.location_label || opportunity.country || "Open location"}</p></div><span className={`application-status application-status-large ${application.status}`}>{statusLabels[application.status] || application.status}</span></header>

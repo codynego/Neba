@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { clearToken, getToken } from "@/lib/api";
 import { api } from "@/lib/api";
 import { User } from "@/lib/types";
-import { PassportEditor } from "@/components/profile-editor";
+import { DocumentsSection, PassportEditor } from "@/components/profile-editor";
 import { MemberPhoto } from "@/components/trust";
 import { PushNotificationSettings } from "@/components/push-notifications";
 import {
@@ -73,21 +73,14 @@ function hasValue(user: User, key: string): boolean {
 function completionScore(user: User): number {
   const fields = [
     user.display_name,
-    user.photo_available,
-    user.date_of_birth,
     user.country,
-    user.city,
-    user.state,
-    user.phone,
     user.education_level,
-    user.institution,
     user.field_of_study,
     user.employment_status,
-    user.industry,
-    user.years_experience,
     user.skills?.length,
     user.opportunity_interests?.length,
     user.goals?.length,
+    user.business_status || "not-applicable",
   ];
   const done = fields.filter(Boolean).length;
   return Math.round((done / fields.length) * 100);
@@ -232,6 +225,18 @@ export default function ProfilePage() {
           </div>
         </section>
 
+        <section className="pp-section">
+          <SectionHeader icon={<Briefcase size={16} />} eyebrow="BUSINESS & PROJECTS" onEdit={() => setEditing("business")} />
+          <p className="pp-section-desc">Useful context for grants, funding, tenders, startup programs, and business matches.</p>
+          <div className="pp-rows">
+            <Row label="Business or project" value={user.business_name} />
+            <Row label="Stage" value={user.business_status} />
+            <Row label="Industry" value={user.business_industry || user.industry} />
+            <Row label="Website" value={user.business_website} />
+          </div>
+          {!user.business_status && <button className="pp-add-cta" onClick={() => setEditing("business")}>+ Add business context</button>}
+        </section>
+
         {/* 2. Education */}
         <section className="pp-section">
           <SectionHeader icon={<BookOpen size={16} />} eyebrow="EDUCATION" onEdit={() => setEditing("education")} />
@@ -332,11 +337,10 @@ export default function ProfilePage() {
           </section>
         )}
 
-        {/* 7. Documents placeholder */}
         <section className="pp-section pp-section-docs">
           <SectionHeader icon={<FileText size={16} />} eyebrow="DOCUMENTS" />
           <p className="pp-section-desc">CV, transcripts, and certificates strengthen your applications.</p>
-          <p className="pp-coming-soon">Document uploads coming soon.</p>
+          <DocumentsSection />
         </section>
 
         {/* 8. Notifications */}
