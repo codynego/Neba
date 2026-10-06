@@ -1,7 +1,6 @@
 from collections import Counter
 from datetime import date
 import ipaddress
-import json
 import re
 import socket
 from html.parser import HTMLParser
@@ -433,6 +432,12 @@ class OrganizationOpportunityViewSet(viewsets.ModelViewSet):
             row["application_count"] = opportunity_applications.count()
             row["qualified_count"] = opportunity_applications.filter(status__in=("shortlisted", "interview", "awarded")).count()
         return Response({"organization": {"name": organization.name, "status": organization.status}, "metrics": {"active_opportunities": len(published), "matched_people": len(matched_people), "applications": application_count, "qualified_applicants": qualified_count, "application_rate": round(application_count / len(matched_people) * 100, 1) if matched_people else 0}, "opportunities": rows, "deadlines": deadlines})
+
+    @action(detail=False, methods=["post"], url_path="fetch-link")
+    def fetch_link(self, request):
+        url = str(request.data.get("url", "")).strip()
+        fields = _extract_opportunity_from_url(url)
+        return Response({"fields": fields, "message": "We filled the form with details found on that page. Please review every field before submitting."})
 
     def perform_create(self, serializer):
         organization = getattr(self.request.user, "organization", None)
