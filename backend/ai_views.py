@@ -31,10 +31,10 @@ class InterviewRealtimeCall(APIView):
             f"Interview focus: {focus}. Difficulty: {difficulty}. "
             f"Opportunity context:\n{context or 'No specific opportunity was selected.'}"
         )
-        boundary = f"----GetNeba{uuid.uuid4().hex}"
+        boundary = f"GetNeba{uuid.uuid4().hex}"
         session = json.dumps({"type": "realtime", "model": settings.OPENAI_REALTIME_MODEL})
         body = (
-            f"--{boundary}\r\nContent-Disposition: form-data; name=\"sdp\"; filename=\"offer.sdp\"\r\n"
+            f"--{boundary}\r\nContent-Disposition: form-data; name=\"sdp\"\r\n"
             "Content-Type: application/sdp\r\n\r\n"
             f"{offer_sdp}\r\n"
             f"--{boundary}\r\nContent-Disposition: form-data; name=\"session\"\r\n"
