@@ -80,7 +80,7 @@ export default function InterviewPracticePage() {
     if (transcribing || listening) return;
     if (!navigator.mediaDevices || typeof MediaRecorder === "undefined") { setError("Voice input is not available in this browser. Type your answer below instead."); return; }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
       const preferredType = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"].find((type) => MediaRecorder.isTypeSupported(type));
       const recorder = new MediaRecorder(stream, preferredType ? { mimeType: preferredType } : undefined);
       const chunks: Blob[] = [];
@@ -89,7 +89,7 @@ export default function InterviewPracticePage() {
         stream.getTracks().forEach((track) => track.stop()); recordingStreamRef.current = null; setListening(false); setTranscribing(true); setError("");
         try {
           const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
-          const form = new FormData(); form.append("file", blob, recorder.mimeType.includes("mp4") ? "answer.mp4" : "answer.webm");
+          const form = new FormData(); form.append("file", blob, recorder.mimeType.includes("mp4") ? "answer.mp4" : "answer.webm"); form.append("prompt", `Interview question: ${currentQuestion}. Target: ${opportunity ? `${opportunity.title} at ${opportunity.provider}` : `${targetRole}${targetCompany ? ` at ${targetCompany}` : ""}`}. Preserve names, company names, technical terms, and Nigerian names accurately.`);
           const result = await api<{ text: string }>("/ai/interview/transcribe/", { method: "POST", body: form });
           setAnswer((value) => `${value}${value.trim() ? " " : ""}${result.text}`.trim());
         } catch (transcriptionError) { console.error("Voice transcription failed", transcriptionError); setError("We couldn’t transcribe that recording. You can type your answer instead."); }

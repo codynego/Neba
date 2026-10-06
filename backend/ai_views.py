@@ -48,6 +48,7 @@ class InterviewText(APIView):
                 f"Previous interview turns:\n{json.dumps(history[-8:])}"
             )
         try:
+            prompt = str(request.data.get("prompt", "")).strip()[:1200]
             response = requests.post(
                 "https://api.openai.com/v1/responses",
                 headers={"Authorization": f"Bearer {settings.OPENAI_API_KEY}", "Content-Type": "application/json"},
@@ -102,6 +103,7 @@ class InterviewTranscription(APIView):
                     "language": "en",
                     "response_format": "json",
                     "temperature": "0",
+                    "prompt": prompt or "Interview answer in English. Preserve names, company names, technical terms, and Nigerian names accurately.",
                 },
                 timeout=30,
             )
