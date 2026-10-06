@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Check, ChevronRight, Clock3, Mic, MicOff, Pause, RotateCcw, Sparkles, Square } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, ChevronRight, Clock3, Mic, MicOff, RotateCcw, Sparkles, Square } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { Opportunity } from "@/lib/types";
@@ -34,7 +34,13 @@ export default function InterviewPracticePage() {
   const [seconds, setSeconds] = useState(0);
   const [listening, setListening] = useState(false);
   const [error, setError] = useState("");
+  const [realtime, setRealtime] = useState(false);
+  const [aiMessage, setAiMessage] = useState("");
   const recognitionRef = useRef<Recognition | null>(null);
+  const peerRef = useRef<RTCPeerConnection | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const dataChannelRef = useRef<RTCDataChannel | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get("opportunity");
@@ -50,8 +56,33 @@ export default function InterviewPracticePage() {
   const currentQuestion = useMemo(() => questions[questionIndex % questions.length], [questionIndex]);
   const hasVoice = typeof window !== "undefined" && Boolean((window as Window & { SpeechRecognition?: RecognitionConstructor; webkitSpeechRecognition?: RecognitionConstructor }).SpeechRecognition || (window as Window & { webkitSpeechRecognition?: RecognitionConstructor }).webkitSpeechRecognition);
 
-  function startInterview() { setPhase("live"); setQuestionIndex(0); setAnswers([]); setAnswer(""); setSeconds(0); setError(""); }
+  async function startInterview() {
+    setPhase("live"); setQuestionIndex(0); setAnswers([]); setAnswer(""); setSeconds(0); setError(""); setAiMessage("");
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) throw new Error("Microphone access is not available in this browser.");
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (!audioRef.current) { audioRef.current = new Audio(); audioRef.current.autoplay = true; }
+      const peer = new RTCPeerConnection(); stream.getTracks().forEach((track) => peer.addTrack(track, stream));
+      const channel = peer.createDataChannel("oai-events");
+      peer.ontrack = (event) => { if (audioRef.current) { audioRef.current.srcObject = event.streams[0]; audioRef.current.play().catch(() => {}); } };
+      channel.onmessage = (event) => {
+        const message = JSON.parse(event.data) as { type?: string; delta?: string; transcript?: string; error?: { message?: string } };
+        if (message.type === "response.audio_transcript.delta") setAiMessage((value) => value + (message.delta || ""));
+        if (message.type === "response.audio_transcript.done") setListening(false);
+        if (message.type === "input_audio_buffer.speech_started") setListening(true);
+        if (message.type === "input_audio_buffer.speech_stopped") setListening(false);
+        if (message.type === "conversation.item.input_audio_transcription.completed" && message.transcript) setAnswers((items) => [...items, message.transcript || ""]);
+        if (message.type === "error") setError(message.error?.message || "The live interview encountered an error.");
+      };
+      const offer = await peer.createOffer(); await peer.setLocalDescription(offer);
+      const session = await api<{ sdp: string }>("/ai/interview/call/", { method: "POST", body: JSON.stringify({ sdp: offer.sdp, focus, difficulty, opportunity_context: opportunity ? { title: opportunity.title, provider: opportunity.provider, summary: opportunity.summary, eligibility: opportunity.eligibility_notes, benefit: opportunity.benefit } : {} }) });
+      await peer.setRemoteDescription({ type: "answer", sdp: session.sdp });
+      peerRef.current = peer; streamRef.current = stream; dataChannelRef.current = channel; setRealtime(true);
+      channel.onopen = () => { channel.send(JSON.stringify({ type: "session.update", session: { type: "realtime", instructions: `You are GetNeba's live interview coach. Conduct a ${difficulty} ${focus} interview one question at a time. Ask concise follow-ups. Use this opportunity context: ${opportunity ? `${opportunity.title} at ${opportunity.provider}. ${opportunity.summary || ""}` : "general opportunity preparation"}. Start by greeting the candidate and asking your first question.`, voice: "marin", turn_detection: { type: "semantic_vad", eagerness: "auto", create_response: true, interrupt_response: true }, input_audio_transcription: { model: "gpt-4o-mini-transcribe", language: "en" }, output_modalities: ["audio"] } })); channel.send(JSON.stringify({ type: "response.create" })); };
+    } catch (startError) { streamRef.current?.getTracks().forEach((track) => track.stop()); peerRef.current?.close(); setRealtime(false); setError((startError as Error).message || "Live AI interview is unavailable. You can still use text practice."); }
+  }
   function startListening() {
+    if (realtime) return;
     const browserWindow = window as Window & { SpeechRecognition?: RecognitionConstructor; webkitSpeechRecognition?: RecognitionConstructor };
     const Constructor = browserWindow.SpeechRecognition || browserWindow.webkitSpeechRecognition;
     if (!Constructor) { setError("Voice input is not available in this browser. Type your answer below instead."); return; }
@@ -60,8 +91,9 @@ export default function InterviewPracticePage() {
     recognition.onend = () => setListening(false); recognitionRef.current = recognition; recognition.start(); setListening(true); setError("");
   }
   function stopListening() { recognitionRef.current?.stop(); setListening(false); }
-  function submitAnswer() { if (!answer.trim()) { setError("Add an answer before continuing."); return; } stopListening(); setAnswers((items) => [...items, answer.trim()]); setAnswer(""); if (questionIndex + 1 >= questions.length) setPhase("report"); else setQuestionIndex((value) => value + 1); }
-  function reset() { stopListening(); setPhase("setup"); setAnswers([]); setQuestionIndex(0); setSeconds(0); setAnswer(""); }
+  function submitAnswer() { if (!answer.trim()) { setError("Add an answer before continuing."); return; } if (realtime && dataChannelRef.current?.readyState === "open") { dataChannelRef.current.send(JSON.stringify({ type: "conversation.item.create", item: { type: "message", role: "user", content: [{ type: "input_text", text: answer.trim() }] } })); dataChannelRef.current.send(JSON.stringify({ type: "response.create" })); setAnswers((items) => [...items, answer.trim()]); setAnswer(""); setAiMessage(""); return; } stopListening(); setAnswers((items) => [...items, answer.trim()]); setAnswer(""); if (questionIndex + 1 >= questions.length) setPhase("report"); else setQuestionIndex((value) => value + 1); }
+  function closeRealtime() { stopListening(); streamRef.current?.getTracks().forEach((track) => track.stop()); peerRef.current?.close(); streamRef.current = null; peerRef.current = null; dataChannelRef.current = null; setRealtime(false); }
+  function reset() { closeRealtime(); setPhase("setup"); setAnswers([]); setQuestionIndex(0); setSeconds(0); setAnswer(""); setAiMessage(""); }
 
   if (phase === "setup") return <main className="interview-page container"><Link className="back-link" href="/assistant"><ArrowLeft size={15} /> Practice workspace</Link><header className="interview-header"><div><span className="eyebrow"><Sparkles size={13} /> AI INTERVIEW PRACTICE</span><h1>Practice like<br /><em>it is the real thing.</em></h1><p>Speak naturally. Work through realistic questions, then leave with a clearer idea of what to strengthen.</p></div><div className="interview-header-mark"><span>●</span><small>LIVE<br />PRACTICE</small></div></header><section className="interview-setup-card"><div className="interview-context"><span className="eyebrow">WHAT ARE YOU PREPARING FOR?</span>{opportunity ? <><h2>{opportunity.title}</h2><p>{opportunity.provider} · {opportunity.location_label || (opportunity.is_remote ? "Remote" : "Open location")}</p><span className="interview-context-note">Your practice will use this opportunity as context.</span></> : <><h2>A general opportunity interview</h2><p>Build confidence before your next application or conversation.</p><span className="interview-context-note">Start from an application to make practice opportunity-specific.</span></>}</div><div className="interview-options"><label><span>Interview focus</span><select value={focus} onChange={(event) => setFocus(event.target.value)}>{Object.entries(focusLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label><label><span>Difficulty</span><select value={difficulty} onChange={(event) => setDifficulty(event.target.value)}><option value="realistic">Realistic</option><option value="challenging">Challenging</option><option value="very-challenging">Very challenging</option></select></label><label><span>Duration</span><select value={duration} onChange={(event) => setDuration(event.target.value)}><option value="10">10 minutes</option><option value="20">20 minutes</option><option value="30">30 minutes</option></select></label></div><button className="button button-dark" onClick={startInterview}>Start interview <ArrowRight size={16} /></button></section><section className="interview-promise"><div><Clock3 size={18} /><span><strong>No performance theatre.</strong><small>The interviewer asks follow-ups so you can practise thinking clearly, not memorising perfect answers.</small></span></div><div><Mic size={18} /><span><strong>Speak or type.</strong><small>Voice input works in supported browsers, with a text fallback whenever you need it.</small></span></div></section></main>;
 
