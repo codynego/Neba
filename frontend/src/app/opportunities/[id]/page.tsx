@@ -19,6 +19,15 @@ export default function OpportunityDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [item, setItem] = useState<Opportunity | null>(null); const [similar, setSimilar] = useState<Opportunity[]>([]); const [loading, setLoading] = useState(true); const [saving, setSaving] = useState(false); const [tracking, setTracking] = useState(false); const [applyOpen, setApplyOpen] = useState(false); const [shareOpen, setShareOpen] = useState(false); const [copied, setCopied] = useState(false); const [downloading, setDownloading] = useState(false); const [applicationMessage, setApplicationMessage] = useState(""); const [additionalInformation, setAdditionalInformation] = useState(""); const [sharedFields, setSharedFields] = useState<string[]>(["profile", "skills"]); const [error, setError] = useState(""); const [authenticated, setAuthenticated] = useState(false);
   useEffect(() => { setAuthenticated(Boolean(getToken())); }, []);
+  useEffect(() => {
+    function handleReportClick(event: MouseEvent) {
+      const target = event.target as HTMLElement;
+      if (!target.closest(".opportunity-source-card button")) return;
+      window.location.href = "mailto:support@getneba.com?subject=Report%20outdated%20opportunity&body=" + encodeURIComponent("Please review this opportunity:\n\n" + window.location.href + "\n\nWhat looks outdated or incorrect?\n");
+    }
+    document.addEventListener("click", handleReportClick);
+    return () => document.removeEventListener("click", handleReportClick);
+  }, []);
   const opportunityId = opportunityIdFromRoute(id);
   useEffect(() => { Promise.all([api<Opportunity>(`/opportunities/${opportunityId}/`), api<Page<Opportunity>>("/opportunities/")]).then(([opportunity, page]) => { setItem(opportunity); setSimilar(page.results.filter((candidate) => candidate.public_id !== opportunity.public_id && candidate.category === opportunity.category).slice(0, 3)); }).catch(() => setError("This opportunity could not be loaded.")).finally(() => setLoading(false)); }, [opportunityId]);
   if (loading) return <main className="opportunity-detail container"><p>Loading opportunity...</p></main>;
