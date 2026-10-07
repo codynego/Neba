@@ -247,9 +247,11 @@ class OpportunityApplicationSerializer(serializers.ModelSerializer):
     is_poster = serializers.SerializerMethodField()
     messages = serializers.SerializerMethodField()
     shared_profile = serializers.SerializerMethodField()
+    unread_message_count = serializers.SerializerMethodField()
     def get_applicant_name(self, application): return application.user.display_name or application.user.username
     def get_is_poster(self, application): return application.opportunity.created_by_id == self.context["request"].user.id or application.opportunity.organization_id == getattr(getattr(self.context["request"].user, "organization", None), "id", None)
-    def get_messages(self, application): return [{"id": message.id, "sender": message.sender_id, "sender_name": message.sender.display_name or message.sender.username, "text": message.text, "created_at": message.created_at} for message in application.messages.select_related("sender").all()]
+    def get_messages(self, application): return [{"id": message.id, "sender": message.sender_id, "sender_name": message.sender.display_name or message.sender.username, "text": message.text, "created_at": message.created_at, "is_mine": message.sender_id == self.context["request"].user.id} for message in application.messages.select_related("sender").all()]
+    def get_unread_message_count(self, application): return application.messages.filter(read_at__isnull=True).exclude(sender=self.context["request"].user).count()
     def get_shared_profile(self, application):
         user = application.user
         shared = set(application.shared_fields or [])
@@ -268,7 +270,7 @@ class OpportunityApplicationSerializer(serializers.ModelSerializer):
         return profile
     class Meta:
         model = OpportunityApplication
-        fields = ("id", "public_id", "opportunity_id", "opportunity", "status", "applied_at", "next_action", "next_action_at", "notes", "application_message", "additional_information", "shared_fields", "shared_profile", "applicant_name", "is_poster", "messages", "created_at", "updated_at")
+        fields = ("id", "public_id", "opportunity_id", "opportunity", "status", "applied_at", "next_action", "next_action_at", "notes", "application_message", "additional_information", "shared_fields", "shared_profile", "applicant_name", "is_poster", "messages", "unread_message_count", "created_at", "updated_at")
 
 
 class OpportunityViewSet(viewsets.ReadOnlyModelViewSet):
@@ -374,10 +376,14 @@ class OpportunityApplicationViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["get", "post"])
     def messages(self, request, public_id=None):
         application = self.get_object()
-        if request.method == "GET": return Response(self.get_serializer(application).data["messages"])
+        if request.method == "GET":
+            application.messages.filter(read_at__isnull=True).exclude(sender=request.user).update(read_at=timezone.now())
+            return Response(self.get_serializer(application).data["messages"])
+        if application.status in (OpportunityApplication.Status.UNSUCCESSFUL, OpportunityApplication.Status.WITHDRAWN) and application.user_id == request.user.id:
+            raise permissions.PermissionDenied("Messaging is closed for this application.")
         text = serializers.CharField(max_length=2000).run_validation(request.data.get("text"))
         message = OpportunityMessage.objects.create(application=application, sender=request.user, text=text)
-        return Response({"id": message.id, "sender": message.sender_id, "sender_name": message.sender.display_name or request.user.username, "text": message.text, "created_at": message.created_at}, status=201)
+            return Response({"id": message.id, "sender": message.sender_id, "sender_name": message.sender.display_name or request.user.username, "text": message.text, "created_at": message.created_at, "is_mine": True}, status=201)
 
 
 class OrganizationOpportunitySerializer(serializers.ModelSerializer):
