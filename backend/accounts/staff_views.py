@@ -1,4 +1,6 @@
 import io
+import re
+from datetime import datetime
 
 from django.conf import settings
 from django.core.management import call_command
@@ -16,6 +18,125 @@ from .trust import review_identity
 
 class StaffOnly(permissions.IsAdminUser):
     pass
+
+
+def _category_from_text(value):
+    lowered = value.lower()
+    for category in ("scholarship", "grant", "internship", "fellowship", "competition", "training", "startup", "funding", "tender", "job"):
+        if category in lowered:
+            return category
+    return "job"
+
+
+def _paste_fields(content):
+    """Conservatively structure supplied copy; blank means unknown, never invented."""
+    text = "\n".join(line.strip() for line in content.splitlines() if line.strip())[:12000]
+    lines = [line for line in text.splitlines() if line]
+    title = lines[0][:220] if lines else ""
+    labeled = {}
+    for line in lines:
+        match = re.match(r"^(title|provider|organization|summary|description|deadline|closing date|location|country|eligibility|application url|apply here)\s*[:\-]\s*(.+)$", line, re.I)
+        if match:
+            labeled[match.group(1).lower()] = match.group(2).strip()
+    summary = labeled.get("summary") or labeled.get("description") or " ".join(lines[1:])[:1800]
+    provider = labeled.get("provider") or labeled.get("organization") or ""
+    raw_deadline = labeled.get("deadline") or labeled.get("closing date") or ""
+    deadline = None
+    date_match = re.search(r"(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4}[/-]\d{1,2}[/-]\d{1,2})", raw_deadline)
+    if date_match:
+        raw = date_match.group(1).replace("/", "-")
+        parts = raw.split("-")
+        try:
+            if len(parts[0]) == 4:
+                parsed = datetime(int(parts[0]), int(parts[1]), int(parts[2]), 23, 59)
+            else:
+                year = int(parts[2]) + (2000 if int(parts[2]) < 100 else 0)
+                parsed = datetime(year, int(parts[1]), int(parts[0]), 23, 59)
+            deadline = parsed.isoformat()
+        except ValueError:
+            deadline = None
+    application_url = labeled.get("application url") or labeled.get("apply here") or ""
+    category = _category_from_text(text)
+    fields = {
+        "title": labeled.get("title") or title,
+        "provider": provider,
+        "summary": summary,
+        "category": category,
+        "application_mode": "external" if application_url else "internal",
+        "application_url": application_url,
+        "source_url": "",
+        "deadline": deadline,
+        "country": labeled.get("country", ""),
+        "location_label": labeled.get("location", ""),
+        "is_remote": "remote" in text.lower(),
+        "benefit": "",
+        "eligibility_notes": labeled.get("eligibility", ""),
+        "eligible_countries": [],
+        "education_levels": [],
+        "fields_of_study": [],
+        "employment_statuses": [],
+        "min_age": None,
+        "max_age": None,
+        "requires_business": False,
+    }
+    confidence = {"title": 94 if fields["title"] else 0, "summary": 78 if summary else 0, "provider": 82 if provider else 0, "deadline": 88 if deadline else 0, "application_url": 92 if application_url else 0}
+    warnings = [f"Add {label.replace('_', ' ')}" for label, value in (("provider", provider), ("deadline", deadline), ("application URL", application_url)) if not value]
+    return fields, confidence, warnings
+
+
+class StaffOpportunityCollection(APIView):
+    permission_classes = [StaffOnly]
+
+    def get(self, request):
+        queryset = Opportunity.objects.select_related("created_by", "organization").order_by("-updated_at")
+        status = str(request.query_params.get("status", "")).strip()
+        query = str(request.query_params.get("q", "")).strip()
+        if status:
+            queryset = queryset.filter(review_status=status)
+        if query:
+            queryset = queryset.filter(title__icontains=query) | queryset.filter(provider__icontains=query)
+        rows = [{
+            "public_id": str(item.public_id), "title": item.title, "provider": item.provider,
+            "category": item.category, "review_status": item.review_status, "is_published": item.is_published,
+            "source_url": item.source_url, "created_at": item.created_at, "updated_at": item.updated_at,
+            "source_type": "Neba Verified" if not item.source_url else "Imported source",
+            "publisher": (item.created_by.display_name or item.created_by.username) if item.created_by else (item.organization.name if item.organization else item.provider),
+        } for item in queryset[:200]]
+        return Response(rows)
+
+    def post(self, request):
+        data = request.data
+        mode = str(data.get("mode", "manual"))
+        if mode == "paste":
+            content = str(data.get("content", "")).strip()
+            if len(content) < 20:
+                return Response({"detail": "Paste the opportunity text you want to structure."}, status=400)
+            fields, confidence, warnings = _paste_fields(content)
+            return Response({"fields": fields, "confidence": confidence, "warnings": warnings, "message": "Draft structured from the supplied text. Check every field before publishing."})
+        if mode == "link":
+            from opportunities.views import _extract_opportunity_from_url
+            fields = _extract_opportunity_from_url(str(data.get("url", "")).strip())
+            fields["provider"] = str(data.get("provider") or fields.get("provider") or "")[:180]
+        else:
+            fields = data
+        title = str(fields.get("title", "")).strip()
+        summary = str(fields.get("summary", "")).strip()
+        if not title or not summary:
+            return Response({"detail": "Add a title and summary before publishing."}, status=400)
+        opportunity = Opportunity.objects.create(
+            title=title[:220], provider=str(fields.get("provider") or "Getneba").strip()[:180], summary=summary[:1800],
+            category=str(fields.get("category") or "job"), application_mode=str(fields.get("application_mode") or "external"),
+            application_url=str(fields.get("application_url") or ""), deadline=fields.get("deadline") or None,
+            country=str(fields.get("country") or ""), location_label=str(fields.get("location_label") or ""),
+            is_remote=bool(fields.get("is_remote")), benefit=str(fields.get("benefit") or "")[:220],
+            eligibility_notes=str(fields.get("eligibility_notes") or "")[:1200], eligible_countries=fields.get("eligible_countries") or [],
+            education_levels=fields.get("education_levels") or [], fields_of_study=fields.get("fields_of_study") or [],
+            employment_statuses=fields.get("employment_statuses") or [], min_age=fields.get("min_age") or None,
+            max_age=fields.get("max_age") or None, requires_business=bool(fields.get("requires_business")),
+            source_url=str(fields.get("source_url") or "")[:500], created_by=request.user,
+            review_status=Opportunity.ReviewStatus.APPROVED, is_published=True,
+        )
+        return Response({"public_id": str(opportunity.public_id), "title": opportunity.title, "review_status": opportunity.review_status, "is_published": opportunity.is_published}, status=201)
 
 
 class StaffDashboard(APIView):
