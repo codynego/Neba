@@ -121,6 +121,28 @@ def matches_text(values, text):
     return any(value in text for value in normalized(values))
 
 
+INTENT_CATEGORIES = {
+    "work": {"job", "internship"},
+    "learn": {"scholarship", "fellowship", "training"},
+    "build": {"startup", "competition"},
+    "fund": {"grant", "funding"},
+}
+
+INTEREST_TERMS = {
+    "software-&-technology": {"software", "technology", "tech", "developer", "coding", "engineering"},
+    "business": {"business", "entrepreneur", "company", "enterprise"},
+    "finance": {"finance", "financial", "accounting", "investment", "fintech"},
+    "design": {"design", "designer", "creative"},
+    "engineering": {"engineering", "engineer", "technical"},
+    "marketing": {"marketing", "brand", "communications", "growth"},
+    "healthcare": {"healthcare", "health", "medical", "clinical"},
+    "education": {"education", "teaching", "learning", "academic"},
+    "creative-work": {"creative", "media", "content", "writing", "arts"},
+    "agriculture": {"agriculture", "farming", "agribusiness"},
+    "social-impact": {"social impact", "nonprofit", "ngo", "community", "development"},
+}
+
+
 def match_for(user, opportunity):
     score, reasons, missing = 52, [], []
     countries = normalized(opportunity.eligible_countries)
@@ -156,12 +178,21 @@ def match_for(user, opportunity):
     interests = normalized(user.opportunity_interests)
     if opportunity.category in interests or f"{opportunity.category}s" in interests:
         score += 8; reasons.append(f"You’re looking for {opportunity.get_category_display().lower()} opportunities")
-    opportunity_text = f"{opportunity.title} {opportunity.summary} {opportunity.fields_of_study} ".lower()
+    intent_match = next((intent for intent, categories in INTENT_CATEGORIES.items() if intent in interests and opportunity.category in categories), None)
+    if intent_match:
+        score += 7; reasons.append(f"Fits your {intent_match} direction")
+    opportunity_text = f"{opportunity.title} {opportunity.summary} {opportunity.provider} {opportunity.benefit} {opportunity.eligibility_notes} {opportunity.fields_of_study} {opportunity.location_label}".lower()
+    matched_interests = [interest for interest in interests if interest != "remote" and any(term in opportunity_text for term in INTEREST_TERMS.get(interest, {interest.replace("-", " ")}))]
+    if matched_interests:
+        score += min(8, 3 + len(matched_interests) * 2); reasons.append("Connects with your interest areas")
     if user.skills and matches_text(user.skills, opportunity_text):
         score += 6; reasons.append("Uses skills in your profile")
     if user.goals and matches_text(user.goals, opportunity_text):
         score += 4; reasons.append("Connects with one of your goals")
-    if opportunity.is_remote: score += 2; reasons.append("Available remotely")
+    if user.state and user.state.strip().lower() in f"{opportunity.location_label} {opportunity.country}".lower():
+        score += 4; reasons.append(f"Available near {user.state}")
+    if opportunity.is_remote and "remote" in interests:
+        score += 4; reasons.append("Matches your remote preference")
     return {"score": min(score, 98), "reasons": reasons[:3], "missing": missing[:2]}
 
 

@@ -8,6 +8,10 @@ import { siteUrl, siteDescription } from "@/lib/seo";
 import "./globals.css";
 import "./opportunity-flow.css";
 import "./opportunity-dashboard.css";
+import "./onboarding-flow.css";
+import "./opportunity-discover.css";
+import "./homepage-rebrand.css";
+import "./post-opportunity.css";
 import "./auth-focus.css";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-geist" });

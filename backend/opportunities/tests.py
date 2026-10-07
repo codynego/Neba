@@ -9,6 +9,7 @@ from rest_framework.test import APITestCase
 
 from accounts.models import User
 from .models import Opportunity
+from .views import match_for
 
 
 class OpportunityApiTests(APITestCase):
@@ -26,6 +27,25 @@ class OpportunityApiTests(APITestCase):
         self.assertEqual(saved.status_code, 201, saved.data)
         application = self.client.post("/api/opportunity-applications/", {"opportunity_id": str(self.opportunity.public_id), "status": "preparing"}, format="json")
         self.assertEqual(application.status_code, 201, application.data)
+
+    def test_onboarding_intents_interest_areas_remote_and_state_feed_match(self):
+        self.user.goals = ["build"]
+        self.user.opportunity_interests = ["software-&-technology", "remote"]
+        self.user.state = "Lagos"
+        self.user.save(update_fields=["goals", "opportunity_interests", "state"])
+        item = Opportunity.objects.create(
+            title="Remote Technical Co-founder",
+            provider="Lagos Startup Lab",
+            summary="Build software for a fintech product in Lagos.",
+            category="startup",
+            application_url="https://example.test/cofounder",
+            is_remote=True,
+            location_label="Lagos, Nigeria",
+        )
+        result = match_for(self.user, item)
+        self.assertGreater(result["score"], 52)
+        self.assertIn("Fits your build direction", result["reasons"])
+        self.assertIn("Matches your remote preference", result["reasons"])
 
     @override_settings(OPPORTUNITY_FEED_URLS=["https://source.example/feed.xml"], OPPORTUNITY_FETCH_LIMIT=1)
     @patch("opportunities.management.commands.fetch_opportunities.requests.get")
