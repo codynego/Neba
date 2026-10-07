@@ -202,10 +202,20 @@ class OpportunitySerializer(serializers.ModelSerializer):
     saved_status = serializers.SerializerMethodField()
     application_status = serializers.SerializerMethodField()
     application_count = serializers.SerializerMethodField()
+    verification = serializers.SerializerMethodField()
 
     class Meta:
         model = Opportunity
-        fields = ("public_id", "title", "provider", "summary", "category", "application_mode", "application_url", "deadline", "country", "location_label", "is_remote", "benefit", "eligibility_notes", "eligible_countries", "education_levels", "fields_of_study", "employment_statuses", "min_age", "max_age", "requires_business", "source_url", "view_count", "application_count", "created_at", "match", "saved_status", "application_status")
+        fields = ("public_id", "title", "provider", "summary", "category", "application_mode", "application_url", "deadline", "country", "location_label", "is_remote", "benefit", "eligibility_notes", "eligible_countries", "education_levels", "fields_of_study", "employment_statuses", "min_age", "max_age", "requires_business", "source_url", "view_count", "application_count", "created_at", "match", "saved_status", "application_status", "verification")
+
+    def get_verification(self, opportunity):
+        if opportunity.created_by_id and opportunity.created_by and opportunity.created_by.is_staff and not opportunity.organization_id:
+            return {"kind": "neba", "label": "Neba Verified"}
+        if opportunity.organization_id and opportunity.organization and opportunity.organization.status == "verified":
+            return {"kind": "organization", "label": "Verified organization"}
+        if opportunity.created_by_id and opportunity.created_by and opportunity.created_by.identity_verified_at:
+            return {"kind": "member", "label": "Verified member"}
+        return None
 
     def get_match(self, opportunity):
         user = self.context["request"].user
@@ -290,7 +300,7 @@ class OpportunityViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        queryset = Opportunity.objects.filter(review_status=Opportunity.ReviewStatus.APPROVED)
+        queryset = Opportunity.objects.filter(review_status=Opportunity.ReviewStatus.APPROVED).select_related("created_by", "organization")
         if user.is_authenticated:
             queryset = queryset.prefetch_related(
                 Prefetch("saves", queryset=SavedOpportunity.objects.filter(user=user), to_attr="user_saves"),

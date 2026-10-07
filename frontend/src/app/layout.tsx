@@ -19,6 +19,7 @@ import "./opportunity-apply.css";
 import "./opportunity-messages.css";
 import "./application-updates.css";
 import "./operations/operations.css";
+import "./verification-badges.css";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-geist" });
 export const metadata: Metadata = {

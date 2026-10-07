@@ -6,6 +6,7 @@ import { ArrowRight, Bookmark, CalendarClock, Check, ChevronDown, Filter, Search
 import { api } from "@/lib/api";
 import { Opportunity, Page } from "@/lib/types";
 import { opportunityPath } from "@/lib/routes";
+import { VerificationBadge } from "./verification-badge";
 
 const labels: Record<string, string> = { scholarship: "Scholarship", grant: "Grant", job: "Job", internship: "Internship", fellowship: "Fellowship", competition: "Competition", training: "Training", startup: "Startup program", funding: "Funding", tender: "Tender", remote: "Remote" };
 const intentCategories: Record<string, string[]> = { all: [], work: ["job", "internship", "remote"], learn: ["scholarship", "fellowship", "training"], build: ["startup", "competition", "tender"], fund: ["grant", "funding"] };
@@ -17,7 +18,7 @@ const daysUntil = (value: string | null) => value ? Math.ceil((new Date(value).g
 function OpportunityCard({ item, onSave }: { item: Opportunity; onSave: (item: Opportunity) => void }) {
   return <article className="opportunity-card opportunity-card-reframed">
     <div className="opportunity-card-top"><span className="opportunity-type">{labels[item.category] || item.category}</span>{item.match && <strong className="opportunity-match">{item.match.score}% profile fit</strong>}</div>
-    <h3>{item.title}</h3><p className="opportunity-provider">{item.provider} · {item.is_remote ? "Remote" : labels[item.category] || item.category}</p>
+    <h3>{item.title}</h3><p className="opportunity-provider">{item.provider} · {item.is_remote ? "Remote" : labels[item.category] || item.category} <VerificationBadge verification={item.verification} /></p>
     <p className="opportunity-summary">{item.summary}</p>
     <div className="opportunity-meta"><span>{item.benefit || labels[item.category]}</span><span>{location(item)}</span></div>
     <div className="opportunity-deadline"><CalendarClock size={15} /><span><small>{item.deadline && daysUntil(item.deadline) !== null && daysUntil(item.deadline)! <= 14 ? "Closes" : "Deadline"}</small>{deadline(item.deadline)}</span></div>
