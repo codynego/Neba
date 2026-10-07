@@ -1,4 +1,5 @@
 import io
+import json
 import re
 from datetime import datetime
 
@@ -6,6 +7,7 @@ from django.conf import settings
 from django.core.management import call_command
 from django.db.models import Count, Sum
 from django.utils import timezone
+import requests
 from rest_framework import permissions, serializers
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
@@ -28,7 +30,7 @@ def _category_from_text(value):
     return "job"
 
 
-def _paste_fields(content):
+def _fallback_paste_fields(content):
     """Conservatively structure supplied copy; blank means unknown, never invented."""
     text = "\n".join(line.strip() for line in content.splitlines() if line.strip())[:12000]
     lines = [line for line in text.splitlines() if line]
@@ -81,7 +83,70 @@ def _paste_fields(content):
     }
     confidence = {"title": 94 if fields["title"] else 0, "summary": 78 if summary else 0, "provider": 82 if provider else 0, "deadline": 88 if deadline else 0, "application_url": 92 if application_url else 0}
     warnings = [f"Add {label.replace('_', ' ')}" for label, value in (("provider", provider), ("deadline", deadline), ("application URL", application_url)) if not value]
+    fields["role"] = fields["title"] if category in ("job", "internship") else ""
+    fields["compensation"] = fields["benefit"]
     return fields, confidence, warnings
+
+
+def _paste_fields(content):
+    """Use AI to extract every supported field, with a deterministic fallback."""
+    fallback_fields, fallback_confidence, fallback_warnings = _fallback_paste_fields(content)
+    if not settings.OPENAI_API_KEY:
+        return fallback_fields, fallback_confidence, fallback_warnings
+    instructions = (
+        "You are GetNeba's opportunity extraction assistant. Extract facts from the supplied opportunity text into valid JSON only. "
+        "Never invent or infer a fact that is not supported by the text; use empty strings, empty arrays, false, or null when unknown. "
+        "Choose exactly one category from scholarship, grant, job, internship, fellowship, competition, training, startup, funding, tender. "
+        "Use the precise role in role and title when a role is stated. Put salary, stipend, allowance, prize, grant amount, or other monetary support in compensation and benefit. "
+        "Preserve useful eligibility and application details instead of shortening them away. Dates must be ISO local datetime strings when a date is explicit. "
+        "Return JSON with fields, confidence, and warnings. Confidence values are integer percentages."
+    )
+    schema = {
+        "fields": {
+            "title": "", "role": "", "provider": "", "summary": "", "category": "job", "application_mode": "external",
+            "application_url": "", "source_url": "", "deadline": None, "country": "", "location_label": "", "is_remote": False,
+            "benefit": "", "compensation": "", "eligibility_notes": "", "eligible_countries": [], "education_levels": [],
+            "fields_of_study": [], "employment_statuses": [], "min_age": None, "max_age": None, "requires_business": False,
+        },
+        "confidence": {}, "warnings": [],
+    }
+    try:
+        response = requests.post(
+            "https://api.openai.com/v1/responses",
+            headers={"Authorization": f"Bearer {settings.OPENAI_API_KEY}", "Content-Type": "application/json"},
+            json={"model": settings.OPENAI_TEXT_MODEL, "instructions": instructions, "input": f"Required JSON shape:\n{json.dumps(schema)}\n\nOpportunity text:\n{content[:12000]}"},
+            timeout=30,
+        )
+        if not response.ok:
+            return fallback_fields, fallback_confidence, fallback_warnings
+        data = response.json()
+        output = str(data.get("output_text", "")).strip()
+        if not output:
+            output = " ".join(content.get("text", "") for item in data.get("output", []) for content in item.get("content", []) if content.get("type") == "output_text").strip()
+        output = re.sub(r"^```(?:json)?\s*|\s*```$", "", output.strip(), flags=re.IGNORECASE)
+        result = json.loads(output)
+        extracted = result.get("fields") if isinstance(result, dict) else None
+        if not isinstance(extracted, dict) or not extracted.get("title") and not extracted.get("summary"):
+            return fallback_fields, fallback_confidence, fallback_warnings
+        fields = {**fallback_fields, **extracted}
+        if fields.get("category") not in {choice[0] for choice in Opportunity.Category.choices}:
+            fields["category"] = fallback_fields["category"]
+        if fields.get("application_mode") not in {choice[0] for choice in Opportunity.ApplicationMode.choices}:
+            fields["application_mode"] = "external" if fields.get("application_url") else "internal"
+        fields["role"] = str(fields.get("role") or "")
+        fields["compensation"] = str(fields.get("compensation") or fields.get("benefit") or "")
+        fields["benefit"] = str(fields.get("benefit") or fields["compensation"] or "")
+        for key in ("eligible_countries", "education_levels", "fields_of_study", "employment_statuses"):
+            if not isinstance(fields.get(key), list):
+                fields[key] = []
+        for key in ("min_age", "max_age"):
+            try:
+                fields[key] = int(fields[key]) if fields.get(key) is not None and str(fields[key]).strip() else None
+            except (TypeError, ValueError):
+                fields[key] = None
+        return fields, result.get("confidence") or fallback_confidence, result.get("warnings") or []
+    except (requests.RequestException, json.JSONDecodeError, TypeError, ValueError):
+        return fallback_fields, fallback_confidence, fallback_warnings
 
 
 class StaffOpportunityCollection(APIView):
