@@ -4,7 +4,7 @@ from django.http import JsonResponse
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 from accounts.notification_views import NotificationViewSet
-from accounts.staff_views import OpportunityFetch, StaffDashboard, StaffIdentityDecision, StaffOrganizationDecision, StaffOpportunityCollection, StaffOpportunityDecision
+from accounts.staff_views import OpportunityFetch, StaffDashboard, StaffIdentityDecision, StaffOrganizationDecision, StaffOperationsSection, StaffOpportunityCollection, StaffOpportunityDecision
 from opportunities.views import OpportunityApplicationViewSet, OpportunityViewSet, OrganizationOpportunityViewSet, PersonalOpportunityViewSet, SavedOpportunityViewSet
 from ai_views import InterviewText, InterviewTranscription, InterviewReport
 
@@ -30,6 +30,7 @@ urlpatterns = [
     path("api/operations/dashboard/", StaffDashboard.as_view()),
     path("api/operations/opportunities/fetch/", OpportunityFetch.as_view()),
     path("api/operations/opportunities/", StaffOpportunityCollection.as_view()),
+    path("api/operations/<str:section>/", StaffOperationsSection.as_view()),
     path("api/operations/identity/<int:pk>/decision/", StaffIdentityDecision.as_view()),
     path("api/operations/organizations/<int:pk>/decision/", StaffOrganizationDecision.as_view()),
     path("api/operations/opportunities/<uuid:public_id>/decision/", StaffOpportunityDecision.as_view()),

@@ -11,7 +11,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from opportunities.models import Opportunity, OpportunityApplication
+from opportunities.models import Opportunity, OpportunityApplication, SavedOpportunity
 from .models import IdentityVerification, Organization, SafetyReport, TrustAudit, User
 from .trust import review_identity
 
@@ -137,6 +137,73 @@ class StaffOpportunityCollection(APIView):
             review_status=Opportunity.ReviewStatus.APPROVED, is_published=True,
         )
         return Response({"public_id": str(opportunity.public_id), "title": opportunity.title, "review_status": opportunity.review_status, "is_published": opportunity.is_published}, status=201)
+
+
+class StaffOperationsSection(APIView):
+    permission_classes = [StaffOnly]
+
+    def get(self, request, section):
+        if section == "users":
+            users = User.objects.order_by("-date_joined")[:200]
+            return Response({"rows": [{"id": user.id, "name": user.display_name or user.username, "email": user.email, "username": user.username, "country": user.country, "active": user.is_active, "verified": bool(user.identity_verified_at), "profile_complete": user.profile_complete, "joined": user.date_joined} for user in users], "metrics": {"total": User.objects.count(), "active": User.objects.filter(is_active=True).count(), "verified": User.objects.filter(identity_verified_at__isnull=False).count()}})
+        if section == "organizations":
+            organizations = Organization.objects.select_related("owner").order_by("-updated_at")
+            return Response({"rows": [{"id": item.id, "name": item.name, "type": item.get_organization_type_display(), "country": item.country, "website": item.website, "owner": item.owner.display_name or item.owner.username, "status": item.status, "opportunities": item.opportunities.count(), "updated_at": item.updated_at} for item in organizations[:200]], "metrics": {"total": organizations.count(), "verified": organizations.filter(status=Organization.Status.VERIFIED).count(), "pending": organizations.filter(status=Organization.Status.PENDING).count()}})
+        if section == "applications":
+            applications = OpportunityApplication.objects.select_related("user", "opportunity").exclude(status="preparing").order_by("-updated_at")[:200]
+            return Response({"rows": [{"id": str(item.public_id), "user": item.user.display_name or item.user.username, "opportunity": item.opportunity.title, "status": item.status, "deadline": item.opportunity.deadline, "updated_at": item.updated_at, "country": item.user.country} for item in applications], "metrics": {"total": OpportunityApplication.objects.exclude(status="preparing").count(), "applied": OpportunityApplication.objects.filter(status="applied").count(), "active": OpportunityApplication.objects.filter(status__in=("shortlisted", "interview")).count()}})
+        if section == "reports":
+            reports = SafetyReport.objects.select_related("reporter", "reported_user", "reviewed_by").order_by("status", "-created_at")[:200]
+            return Response({"rows": [{"id": item.id, "reason": item.get_reason_display(), "details": item.details, "status": item.status, "reporter": item.reporter.display_name or item.reporter.username, "reported": item.reported_user.display_name or item.reported_user.username, "created_at": item.created_at, "staff_note": item.staff_note} for item in reports], "metrics": {"open": SafetyReport.objects.filter(status__in=("open", "reviewing")).count(), "resolved": SafetyReport.objects.filter(status="resolved").count(), "total": SafetyReport.objects.count()}})
+        if section == "sources":
+            opportunities = Opportunity.objects.exclude(source_url="").only("source_url", "provider", "review_status", "created_at", "updated_at")
+            grouped = {}
+            for item in opportunities:
+                source = item.source_url.split("/")[2] if "://" in item.source_url else item.source_url
+                row = grouped.setdefault(source, {"source": source, "url": item.source_url, "opportunities": 0, "published": 0, "last_imported": item.updated_at})
+                row["opportunities"] += 1
+                row["published"] += int(item.is_published)
+                row["last_imported"] = max(row["last_imported"], item.updated_at)
+            return Response({"rows": sorted(grouped.values(), key=lambda row: row["opportunities"], reverse=True), "metrics": {"sources": len(grouped), "imported": opportunities.count(), "published": opportunities.filter(is_published=True).count()}})
+        if section == "analytics":
+            return Response({"metrics": {"users": User.objects.count(), "active_users": User.objects.filter(is_active=True).count(), "opportunities": Opportunity.objects.count(), "published_opportunities": Opportunity.objects.filter(is_published=True).count(), "views": Opportunity.objects.aggregate(total=Sum("view_count"))["total"] or 0, "saves": SavedOpportunity.objects.count(), "applications": OpportunityApplication.objects.exclude(status="preparing").count(), "reports": SafetyReport.objects.count()}, "categories": [{"label": label, "count": Opportunity.objects.filter(category=value).count()} for value, label in Opportunity.Category.choices]})
+        if section == "content":
+            items = Opportunity.objects.order_by("-updated_at")[:100]
+            return Response({"rows": [{"id": str(item.public_id), "title": item.title, "type": "Opportunity", "status": "Published" if item.is_published else item.review_status, "updated_at": item.updated_at} for item in items], "metrics": {"total": Opportunity.objects.count(), "published": Opportunity.objects.filter(is_published=True).count(), "needs_review": Opportunity.objects.filter(review_status=Opportunity.ReviewStatus.PENDING).count()}})
+        if section == "settings":
+            return Response({"groups": [{"title": "Opportunity policy", "items": [{"label": "Review required for member posts", "value": "Yes"}, {"label": "Neba Verified posts", "value": "Published by authorized operations staff"}, {"label": "Public listing source", "value": "Approved opportunities only"}]}, {"title": "Trust & safety", "items": [{"label": "Identity evidence access", "value": "Restricted to authorized reviewers"}, {"label": "Open report statuses", "value": "Open and Under review"}]}, {"title": "Platform", "items": [{"label": "Environment", "value": getattr(settings, "ENVIRONMENT", "Configured deployment")}, {"label": "Verification retention", "value": f"{settings.VERIFICATION_RETENTION_DAYS} days"}]}]})
+        raise ValidationError("Unknown operations section.")
+
+    def post(self, request, section):
+        action = str(request.data.get("action", ""))
+        if section == "users" and action in ("suspend", "restore"):
+            user = User.objects.filter(pk=request.data.get("id")).first()
+            if not user:
+                raise ValidationError("User not found.")
+            user.is_active = action == "restore"
+            user.save(update_fields=("is_active",))
+            TrustAudit.objects.create(actor=request.user, subject=user, action=f"user_{action}")
+            return Response({"id": user.id, "active": user.is_active})
+        if section == "organizations" and action == "verify":
+            organization = Organization.objects.filter(pk=request.data.get("id")).first()
+            if not organization:
+                raise ValidationError("Organization not found.")
+            organization.status = Organization.Status.VERIFIED
+            organization.verified_at = timezone.now()
+            organization.save(update_fields=("status", "verified_at", "updated_at"))
+            TrustAudit.objects.create(actor=request.user, subject=organization.owner, action="organization_approved", note=organization.name)
+            return Response({"id": organization.id, "status": organization.status})
+        if section == "reports" and action in ("reviewing", "resolved", "dismissed"):
+            report = SafetyReport.objects.filter(pk=request.data.get("id")).first()
+            if not report:
+                raise ValidationError("Report not found.")
+            report.status = action
+            report.reviewed_by = request.user
+            report.staff_note = str(request.data.get("note", ""))[:2000]
+            report.save(update_fields=("status", "reviewed_by", "staff_note"))
+            TrustAudit.objects.create(actor=request.user, subject=report.reported_user, action=f"report_{action}", note=report.reason)
+            return Response({"id": report.id, "status": report.status})
+        raise ValidationError("That operations action is not available.")
 
 
 class StaffDashboard(APIView):

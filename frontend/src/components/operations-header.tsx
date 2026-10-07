@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, Building2, ClipboardList, DollarSign, FileCheck2, FileText, Flag, Gauge, History, UsersRound } from "lucide-react";
+import { BarChart3, Building2, ClipboardList, FileCheck2, FileText, Flag, Gauge, Settings, UploadCloud, UsersRound } from "lucide-react";
 import { Brand } from "./brand";
 
 const links = [
@@ -11,10 +11,11 @@ const links = [
   { href: "/operations/organizations", label: "Organizations", icon: Building2 },
   { href: "/operations/opportunities", label: "Opportunities", icon: FileCheck2 },
   { href: "/operations/applications", label: "Applications", icon: ClipboardList },
-  { href: "/operations/revenue", label: "Revenue", icon: DollarSign },
   { href: "/operations/analytics", label: "Analytics", icon: BarChart3 },
-  { href: "/operations/safety", label: "Safety & reports", icon: Flag },
-  { href: "/operations/audit", label: "Audit log", icon: History },
+  { href: "/operations/reports", label: "Reports", icon: Flag },
+  { href: "/operations/sources", label: "Sources", icon: UploadCloud },
+  { href: "/operations/content", label: "Content", icon: FileText },
+  { href: "/operations/settings", label: "Settings", icon: Settings },
 ];
 
 export function OperationsHeader() {
