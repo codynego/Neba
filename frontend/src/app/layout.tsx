@@ -15,6 +15,7 @@ import "./post-opportunity.css";
 import "./post-opportunity-enhancements.css";
 import "./dashboard-command.css";
 import "./credits-page.css";
+import "./credits-topup.css";
 import "./auth-focus.css";
 import "./opportunity-apply.css";
 import "./opportunity-messages.css";
