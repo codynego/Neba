@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, use, useEffect, useState } from "react";
 import { ArrowLeft, Check, ExternalLink, FileCheck2, Link2, LoaderCircle, Plus, Sparkles, Upload, X } from "lucide-react";
 import { api } from "@/lib/api";
 
@@ -10,7 +10,7 @@ type Fields = { title: string; provider: string; summary: string; category: stri
 const emptyFields: Fields = { title: "", provider: "", summary: "", category: "job", application_mode: "external", application_url: "", source_url: "", deadline: null, country: "", location_label: "", is_remote: false, benefit: "", eligibility_notes: "" };
 const labels: Record<string, string> = { job: "Job", internship: "Internship", scholarship: "Scholarship", fellowship: "Fellowship", grant: "Grant", training: "Training", startup: "Startup", competition: "Competition", funding: "Funding", tender: "Tender" };
 
-export default function OperationsSectionPage({ params }: { params: { section: string } }) { return params.section === "opportunities" ? <OperationsOpportunities /> : <OperationsWorkspace section={params.section} />; }
+export default function OperationsSectionPage({ params }: { params: Promise<{ section: string }> }) { const { section } = use(params); return section === "opportunities" ? <OperationsOpportunities /> : <OperationsWorkspace section={section} />; }
 
 function OperationsOpportunities() {
   const [items, setItems] = useState<Opportunity[]>([]); const [busy, setBusy] = useState(true); const [error, setError] = useState(""); const [status, setStatus] = useState("all"); const [query, setQuery] = useState(""); const [composer, setComposer] = useState<"manual" | "link" | "paste" | null>(null);
