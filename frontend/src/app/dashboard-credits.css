@@ -1,7 +1,0 @@
-.command-credit-card{display:flex;align-items:center;justify-content:space-between;gap:24px;margin:-22px 0 44px;padding:22px 24px;border-radius:18px;background:#102d24;color:#fff}
-.command-credit-card .eyebrow{color:#a8e8c6}
-.command-credit-card strong{display:block;margin-top:8px;font-size:32px;letter-spacing:-.06em}
-.command-credit-card strong small{font-size:12px;font-weight:600;letter-spacing:0}
-.command-credit-card p{margin:5px 0 0;color:#c5d9cf;font-size:11px}
-.command-credit-card .section-link{flex:none;color:#a8e8c6}
-@media(max-width:600px){.command-credit-card{align-items:flex-start;flex-direction:column;margin:-12px 0 35px;padding:19px}.command-credit-card .section-link{margin-top:2px}}

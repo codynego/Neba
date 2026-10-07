@@ -15,6 +15,7 @@ import {
   Briefcase,
   Check,
   ChevronRight,
+  Coins,
   FileText,
   LogOut,
   MapPin,
@@ -85,6 +86,8 @@ function completionScore(user: User): number {
   return Math.round((done / fields.length) * 100);
 }
 
+type CreditSummary = { balance: number; earned_today: number; daily_cap: number };
+
 function SectionHeader({ icon, eyebrow, onEdit }: { icon: React.ReactNode; eyebrow: string; onEdit?: () => void }) {
   return (
     <div className="pp-section-header">
@@ -112,6 +115,7 @@ function Row({ label, value }: { label: string; value?: string | number | null }
 export default function ProfilePage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
+  const [credits, setCredits] = useState<CreditSummary | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [error, setError] = useState("");
 
@@ -119,7 +123,7 @@ export default function ProfilePage() {
     if (!getToken()) { router.replace("/login?next=/profile"); return; }
     const controller = new AbortController();
     api<User>("/auth/me/", { signal: controller.signal })
-      .then(setUser)
+      .then((profile) => { setUser(profile); api<CreditSummary>("/auth/credits/", { signal: controller.signal }).then(setCredits).catch(() => {}); })
       .catch((err) => { if (!controller.signal.aborted) setError(err.message); });
     return () => controller.abort();
   }, [router]);
@@ -157,7 +161,7 @@ export default function ProfilePage() {
         </div>
         <div className="pp-header-right">
           <MemberPhoto id={user.id} name={user.display_name || user.username} available={user.photo_available} />
-          <div className="pp-header-person"><strong>{user.display_name || user.username}</strong><span>@{user.username}</span><button className="pp-edit-photo-btn" onClick={() => setEditing("personal")}><Pencil size={13} /> Edit profile</button></div>
+          <div className="pp-header-person"><strong>{user.display_name || user.username}</strong><span>@{user.username}</span><div className="pp-header-actions">{credits && <Link className="pp-credit-button" href="/credits"><Coins size={15} /><span>{credits.balance}</span><small>credits</small></Link>}<button className="pp-edit-photo-btn" onClick={() => setEditing("personal")}><Pencil size={13} /> Edit profile</button></div></div>
         </div>
       </header>
 
