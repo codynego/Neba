@@ -10,9 +10,91 @@
 .internal-apply-form {
   display: grid;
   gap: 19px;
-  margin-top: 21px;
+  margin: 0;
+  padding: 0;
+}
+
+.internal-apply-backdrop {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: #10251d8c;
+  animation: internal-apply-fade .16s ease-out;
+}
+
+.internal-apply-modal {
+  width: min(100%, 520px);
+  max-height: calc(100vh - 36px);
+  overflow-y: auto;
+  padding: 24px;
+  border: 1px solid #c9e4d2;
+  border-radius: 20px;
+  background: #fbfffc;
+  box-shadow: 0 24px 70px #061a1266;
+  animation: internal-apply-rise .2s ease-out;
+}
+
+.internal-apply-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #d6ebdd;
+}
+
+.internal-apply-modal-header h3 {
+  margin: 7px 0 5px;
+  color: var(--text);
+  font-size: 22px;
+  letter-spacing: -.035em;
+}
+
+.internal-apply-modal-header p {
+  max-width: 360px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.internal-apply-close {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border: 1px solid #d7e6dc;
+  border-radius: 10px;
+  background: #fff;
+  color: var(--muted);
+  cursor: pointer;
+  transition: border-color .18s ease, color .18s ease, background .18s ease;
+}
+
+.internal-apply-close:hover,
+.internal-apply-close:focus-visible {
+  border-color: #9bcfb0;
+  background: #f0fbf4;
+  color: var(--primary);
+  outline: none;
+}
+
+.internal-apply-modal > .internal-apply-form {
   padding-top: 21px;
-  border-top: 1px solid #d6ebdd;
+}
+
+@keyframes internal-apply-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes internal-apply-rise {
+  from { opacity: 0; transform: translateY(8px) scale(.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .internal-apply-intro,
@@ -219,6 +301,18 @@
 }
 
 @media (max-width: 620px) {
+  .internal-apply-backdrop {
+    align-items: end;
+    padding: 0;
+  }
+
+  .internal-apply-modal {
+    width: 100%;
+    max-height: calc(100vh - 12px);
+    padding: 20px 17px 24px;
+    border-radius: 20px 20px 0 0;
+  }
+
   .internal-apply-form {
     gap: 17px;
   }
