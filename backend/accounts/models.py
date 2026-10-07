@@ -50,6 +50,18 @@ class User(AbstractUser):
         return bool(self.display_name and self.country and self.education_level and self.field_of_study and self.employment_status and self.skills and self.opportunity_interests and self.goals)
 
 
+class CreditTransaction(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="credit_transactions")
+    amount = models.IntegerField()
+    action = models.CharField(max_length=40)
+    idempotency_key = models.CharField(max_length=180, unique=True)
+    description = models.CharField(max_length=240, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-created_at", "-id")
+
+
 class ProfileDocument(models.Model):
     class DocumentType(models.TextChoices):
         CV = "cv", "CV / Resume"

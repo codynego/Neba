@@ -366,7 +366,11 @@ class StaffOpportunityDecision(APIView):
         opportunity.is_published = approve
         opportunity.review_note = str(request.data.get("note", ""))[:500]
         opportunity.save(update_fields=("review_status", "is_published", "review_note", "updated_at"))
+        awarded_credits = 0
+        if approve and opportunity.created_by:
+            from .credits import award_contribution_credits
+            awarded_credits = award_contribution_credits(opportunity)
         subject = opportunity.created_by or (opportunity.organization.owner if opportunity.organization else None)
         if subject:
             TrustAudit.objects.create(actor=request.user, subject=subject, action="opportunity_approved" if approve else "opportunity_rejected", note=f"{opportunity.title}: {opportunity.review_note}")
-        return Response({"public_id": str(opportunity.public_id), "review_status": opportunity.review_status, "is_published": opportunity.is_published, "review_note": opportunity.review_note})
+        return Response({"public_id": str(opportunity.public_id), "review_status": opportunity.review_status, "is_published": opportunity.is_published, "review_note": opportunity.review_note, "awarded_credits": awarded_credits})
