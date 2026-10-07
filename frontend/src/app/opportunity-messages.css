@@ -134,7 +134,7 @@
 
 .application-message-bubble {
   width: fit-content;
-  max-width: min(68%, 470px);
+  max-width: min(52%, 400px);
   padding: 13px 15px;
   border: 1px solid var(--border);
   border-radius: 14px 14px 14px 4px;
@@ -255,7 +255,7 @@
   }
 
   .application-message-bubble {
-    max-width: 88%;
+    max-width: 84%;
   }
 
   .application-message-compose {
