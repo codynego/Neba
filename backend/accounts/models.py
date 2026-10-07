@@ -45,6 +45,10 @@ class User(AbstractUser):
     business_description = models.TextField(max_length=1000, blank=True)
     business_website = models.URLField(max_length=300, blank=True)
 
+    @property
+    def profile_complete(self):
+        return bool(self.display_name and self.country and self.education_level and self.field_of_study and self.employment_status and self.skills and self.opportunity_interests and self.goals)
+
 
 class ProfileDocument(models.Model):
     class DocumentType(models.TextChoices):
@@ -68,10 +72,6 @@ class ProfileDocument(models.Model):
 
     def __str__(self):
         return self.display_name or self.username
-
-    @property
-    def profile_complete(self):
-        return bool(self.display_name and self.country and self.education_level and self.field_of_study and self.employment_status and self.skills and self.opportunity_interests and self.goals)
 
 
 class Organization(models.Model):
