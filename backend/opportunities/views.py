@@ -518,6 +518,11 @@ class OrganizationOpportunityViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["post"], url_path="fetch-link")
     def fetch_link(self, request):
+        content = str(request.data.get("content", "")).strip()
+        if content:
+            from accounts.staff_views import _paste_fields
+            fields, confidence, warnings = _paste_fields(content)
+            return Response({"fields": fields, "confidence": confidence, "warnings": warnings, "message": "We structured the pasted opportunity. Review every field before submitting."})
         url = str(request.data.get("url", "")).strip()
         fields = _extract_opportunity_from_url(url)
         return Response({"fields": fields, "message": "We filled the form with details found on that page. Please review every field before submitting."})
@@ -529,6 +534,8 @@ class OrganizationOpportunityViewSet(viewsets.ModelViewSet):
         serializer.save(organization=organization, provider=organization.name, review_status=Opportunity.ReviewStatus.PENDING, is_published=False)
 
     def perform_update(self, serializer):
+        if serializer.instance.review_status == Opportunity.ReviewStatus.APPROVED:
+            raise PermissionDenied("Published opportunities are locked. Approved opportunities can only be edited by an administrator.")
         serializer.save(review_status=Opportunity.ReviewStatus.PENDING, is_published=False, review_note="")
 
 
@@ -545,6 +552,8 @@ class PersonalOpportunityViewSet(OrganizationOpportunityViewSet):
         )
 
     def perform_update(self, serializer):
+        if serializer.instance.review_status == Opportunity.ReviewStatus.APPROVED:
+            raise PermissionDenied("Published opportunities are locked. Approved opportunities cannot be edited.")
         serializer.save(is_published=False, review_status=Opportunity.ReviewStatus.PENDING, review_note="")
 
     @action(detail=False, methods=["get"])

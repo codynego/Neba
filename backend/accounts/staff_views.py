@@ -64,7 +64,7 @@ def _fallback_paste_fields(content):
         "provider": provider,
         "summary": summary,
         "category": category,
-        "application_mode": "external" if application_url else "internal",
+        "application_mode": "external",
         "application_url": application_url,
         "source_url": "",
         "deadline": deadline,
@@ -132,7 +132,9 @@ def _paste_fields(content):
         if fields.get("category") not in {choice[0] for choice in Opportunity.Category.choices}:
             fields["category"] = fallback_fields["category"]
         if fields.get("application_mode") not in {choice[0] for choice in Opportunity.ApplicationMode.choices}:
-            fields["application_mode"] = "external" if fields.get("application_url") else "internal"
+            fields["application_mode"] = "external"
+        if not fields.get("application_url"):
+            fields["application_mode"] = "external"
         fields["role"] = str(fields.get("role") or "")
         fields["compensation"] = str(fields.get("compensation") or fields.get("benefit") or "")
         fields["benefit"] = str(fields.get("benefit") or fields["compensation"] or "")
@@ -188,10 +190,14 @@ class StaffOpportunityCollection(APIView):
         summary = str(fields.get("summary", "")).strip()
         if not title or not summary:
             return Response({"detail": "Add a title and summary before publishing."}, status=400)
+        application_mode = str(fields.get("application_mode") or "external")
+        application_url = str(fields.get("application_url") or "").strip()
+        if application_mode == "external" and not application_url:
+            return Response({"detail": "Add an application URL or change the application method to Inside Getneba."}, status=400)
         opportunity = Opportunity.objects.create(
             title=title[:220], provider=str(fields.get("provider") or "Getneba").strip()[:180], summary=summary[:1800],
-            category=str(fields.get("category") or "job"), application_mode=str(fields.get("application_mode") or "external"),
-            application_url=str(fields.get("application_url") or ""), deadline=fields.get("deadline") or None,
+            category=str(fields.get("category") or "job"), application_mode=application_mode,
+            application_url=application_url, deadline=fields.get("deadline") or None,
             country=str(fields.get("country") or ""), location_label=str(fields.get("location_label") or ""),
             is_remote=bool(fields.get("is_remote")), benefit=str(fields.get("benefit") or "")[:220],
             eligibility_notes=str(fields.get("eligibility_notes") or "")[:1200], eligible_countries=fields.get("eligible_countries") or [],
