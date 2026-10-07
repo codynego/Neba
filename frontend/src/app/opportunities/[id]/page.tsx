@@ -47,25 +47,27 @@ export default function OpportunityDetailPage() {
     setDownloading(true);
     const canvas = document.createElement("canvas"); canvas.width = 1080; canvas.height = 1080;
     const context = canvas.getContext("2d"); if (!context) { setDownloading(false); return; }
-    const ink = "#111714"; const dark = "#07563f"; const green = "#087f5b"; const pale = "#ddf5ea"; const paper = "#f5f8f5"; const orange = "#f3a83b";
+    const ink = "#14251f"; const dark = "#0b3b2c"; const green = "#087f5b"; const pale = "#dff5e8"; const paper = "#f4f7f3"; const orange = "#f2a65a"; const muted = "#65756d";
+    const roundedRect = (x: number, y: number, width: number, height: number, radius: number) => { context.beginPath(); context.roundRect(x, y, width, height, radius); context.fill(); };
+    const makeLines = (text: string, maxWidth: number) => { const words = text.trim().split(/\s+/); const lines: string[] = []; let line = ""; for (const word of words) { const candidate = line ? `${line} ${word}` : word; if (context.measureText(candidate).width > maxWidth && line) { lines.push(line); line = word; } else line = candidate; } if (line) lines.push(line); return lines; };
+    const drawLines = (lines: string[], x: number, y: number, lineHeight: number) => { lines.forEach((line, index) => context.fillText(line, x, y + index * lineHeight)); };
     context.fillStyle = paper; context.fillRect(0, 0, 1080, 1080);
-    context.fillStyle = dark; context.fillRect(0, 0, 1080, 390);
-    context.fillStyle = green; context.beginPath(); context.arc(1015, 30, 190, 0, Math.PI * 2); context.fill();
-    context.fillStyle = pale; context.beginPath(); context.arc(1005, 30, 118, 0, Math.PI * 2); context.fill();
-    context.fillStyle = "#ffffff"; context.fillRect(72, 62, 58, 7); context.font = "800 31px Arial"; context.fillText("GETNEBA", 72, 119); context.font = "700 15px Arial"; context.fillStyle = "#a7e6c3"; context.fillText("OPPORTUNITY RADAR", 72, 148);
-    context.fillStyle = orange; context.font = "800 17px Arial"; context.fillText((labels[opportunity.category] || opportunity.category).toUpperCase(), 72, 220);
-    context.fillStyle = "#ffffff"; context.font = "800 61px Arial";
-    const wrap = (text: string, maxWidth: number, lineHeight: number, startY: number) => { const words = text.split(" "); let line = ""; let y = startY; for (const word of words) { const test = line ? `${line} ${word}` : word; if (context.measureText(test).width > maxWidth && line) { context.fillText(line, 72, y); line = word; y += lineHeight; } else line = test; } if (line) { context.fillText(line, 72, y); y += lineHeight; } return y; };
-    const titleEnd = wrap(opportunity.title, 820, 70, 292); context.font = "600 22px Arial"; context.fillStyle = "#b8d8c6"; context.fillText(opportunity.provider, 72, Math.min(titleEnd + 2, 365));
-    context.fillStyle = "#ffffff"; context.fillRect(48, 350, 984, 610);
-    context.fillStyle = green; context.font = "800 14px Arial"; context.fillText("WHY THIS IS WORTH A LOOK", 80, 414);
-    context.fillStyle = ink; context.font = "400 27px Arial"; wrap(opportunity.summary.slice(0, 190), 850, 40, 470);
-    context.fillStyle = "#dce9e1"; context.fillRect(80, 620, 850, 2);
-    context.fillStyle = dark; context.font = "800 14px Arial"; context.fillText("AT A GLANCE", 80, 675);
-    context.fillStyle = pale; context.fillRect(80, 705, 410, 92); context.fillStyle = green; context.font = "800 14px Arial"; context.fillText("DEADLINE", 105, 738); context.fillStyle = ink; context.font = "700 22px Arial"; context.fillText(opportunity.deadline ? formatDate(opportunity.deadline) : "Open opportunity", 105, 772);
-    context.fillStyle = "#eef4ef"; context.fillRect(510, 705, 420, 92); context.fillStyle = green; context.font = "800 14px Arial"; context.fillText("LOCATION", 535, 738); context.fillStyle = ink; context.font = "700 22px Arial"; context.fillText(place(opportunity), 535, 772);
-    context.fillStyle = dark; context.fillRect(80, 842, 850, 74); context.fillStyle = "#ffffff"; context.font = "800 22px Arial"; context.fillText("Find what fits your next step.", 105, 887);
-    context.fillStyle = green; context.font = "800 25px Arial"; context.fillText("getneba.app", 72, 1020); context.fillStyle = "#68736e"; context.font = "600 16px Arial"; context.fillText("Explore. Prepare. Apply.", 72, 1048);
+    context.fillStyle = dark; context.fillRect(0, 0, 1080, 420);
+    context.fillStyle = green; context.beginPath(); context.arc(1020, 35, 190, 0, Math.PI * 2); context.fill();
+    context.fillStyle = pale; context.beginPath(); context.arc(1000, 25, 112, 0, Math.PI * 2); context.fill();
+    context.fillStyle = "#ffffff"; context.fillRect(72, 58, 58, 7); context.font = "800 31px Arial"; context.fillText("GETNEBA", 72, 116); context.font = "700 15px Arial"; context.fillStyle = "#a7e6c3"; context.fillText("OPPORTUNITY RADAR", 72, 145);
+    context.fillStyle = orange; context.font = "800 17px Arial"; context.fillText((labels[opportunity.category] || opportunity.category).toUpperCase(), 72, 210);
+    let titleSize = 62; let titleLines: string[] = []; do { context.font = `800 ${titleSize}px Arial`; titleLines = makeLines(opportunity.title, 820); if (titleLines.length > 2) titleSize -= 3; } while (titleLines.length > 2 && titleSize >= 44); titleLines = titleLines.slice(0, 2); if (titleLines.length === 2 && context.measureText(titleLines[1]).width > 790) titleLines[1] = `${titleLines[1].slice(0, 24)}…`; context.fillStyle = "#ffffff"; drawLines(titleLines, 72, 278, titleSize + 8);
+    const providerY = 278 + titleLines.length * (titleSize + 8) + 17; context.font = "600 22px Arial"; context.fillStyle = "#b8d8c6"; context.fillText(opportunity.provider.slice(0, 62), 72, providerY);
+    context.fillStyle = "#ffffff"; roundedRect(48, 430, 984, 500, 24);
+    context.fillStyle = green; context.font = "800 14px Arial"; context.fillText("THE OPPORTUNITY", 80, 480);
+    context.fillStyle = ink; context.font = "400 26px Arial"; const summaryLines = makeLines(opportunity.summary.slice(0, 190), 850).slice(0, 3); drawLines(summaryLines, 80, 530, 37);
+    context.fillStyle = "#dce9e1"; context.fillRect(80, 660, 850, 2);
+    context.fillStyle = dark; context.font = "800 14px Arial"; context.fillText("AT A GLANCE", 80, 700);
+    context.fillStyle = pale; roundedRect(80, 728, 410, 88, 14); context.fillStyle = green; context.font = "800 13px Arial"; context.fillText("DEADLINE", 105, 758); context.fillStyle = ink; context.font = "700 20px Arial"; context.fillText(opportunity.deadline ? formatDate(opportunity.deadline) : "Open opportunity", 105, 793);
+    context.fillStyle = "#eef4ef"; roundedRect(510, 728, 420, 88, 14); context.fillStyle = green; context.font = "800 13px Arial"; context.fillText("LOCATION", 535, 758); context.fillStyle = ink; context.font = "700 20px Arial"; context.fillText(place(opportunity).slice(0, 28), 535, 793);
+    context.fillStyle = dark; roundedRect(80, 850, 850, 52, 12); context.fillStyle = "#ffffff"; context.font = "800 19px Arial"; context.fillText("Find what fits your next step.", 105, 883);
+    context.fillStyle = green; context.font = "800 25px Arial"; context.fillText("getneba.app", 72, 1010); context.fillStyle = muted; context.font = "600 16px Arial"; context.fillText("Explore. Prepare. Apply.", 72, 1038);
     canvas.toBlob((blob) => { if (blob) { const link = document.createElement("a"); link.download = `${opportunityId}-getneba.png`; link.href = URL.createObjectURL(blob); link.click(); URL.revokeObjectURL(link.href); } setDownloading(false); }, "image/png");
   }
   return <main className="opportunity-detail opportunity-detail-intelligence container">
