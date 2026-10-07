@@ -383,7 +383,7 @@ class OpportunityApplicationViewSet(viewsets.ModelViewSet):
             raise permissions.PermissionDenied("Messaging is closed for this application.")
         text = serializers.CharField(max_length=2000).run_validation(request.data.get("text"))
         message = OpportunityMessage.objects.create(application=application, sender=request.user, text=text)
-            return Response({"id": message.id, "sender": message.sender_id, "sender_name": message.sender.display_name or request.user.username, "text": message.text, "created_at": message.created_at, "is_mine": True}, status=201)
+        return Response({"id": message.id, "sender": message.sender_id, "sender_name": message.sender.display_name or request.user.username, "text": message.text, "created_at": message.created_at, "is_mine": True}, status=201)
 
 
 class OrganizationOpportunitySerializer(serializers.ModelSerializer):
