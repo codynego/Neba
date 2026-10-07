@@ -1,0 +1,34 @@
+.application-update-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  color: var(--primary);
+  font-size: 9px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.application-update-indicator i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--primary);
+}
+
+.application-page-update {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 11px;
+  color: var(--primary);
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.application-page-update i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--primary);
+}

@@ -1,5 +1,5 @@
 .application-message-page {
-  max-width: 820px;
+  max-width: 760px;
   padding-top: 42px;
   padding-bottom: 84px;
 }
@@ -31,6 +31,8 @@
 }
 
 .application-message-header {
+  max-width: 660px;
+  margin-inline: auto;
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
@@ -57,25 +59,28 @@
 }
 
 .application-message-card {
+  width: min(100%, 660px);
+  margin-inline: auto;
   display: grid;
   gap: 20px;
-  padding: 24px;
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  background: var(--surface);
+  padding: 16px;
+  border: 1px solid #d5e7db;
+  border-radius: 18px;
+  background: #f7fcf9;
+  box-shadow: 0 14px 34px #087f5b0a;
 }
 
 .application-message-list {
   display: grid;
   gap: 12px;
-  min-height: 180px;
+  min-height: 260px;
   max-height: 560px;
   overflow-y: auto;
-  padding-right: 3px;
+  padding: 8px 6px 8px 4px;
 }
 
 .application-message-bubble {
-  max-width: 78%;
+  max-width: min(82%, 470px);
   padding: 13px 15px;
   border: 1px solid var(--border);
   border-radius: 14px 14px 14px 4px;
@@ -127,8 +132,8 @@
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: end;
   gap: 10px;
-  padding-top: 18px;
-  border-top: 1px solid var(--border);
+  padding: 14px 2px 2px;
+  border-top: 1px solid #d5e7db;
 }
 
 .application-message-compose textarea {
@@ -183,7 +188,12 @@
   }
 
   .application-message-card {
+    width: 100%;
     padding: 18px;
+  }
+
+  .application-message-bubble {
+    max-width: 92%;
   }
 
   .application-message-compose {

@@ -107,6 +107,9 @@ class OpportunityApplication(models.Model):
     application_message = models.TextField(max_length=2000, blank=True)
     additional_information = models.TextField(max_length=3000, blank=True)
     shared_fields = models.JSONField(default=list, blank=True)
+    status_updated_at = models.DateTimeField(null=True, blank=True)
+    applicant_updates_seen_at = models.DateTimeField(null=True, blank=True)
+    poster_updates_seen_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

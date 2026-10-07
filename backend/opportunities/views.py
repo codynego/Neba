@@ -15,6 +15,7 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
 from accounts.models import User
+from accounts.notifications import notify
 from .models import Opportunity, OpportunityApplication, OpportunityMessage, SavedOpportunity
 
 
@@ -248,10 +249,17 @@ class OpportunityApplicationSerializer(serializers.ModelSerializer):
     messages = serializers.SerializerMethodField()
     shared_profile = serializers.SerializerMethodField()
     unread_message_count = serializers.SerializerMethodField()
+    unread_activity_count = serializers.SerializerMethodField()
     def get_applicant_name(self, application): return application.user.display_name or application.user.username
     def get_is_poster(self, application): return application.opportunity.created_by_id == self.context["request"].user.id or application.opportunity.organization_id == getattr(getattr(self.context["request"].user, "organization", None), "id", None)
     def get_messages(self, application): return [{"id": message.id, "sender": message.sender_id, "sender_name": message.sender.display_name or message.sender.username, "text": message.text, "created_at": message.created_at, "is_mine": message.sender_id == self.context["request"].user.id} for message in application.messages.select_related("sender").all()]
     def get_unread_message_count(self, application): return application.messages.filter(read_at__isnull=True).exclude(sender=self.context["request"].user).count()
+    def get_unread_activity_count(self, application):
+        unread_messages = self.get_unread_message_count(application)
+        is_poster = self.get_is_poster(application)
+        seen_at = application.poster_updates_seen_at if is_poster else application.applicant_updates_seen_at
+        unread_status = bool(application.status_updated_at and (not seen_at or application.status_updated_at > seen_at)) if is_poster is False else False
+        return unread_messages + (1 if unread_status else 0)
     def get_shared_profile(self, application):
         user = application.user
         shared = set(application.shared_fields or [])
@@ -270,7 +278,7 @@ class OpportunityApplicationSerializer(serializers.ModelSerializer):
         return profile
     class Meta:
         model = OpportunityApplication
-        fields = ("id", "public_id", "opportunity_id", "opportunity", "status", "applied_at", "next_action", "next_action_at", "notes", "application_message", "additional_information", "shared_fields", "shared_profile", "applicant_name", "is_poster", "messages", "unread_message_count", "created_at", "updated_at")
+        fields = ("id", "public_id", "opportunity_id", "opportunity", "status", "applied_at", "next_action", "next_action_at", "notes", "application_message", "additional_information", "shared_fields", "shared_profile", "applicant_name", "is_poster", "messages", "unread_message_count", "unread_activity_count", "created_at", "updated_at")
 
 
 class OpportunityViewSet(viewsets.ReadOnlyModelViewSet):
@@ -359,7 +367,8 @@ class OpportunityApplicationViewSet(viewsets.ModelViewSet):
         if not opportunity: raise serializers.ValidationError({"opportunity_id": "Choose a valid opportunity."})
         status = request.data.get("status", "preparing")
         submitted = status in ("applied", "shortlisted", "interview", "awarded")
-        item, created = OpportunityApplication.objects.get_or_create(user=request.user, opportunity=opportunity, defaults={"status": status, "applied_at": timezone.now() if submitted else None, "application_message": str(request.data.get("application_message", ""))[:2000], "additional_information": str(request.data.get("additional_information", ""))[:3000], "shared_fields": request.data.get("shared_fields", [])})
+        now = timezone.now()
+        item, created = OpportunityApplication.objects.get_or_create(user=request.user, opportunity=opportunity, defaults={"status": status, "applied_at": now if submitted else None, "application_message": str(request.data.get("application_message", ""))[:2000], "additional_information": str(request.data.get("additional_information", ""))[:3000], "shared_fields": request.data.get("shared_fields", []), "status_updated_at": now, "applicant_updates_seen_at": now})
         if not created: raise serializers.ValidationError("This opportunity is already in your application tracker.")
         SavedOpportunity.objects.update_or_create(user=request.user, opportunity=opportunity, defaults={"status": "applied" if submitted else "preparing"})
         return Response(self.get_serializer(item).data, status=201)
@@ -371,7 +380,31 @@ class OpportunityApplicationViewSet(viewsets.ModelViewSet):
             if set(request.data) - {"status"}: raise permissions.PermissionDenied("Posters can update application status only.")
         elif request.data.get("status") in ("applied", "shortlisted", "interview", "awarded"):
             request.data["applied_at"] = request.data.get("applied_at") or timezone.now().isoformat()
-        return super().update(request, *args, **kwargs)
+        updated = super().update(request, *args, **kwargs)
+        if is_poster and "status" in request.data:
+            OpportunityApplication.objects.filter(pk=application.pk).update(status_updated_at=timezone.now())
+            notify(application.user, f"Application update: {application.opportunity.title}", f"/applications/{application.public_id}", f"Your application is now {updated.data.get('status', application.status)}.")
+        return updated
+
+    @action(detail=False, methods=["get"])
+    def unread(self, request):
+        applications = self.get_queryset().filter(user=request.user)
+        total = 0
+        for application in applications:
+            total += self.get_serializer(application).data["unread_activity_count"]
+        return Response({"count": total})
+
+    @action(detail=True, methods=["post"], url_path="mark-read")
+    def mark_read(self, request, public_id=None):
+        application = self.get_object()
+        now = timezone.now()
+        if self.get_serializer(application).data["is_poster"]:
+            application.poster_updates_seen_at = now
+            application.save(update_fields=("poster_updates_seen_at", "updated_at"))
+        else:
+            application.applicant_updates_seen_at = now
+            application.save(update_fields=("applicant_updates_seen_at", "updated_at"))
+        return Response({"ok": True})
 
     @action(detail=True, methods=["get", "post"])
     def messages(self, request, public_id=None):
@@ -383,6 +416,9 @@ class OpportunityApplicationViewSet(viewsets.ModelViewSet):
             raise permissions.PermissionDenied("Messaging is closed for this application.")
         text = serializers.CharField(max_length=2000).run_validation(request.data.get("text"))
         message = OpportunityMessage.objects.create(application=application, sender=request.user, text=text)
+        recipient = application.user if request.user.id != application.user_id else (application.opportunity.created_by or getattr(getattr(application.opportunity, "organization", None), "owner", None))
+        if recipient and recipient.id != request.user.id:
+            notify(recipient, f"New message about {application.opportunity.title}", f"/opportunity-applications/{application.public_id}/messages", "You have a new message about an application.")
         return Response({"id": message.id, "sender": message.sender_id, "sender_name": message.sender.display_name or request.user.username, "text": message.text, "created_at": message.created_at, "is_mine": True}, status=201)
 
 
