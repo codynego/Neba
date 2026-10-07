@@ -15,6 +15,7 @@ import "./post-opportunity.css";
 import "./post-opportunity-enhancements.css";
 import "./dashboard-command.css";
 import "./auth-focus.css";
+import "./opportunity-apply.css";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-geist" });
 export const metadata: Metadata = {

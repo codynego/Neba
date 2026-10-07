@@ -1,0 +1,229 @@
+.opportunity-action-card:has(.internal-apply-form) {
+  border-color: #b9dfc9;
+  background: linear-gradient(180deg, #fbfffc 0%, #f4fbf7 100%);
+}
+
+.opportunity-action-card:has(.internal-apply-form) > p {
+  margin-bottom: 0;
+}
+
+.internal-apply-form {
+  display: grid;
+  gap: 19px;
+  margin-top: 21px;
+  padding-top: 21px;
+  border-top: 1px solid #d6ebdd;
+}
+
+.internal-apply-intro,
+.internal-apply-share legend {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.internal-apply-intro > div,
+.internal-apply-share legend > span:last-child {
+  display: grid;
+  gap: 3px;
+}
+
+.internal-apply-intro strong,
+.internal-apply-share legend strong {
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.internal-apply-intro small,
+.internal-apply-share legend small {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.internal-apply-marker {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 8px;
+  background: #dff4e7;
+  color: var(--primary-dark);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.internal-apply-field {
+  position: relative;
+  display: grid;
+  gap: 7px;
+}
+
+.internal-apply-field > span {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.internal-apply-field > span small {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.internal-apply-field textarea {
+  width: 100%;
+  min-height: 76px;
+  padding: 11px 12px;
+  resize: vertical;
+  border: 1px solid #cfe4d6;
+  border-radius: 10px;
+  outline: 0;
+  background: #fff;
+  color: var(--text);
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.55;
+  transition: border-color .18s ease, box-shadow .18s ease;
+}
+
+.internal-apply-field textarea::placeholder {
+  color: #9aaba1;
+}
+
+.internal-apply-field textarea:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px #087f5b18;
+}
+
+.internal-apply-count {
+  justify-self: end;
+  margin-top: -3px;
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.internal-apply-share {
+  display: grid;
+  gap: 11px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.internal-apply-share legend {
+  width: 100%;
+  padding: 0;
+}
+
+.internal-apply-share-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.internal-apply-share-option {
+  position: relative;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: start;
+  gap: 9px;
+  padding: 10px;
+  border: 1px solid #d9e8de;
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color .18s ease, background .18s ease, transform .18s ease;
+}
+
+.internal-apply-share-option:hover {
+  border-color: #9bcfb0;
+  transform: translateY(-1px);
+}
+
+.internal-apply-share-option.selected {
+  border-color: #8dcaa5;
+  background: #f0fbf4;
+}
+
+.internal-apply-share-option input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.internal-apply-share-option:has(input:focus-visible) {
+  outline: 2px solid #087f5b66;
+  outline-offset: 2px;
+}
+
+.internal-apply-check {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1px solid #bcd5c4;
+  border-radius: 6px;
+  color: transparent;
+  transition: background .18s ease, border-color .18s ease, color .18s ease;
+}
+
+.internal-apply-share-option.selected .internal-apply-check {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: #fff;
+}
+
+.internal-apply-share-option > span:last-child {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.internal-apply-share-option strong {
+  color: var(--text);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.internal-apply-share-option small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.internal-apply-footer {
+  display: grid;
+  gap: 10px;
+  padding-top: 2px;
+}
+
+.internal-apply-footer > small {
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.internal-apply-footer .button {
+  margin-top: 0;
+}
+
+@media (max-width: 620px) {
+  .internal-apply-form {
+    gap: 17px;
+  }
+
+  .internal-apply-share-option {
+    padding: 11px;
+  }
+}
