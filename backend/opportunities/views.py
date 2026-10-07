@@ -280,7 +280,7 @@ class OpportunityViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        queryset = Opportunity.objects.filter(is_published=True, review_status=Opportunity.ReviewStatus.APPROVED)
+        queryset = Opportunity.objects.filter(review_status=Opportunity.ReviewStatus.APPROVED)
         if user.is_authenticated:
             queryset = queryset.prefetch_related(
                 Prefetch("saves", queryset=SavedOpportunity.objects.filter(user=user), to_attr="user_saves"),
@@ -353,7 +353,7 @@ class OpportunityApplicationViewSet(viewsets.ModelViewSet):
     lookup_field = "public_id"
     def get_queryset(self): return OpportunityApplication.objects.filter(Q(user=self.request.user) | Q(opportunity__created_by=self.request.user) | Q(opportunity__organization__owner=self.request.user)).select_related("opportunity", "user").prefetch_related("messages__sender").distinct()
     def create(self, request, *args, **kwargs):
-        opportunity = Opportunity.objects.filter(public_id=request.data.get("opportunity_id"), is_published=True).first()
+        opportunity = Opportunity.objects.filter(public_id=request.data.get("opportunity_id"), review_status=Opportunity.ReviewStatus.APPROVED).first()
         if not opportunity: raise serializers.ValidationError({"opportunity_id": "Choose a valid opportunity."})
         status = request.data.get("status", "preparing")
         submitted = status in ("applied", "shortlisted", "interview", "awarded")
@@ -450,7 +450,7 @@ class OrganizationOpportunityViewSet(viewsets.ModelViewSet):
         if not organization:
             return Response({"detail": "Organization setup is required."}, status=404)
         opportunities = list(self.get_queryset())
-        published = [item for item in opportunities if item.is_published]
+        published = [item for item in opportunities if item.review_status == Opportunity.ReviewStatus.APPROVED]
         applications = OpportunityApplication.objects.filter(opportunity__organization=organization, status__in=("applied", "shortlisted", "interview", "awarded", "unsuccessful", "withdrawn"))
         application_count = applications.count()
         qualified_count = applications.filter(status__in=("shortlisted", "interview", "awarded")).count()

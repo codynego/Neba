@@ -10,6 +10,10 @@ class OpportunityAdmin(admin.ModelAdmin):
     search_fields = ("title", "provider", "summary")
     readonly_fields = ("public_id", "created_at", "updated_at")
 
+    def save_model(self, request, obj, form, change):
+        obj.is_published = obj.review_status == Opportunity.ReviewStatus.APPROVED
+        super().save_model(request, obj, form, change)
+
 
 @admin.register(SavedOpportunity)
 class SavedOpportunityAdmin(admin.ModelAdmin):
