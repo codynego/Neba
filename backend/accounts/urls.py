@@ -1,10 +1,11 @@
 from django.urls import path
-from .views import LoginView, LogoutView, MeView, OrganizationView, RegisterView, ProfilePhotoUpload, ProfilePhotoConfirm, ProfileDocuments, ProfileDocumentConfirm, ProfileDocumentDelete, PasswordResetRequestView, PasswordResetConfirmView, VerifyEmailView, ResendVerificationView
+from .views import LoginView, LogoutView, RefreshView, MeView, OrganizationView, RegisterView, ProfilePhotoUpload, ProfilePhotoConfirm, ProfileDocuments, ProfileDocumentConfirm, ProfileDocumentDelete, PasswordResetRequestView, PasswordResetConfirmView, VerifyEmailView, ResendVerificationView
 from . import safety_views as safety
 from .credits_views import CreditsView
 urlpatterns = [
     path("register/", RegisterView.as_view()),
     path("login/", LoginView.as_view()),
+    path("token/refresh/", RefreshView.as_view()),
     path("logout/", LogoutView.as_view()),
     path("me/", MeView.as_view()),
     path("organization/", OrganizationView.as_view()),

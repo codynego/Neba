@@ -12,13 +12,27 @@ from PIL import Image, UnidentifiedImageError
 from botocore.exceptions import BotoCoreError, ClientError
 from rest_framework import generics, permissions, serializers
 from rest_framework.exceptions import APIException, ValidationError
-from rest_framework.authtoken.models import Token
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.exceptions import InvalidToken
+from rest_framework_simplejwt.serializers import TokenRefreshSerializer
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
+from django.conf import settings
 from .models import Organization, ProfileDocument, User
 from . import r2
 from .trust import normalize_phone
 from .emailing import EmailUnavailable, safely, send_password_reset_email, send_verification_email
+
+def _set_refresh_cookie(response, token):
+    response.set_cookie(settings.AUTH_REFRESH_COOKIE, token, max_age=7 * 24 * 60 * 60, httponly=True, secure=not settings.DEBUG, samesite="Lax", path="/api/auth/")
+
+def _clear_refresh_cookie(response):
+    response.delete_cookie(settings.AUTH_REFRESH_COOKIE, path="/api/auth/")
+
+def _revoke_refresh_tokens(user):
+    for token in OutstandingToken.objects.filter(user=user):
+        BlacklistedToken.objects.get_or_create(token=token)
 
 class UserSerializer(serializers.ModelSerializer):
     skills = serializers.ListField(child=serializers.CharField(max_length=80), max_length=20, required=False)
@@ -110,8 +124,10 @@ class RegisterView(generics.CreateAPIView):
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
         safely(send_verification_email, user)
-        token, _ = Token.objects.get_or_create(user=user)
-        return Response({"token": token.key, "user": UserSerializer(user).data}, status=201)
+        refresh = RefreshToken.for_user(user)
+        response = Response({"access": str(refresh.access_token), "user": UserSerializer(user).data}, status=201)
+        _set_refresh_cookie(response, str(refresh))
+        return response
 
 class LoginView(APIView):
     permission_classes = [permissions.AllowAny]
@@ -122,8 +138,29 @@ class LoginView(APIView):
         user = authenticate(username=username, password=request.data.get("password"))
         if not user:
             return Response({"detail": "Invalid username or password."}, status=400)
-        token, _ = Token.objects.get_or_create(user=user)
-        return Response({"token": token.key, "user": UserSerializer(user).data})
+        refresh = RefreshToken.for_user(user)
+        response = Response({"access": str(refresh.access_token), "user": UserSerializer(user).data})
+        _set_refresh_cookie(response, str(refresh))
+        return response
+
+class RefreshView(APIView):
+    permission_classes = [permissions.AllowAny]
+    def post(self, request):
+        token = request.COOKIES.get(settings.AUTH_REFRESH_COOKIE)
+        if not token:
+            return Response({"detail": "Authentication required."}, status=401)
+        serializer = TokenRefreshSerializer(data={"refresh": token})
+        try:
+            serializer.is_valid(raise_exception=True)
+        except InvalidToken:
+            response = Response({"detail": "Refresh session expired."}, status=401)
+            _clear_refresh_cookie(response)
+            return response
+        response = Response({"access": serializer.validated_data["access"]})
+        rotated = serializer.validated_data.get("refresh")
+        if rotated:
+            _set_refresh_cookie(response, rotated)
+        return response
 
 class MeView(generics.RetrieveUpdateAPIView):
     serializer_class = UserSerializer
@@ -149,8 +186,10 @@ class OrganizationView(generics.RetrieveUpdateAPIView):
 class LogoutView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     def post(self, request):
-        Token.objects.filter(user=request.user).delete()
-        return Response(status=204)
+        _revoke_refresh_tokens(request.user)
+        response = Response(status=204)
+        _clear_refresh_cookie(response)
+        return response
 
 
 class PasswordResetRequestView(APIView):
@@ -185,7 +224,7 @@ class PasswordResetConfirmView(APIView):
             raise ValidationError(error.messages) from None
         user.set_password(password)
         user.save(update_fields=("password",))
-        Token.objects.filter(user=user).delete()
+        _revoke_refresh_tokens(user)
         return Response({"detail": "Password updated. Sign in with your new password."})
 
 

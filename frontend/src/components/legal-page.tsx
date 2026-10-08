@@ -58,7 +58,7 @@ const privacySections: LegalSection[] = [
   {
     id: "security",
     title: "10. Security and device storage",
-    content: <><p>Controls include access restrictions, private signed media links, encryption of identity evidence, metadata removal from verification images, rate limits, evidence-access auditing, and separation of public and private fields. No internet service can promise absolute security.</p><p>The browser stores an authentication token so a signed-in session works. The installable web app caches only the public offline explanation and brand assets; authenticated pages, API responses, conversations, and identity data are not intentionally cached for offline use. GetNeba does not currently use advertising or cross-site tracking cookies.</p></>,
+    content: <><p>Controls include access restrictions, private signed media links, encryption of identity evidence, metadata removal from verification images, rate limits, evidence-access auditing, short-lived access tokens, rotating refresh tokens in secure HTTP-only cookies, and separation of public and private fields. No internet service can promise absolute security.</p><p>The browser stores only a non-sensitive session marker; authentication tokens are not persisted in local storage. The installable web app caches only the public offline explanation and brand assets; authenticated pages, API responses, conversations, and identity data are not intentionally cached for offline use. GetNeba does not currently use advertising or cross-site tracking cookies.</p></>,
   },
   {
     id: "rights",
