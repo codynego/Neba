@@ -24,8 +24,8 @@ from . import r2
 from .trust import normalize_phone
 from .emailing import EmailUnavailable, safely, send_password_reset_email, send_verification_email
 
-def _set_refresh_cookie(response, token):
-    response.set_cookie(settings.AUTH_REFRESH_COOKIE, token, max_age=7 * 24 * 60 * 60, httponly=True, secure=not settings.DEBUG, samesite="Lax", path="/api/auth/")
+def _set_refresh_cookie(response, token, request):
+    response.set_cookie(settings.AUTH_REFRESH_COOKIE, token, max_age=7 * 24 * 60 * 60, httponly=True, secure=request.is_secure(), samesite="Lax", path="/api/auth/")
 
 def _clear_refresh_cookie(response):
     response.delete_cookie(settings.AUTH_REFRESH_COOKIE, path="/api/auth/")
@@ -126,7 +126,7 @@ class RegisterView(generics.CreateAPIView):
         safely(send_verification_email, user)
         refresh = RefreshToken.for_user(user)
         response = Response({"access": str(refresh.access_token), "user": UserSerializer(user).data}, status=201)
-        _set_refresh_cookie(response, str(refresh))
+        _set_refresh_cookie(response, str(refresh), request)
         return response
 
 class LoginView(APIView):
@@ -140,7 +140,7 @@ class LoginView(APIView):
             return Response({"detail": "Invalid username or password."}, status=400)
         refresh = RefreshToken.for_user(user)
         response = Response({"access": str(refresh.access_token), "user": UserSerializer(user).data})
-        _set_refresh_cookie(response, str(refresh))
+        _set_refresh_cookie(response, str(refresh), request)
         return response
 
 class RefreshView(APIView):
@@ -159,7 +159,7 @@ class RefreshView(APIView):
         response = Response({"access": serializer.validated_data["access"]})
         rotated = serializer.validated_data.get("refresh")
         if rotated:
-            _set_refresh_cookie(response, rotated)
+            _set_refresh_cookie(response, rotated, request)
         return response
 
 class MeView(generics.RetrieveUpdateAPIView):
