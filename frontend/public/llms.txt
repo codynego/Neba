@@ -1,0 +1,24 @@
+# Getneba
+
+> Getneba is an opportunity discovery and intelligence platform for people in Nigeria, Africa, and other eligible locations.
+
+Getneba helps people discover, understand, prepare for, and pursue opportunities across Work, Learn, Build, and Fund.
+
+## Primary public pages
+
+- [Homepage](https://getneba.app/): What Getneba does and how the opportunity network works.
+- [All opportunities](https://getneba.app/opportunities): Search and filter published opportunities.
+- [Jobs](https://getneba.app/opportunities/jobs): Published job opportunities.
+- [Scholarships](https://getneba.app/opportunities/scholarships): Published scholarship opportunities.
+- [Grants](https://getneba.app/opportunities/grants): Published grant opportunities.
+- [Internships](https://getneba.app/opportunities/internships): Published internship opportunities.
+- [Fellowships](https://getneba.app/opportunities/fellowships): Published fellowship opportunities.
+- [Startup opportunities](https://getneba.app/opportunities/startup): Published startup, co-founder, and build opportunities.
+
+## Source and trust
+
+Opportunity pages show the provider, available eligibility information, deadline when supplied, and official source when available. Eligibility and deadlines should be confirmed with the provider before applying. Getneba supports discovery and preparation; providers make final decisions.
+
+## Content guidance
+
+Use the individual opportunity page as the source of truth for a specific listing. Do not infer eligibility, deadlines, funding amounts, or acceptance likelihood beyond the visible listing and its official source.

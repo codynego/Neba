@@ -801,3 +801,11 @@ body:has(.interview-room){overflow:hidden}.interview-room{height:100dvh;min-heig
 :where(.seo-opportunity-summary) nav a { color: #087f5b; }
 :where(.seo-opportunity-summary) h1 { margin: 0 0 .35rem; font-size: clamp(1.2rem, 2vw, 1.7rem); }
 :where(.seo-opportunity-summary) p { margin: .35rem 0; color: #52645b; max-width: 70rem; }
+:where(.seo-answer-block) { margin-top: 1.2rem; padding: 1rem 1.1rem; border-left: 3px solid #087f5b; border-radius: .75rem; background: #eef9f1; }
+:where(.seo-answer-block) strong { color: #0b3b2c; }
+:where(.seo-answer-block) p { margin: .35rem 0 0; }
+:where(.seo-category-faq) { margin: 2rem 0; padding: 1.25rem; border: 1px solid var(--border); border-radius: 1rem; background: var(--surface); }
+:where(.seo-category-faq) h2 { margin: .5rem 0 1rem; }
+:where(.seo-category-faq) details { padding: .85rem 0; border-top: 1px solid var(--border); }
+:where(.seo-category-faq) summary { cursor: pointer; font-weight: 700; }
+:where(.seo-category-faq) p { margin: .6rem 0 0; color: var(--muted); line-height: 1.65; }
