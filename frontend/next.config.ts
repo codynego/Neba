@@ -4,7 +4,7 @@ const nextConfig: NextConfig = {
   devIndicators: false,
   distDir: process.env.NEBA_BUILD_DIR || ".next",
   async headers() {
-    const privateRoutes = ["dashboard", "activity", "messages", "notifications", "profile", "members", "verify", "safety", "tasks", "offers", "login", "register"];
+    const privateRoutes = ["dashboard", "activity", "messages", "notifications", "profile", "members", "verify", "safety", "tasks", "offers", "local-help", "u", "login", "register"];
     return [
       { source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache, no-store, must-revalidate" }, { key: "Content-Type", value: "application/javascript; charset=utf-8" }] },
       ...privateRoutes.map((path) => ({ source: `/${path}/:path*`, headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] })),
