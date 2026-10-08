@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { AlertTriangle, ExternalLink, ShieldCheck } from "lucide-react";
 
-const POLICY_DATE = "30 September 2026";
+const POLICY_DATE = "8 October 2026";
 const operatorName = process.env.NEXT_PUBLIC_LEGAL_OPERATOR_NAME?.trim();
 const operatorAddress = process.env.NEXT_PUBLIC_LEGAL_OPERATOR_ADDRESS?.trim();
 const legalEmail = process.env.NEXT_PUBLIC_LEGAL_CONTACT_EMAIL?.trim();
@@ -13,17 +13,17 @@ const privacySections: LegalSection[] = [
   {
     id: "scope",
     title: "1. Who this notice applies to",
-    content: <><p>This notice explains how the operator of GetNeba collects and uses personal data when people visit the public website, create an account, publish a profile, post or apply for tasks, offer skills, exchange messages, complete verification, leave reviews, or use safety tools.</p><p>For purposes of the Nigeria Data Protection Act 2023, the GetNeba operator is the data controller for this processing. The controller details appear in “Contact and complaints” below.</p></>,
+    content: <><p>This notice explains how the operator of GetNeba collects and uses personal data when people visit the public website, create an account, build an opportunity profile, discover, save, share, submit, or apply for opportunities, use matching and preparation features, exchange messages, complete verification, or use safety tools.</p><p>For purposes of the Nigeria Data Protection Act 2023, the GetNeba operator is the data controller for this processing. The controller details appear in “Contact and complaints” below.</p></>,
   },
   {
     id: "data-collected",
     title: "2. Information GetNeba collects",
-    content: <><ul><li><strong>Account and profile:</strong> username, email, display name, password hash, phone number, profile photo, biography, skills, availability, and account status.</li><li><strong>Location:</strong> address or landmark, neighborhood, city, state, and optional coordinates supplied by the member or device.</li><li><strong>Marketplace activity:</strong> tasks, offers, applications, invitations, agreed timing and rewards, booking changes, messages, reviews, notifications, blocks, disputes, no-show reports, and safety reports.</li><li><strong>Verification:</strong> SMS challenge records; declared legal name; document type and image; live portrait and prompted gesture image; consent, adult-confirmation, review decision, reviewer, and audit records.</li><li><strong>Technical and security data:</strong> authentication token stored in the browser, standard request information such as IP address and user agent that hosting or security systems may log, and a small public offline cache used by the installable web app.</li></ul><p>Do not place phone numbers, passwords, financial-account details, identity documents, or exact home addresses in public text, reviews, or task descriptions.</p></>,
+    content: <><ul><li><strong>Account and profile:</strong> username, email, display name, password hash, phone number, profile photo, biography, skills, education, experience, interests, goals, location, and account status.</li><li><strong>Opportunity activity:</strong> opportunities viewed, saved, shared, submitted, reported, or applied for; application messages and status; reminders; preparation notes; match signals; and messages with organizations or other members.</li><li><strong>Opportunity content:</strong> titles, descriptions, eligibility, deadlines, source links, organization details, documents, and other information supplied by users or providers.</li><li><strong>Verification and trust:</strong> SMS challenge records; declared legal name; document type and image; live portrait and prompted gesture image; consent, review decision, reviewer, and audit records where verification is offered.</li><li><strong>Technical and security data:</strong> authentication token stored in the browser, standard request information such as IP address and user agent that hosting or security systems may log, and a small public offline cache used by the installable web app.</li></ul><p>Do not place phone numbers, passwords, financial-account details, identity documents, or exact home addresses in public text, applications, reviews, or opportunity descriptions.</p></>,
   },
   {
     id: "purposes",
     title: "3. Why the information is used",
-    content: <><p>GetNeba uses this information to create and secure accounts; provide public profiles and signed-in marketplace features; match activity by location; verify phone numbers and helper identities; enable applications, bookings and private coordination; show eligible reviews; operate reporting, blocking and moderation; prevent fraud and abuse; communicate service updates; troubleshoot and improve the service; and comply with lawful obligations.</p><p>GetNeba does not sell personal data or use identity evidence for advertising.</p></>,
+    content: <><p>GetNeba uses this information to create and secure accounts; publish and organize opportunity information; personalize discovery and matching; support saves, reminders, applications, preparation, sharing, and private coordination; verify submissions and organizations; operate reporting, blocking, moderation, and trust features; prevent fraud and abuse; communicate service updates; troubleshoot and improve the service; and comply with lawful obligations.</p><p>AI-assisted features may extract, categorize, summarize, compare, or help users prepare for opportunity content. They do not decide whether a person is accepted, eligible, or entitled to an opportunity. GetNeba does not sell personal data or use identity evidence for advertising.</p></>,
   },
   {
     id: "legal-bases",
@@ -33,7 +33,7 @@ const privacySections: LegalSection[] = [
   {
     id: "visibility",
     title: "5. What other people can see",
-    content: <><ul><li><strong>Public profile:</strong> the <code>/u/username</code> page can be viewed without signing in and may appear in search engines. It may show display name, username, area, city, state, biography, self-reported skills and availability, verification status, completed-helper count, active offers, visible reviews, and a photo only when public-photo visibility is enabled.</li><li><strong>Reviews:</strong> a visible completed-task review shows its author’s username and, if enabled, profile photo. The author details are displayed as attribution and are not linked from the review.</li><li><strong>Signed-in marketplace:</strong> tasks, offers, applications and related member summaries are shown according to product access and blocking rules.</li><li><strong>Accepted work:</strong> an accepted participant can receive the other participant’s contact phone. Participants decide what additional address or coordination details to share in their private conversation.</li></ul><p>Blocking prevents new marketplace interactions and hides listings in both directions, but it does not remove a public profile from the open web or erase an existing agreement or record.</p></>,
+    content: <><ul><li><strong>Public opportunities:</strong> published opportunity pages may be visible without signing in and may appear in search engines. They can include the title, provider, description, location, deadline, eligibility, benefits, source link, verification status, and update information.</li><li><strong>Public profiles:</strong> where enabled, a member profile may show selected identity, skills, experience, location, and contribution information. Account and application details remain private unless a member chooses to share them.</li><li><strong>Applications and messages:</strong> information shared in an application is visible to the relevant provider or opportunity poster, and messages are visible to their intended participants and authorized support personnel.</li><li><strong>Organization submissions:</strong> an approved opportunity may identify the submitting organization or contributor. Unverified submissions are not intended to become public SEO pages.</li></ul><p>Do not assume that information entered into a public opportunity, profile, or shared application is private.</p></>,
   },
   {
     id: "sharing",
@@ -53,7 +53,7 @@ const privacySections: LegalSection[] = [
   {
     id: "automation",
     title: "9. Screening and human review",
-    content: <p>Task wording and item details can be checked by rules that approve a post or hold it for moderation. Identity approval is a manual reviewer decision. Members may ask for human review of a moderation or verification decision through the contact route below. GetNeba does not claim that its identity review is certified liveness detection, a criminal-record check, or a guarantee of conduct.</p>,
+    content: <p>Opportunity submissions and content can be checked by rules or AI-assisted tools that extract fields, categorize content, detect duplicates, flag missing information, or hold a submission for moderation. Publication, verification, and enforcement decisions may include human review. Matching and preparation outputs are informational and may be incomplete; they do not determine eligibility, selection, or acceptance. Members may ask for human review of a moderation or verification decision through the contact route below. GetNeba does not claim that its identity review is certified liveness detection, a criminal-record check, or a guarantee of conduct.</p>,
   },
   {
     id: "security",
@@ -81,12 +81,12 @@ const termsSections: LegalSection[] = [
   {
     id: "platform-role",
     title: "2. GetNeba’s role",
-    content: <><p>GetNeba provides a technology marketplace where people can request local help or offer skills. Unless expressly stated otherwise, GetNeba is not the requester or helper, is not an employer, recruitment agency, agent, insurer, payment provider, or escrow service, and is not a party to the agreement between members.</p><p>GetNeba does not guarantee that a listing is accurate, a member is suitable, work will be available or completed, or a particular outcome will occur.</p></>,
+    content: <><p>GetNeba provides a technology platform where people discover, share, understand, prepare for, save, and pursue opportunities, including jobs, internships, scholarships, grants, fellowships, training, funding, projects, and collaborations. Unless expressly stated otherwise, GetNeba is not the opportunity provider, employer, recruiter, grant-maker, admissions body, agent, insurer, payment provider, or decision-maker, and is not a party to an agreement between a user and a provider.</p><p>GetNeba does not guarantee that a listing is accurate, current, eligible for a particular person, available, funded, or successful. The provider’s official source controls.</p></>,
   },
   {
     id: "member-agreement",
     title: "3. Agreements between members",
-    content: <><p>Before work begins, requester and helper must agree directly on scope, location, timing, reward, expenses, payment method, materials, access, and any cancellation arrangement. Members are responsible for written transaction records, taxes, permits, licences, insurance, and other obligations that apply to them.</p><p>GetNeba does not collect, hold, release, refund, or guarantee payments. Never send money merely to apply for a task, share bank credentials, or permit another member to control a financial account.</p></>,
+    content: <><p>Before pursuing an opportunity, the user must review the provider’s official source and independently confirm the scope, eligibility, deadline, compensation or funding, fees, documents, privacy terms, and application requirements. Users are responsible for the accuracy of information they submit and for their own applications, taxes, permits, licences, and other obligations.</p><p>GetNeba does not collect, hold, release, refund, or guarantee payments or awards. Never send money merely to access an opportunity, share bank credentials, or give an untrusted person control of a financial account.</p></>,
   },
   {
     id: "verification",
@@ -96,7 +96,7 @@ const termsSections: LegalSection[] = [
   {
     id: "acceptable-use",
     title: "5. Acceptable use",
-    content: <><p>Members must follow the Community Guidelines and applicable law. They must not harass, discriminate, threaten, exploit, defraud, stalk, spam, scrape, reverse engineer, introduce malware, misuse another person’s data, manipulate reviews, interfere with security, or use GetNeba for unlawful activity.</p><p>Listings must describe real, lawful work accurately. GetNeba may use automated rules and human review to hold, reject, remove, or restrict content and activity.</p></>,
+    content: <><p>Members must follow the Community Guidelines and applicable law. They must not harass, discriminate, threaten, exploit, defraud, stalk, spam, scrape, reverse engineer, introduce malware, misuse another person’s data, manipulate opportunity information, interfere with security, or use GetNeba for unlawful activity.</p><p>Opportunity submissions must describe real programs, roles, or resources accurately and must not invent deadlines, eligibility, organizations, funding, testimonials, or application outcomes. GetNeba may use automated rules, AI-assisted checks, and human review to hold, reject, remove, or restrict content and activity.</p></>,
   },
   {
     id: "prohibited-tasks",
@@ -106,12 +106,12 @@ const termsSections: LegalSection[] = [
   {
     id: "content",
     title: "7. Member content and privacy",
-    content: <><p>Members keep ownership of content they submit. They grant the operator a non-exclusive, worldwide, royalty-free licence to host, copy, process, display, adapt for technical formatting, and moderate that content only as needed to operate, secure, and improve the service. This licence ends when the content is deleted, except for copies reasonably retained in backups, safety records, legal claims, or content another member is entitled to retain.</p><p>A member must have the right to submit their content and must not expose another person’s private information without authority. Public profiles are open to the web and may be indexed by search engines. The Privacy Notice explains visibility in detail.</p></>,
+    content: <><p>Members keep ownership of content they submit. They grant the operator a non-exclusive, worldwide, royalty-free licence to host, copy, process, display, adapt for technical formatting, generate structured metadata, and moderate that content only as needed to operate, secure, improve, and make the service discoverable. This licence ends when the content is deleted, except for copies reasonably retained in backups, safety records, legal claims, or content another member is entitled to retain.</p><p>A member must have the right to submit their content and must not expose another person’s private information without authority. Public opportunity pages and selected profiles may be open to the web and indexed by search engines. The Privacy Notice explains visibility in detail.</p></>,
   },
   {
     id: "safety",
     title: "8. Safety, disputes and emergencies",
-    content: <><p>Members must use judgment, keep early meetings and handovers appropriately safe, protect private information, and stop if circumstances differ materially from the listing. Reporting and blocking tools support moderation but do not replace police, medical, or emergency services.</p><p>After acceptance, completion, cancellation, and rescheduling may require confirmation by both participants. A no-show or dispute may be reported for review. GetNeba may help document or moderate an issue but does not act as a court or promise recovery of money or property.</p></>,
+    content: <><p>Members must use judgment, protect private information, verify providers and sources, and stop if an opportunity or application request differs materially from the published information. Reporting tools support moderation but do not replace police, medical, legal, or emergency services.</p><p>A misleading, expired, fraudulent, or unsafe opportunity may be reported for review. GetNeba may help document or moderate an issue but does not act as a court, application evaluator, or guarantor of money, access, or outcomes.</p></>,
   },
   {
     id: "enforcement",
@@ -148,9 +148,9 @@ export function LegalPage({ kind }: { kind: "privacy" | "terms" }) {
   const sections = privacy ? privacySections : termsSections;
   return <main className="public-info legal-page landing-container">
     <span className="landing-eyebrow"><ShieldCheck size={15} />{privacy ? "PRIVACY NOTICE" : "TERMS OF SERVICE"}</span>
-    <h1>{privacy ? "Your information, explained clearly." : "Clear terms for local help."}</h1>
-    <p className="public-info-intro">{privacy ? "What GetNeba collects, why it is used, who can see it, and the choices and rights available to you." : "The rules that apply when you use GetNeba to request help, offer skills, or connect with another member."}</p>
-    <div className="legal-meta"><span>Effective {POLICY_DATE}</span><span>Version 2026-09-30</span></div>
+    <h1>{privacy ? "Your information, explained clearly." : "Clear terms for discovering opportunities."}</h1>
+    <p className="public-info-intro">{privacy ? "What GetNeba collects, why it is used, who can see it, and the choices and rights available to you." : "The rules that apply when you use GetNeba to discover, share, prepare for, save, and pursue opportunities."}</p>
+    <div className="legal-meta"><span>Effective {POLICY_DATE}</span><span>Version 2026-10-08</span></div>
     <ControllerDetails />
     <nav className="legal-contents" aria-label={`${privacy ? "Privacy notice" : "Terms"} contents`}><strong>On this page</strong><ol>{sections.map((section) => <li key={section.id}><a href={`#${section.id}`}>{section.title.replace(/^\d+\.\s*/, "")}</a></li>)}</ol></nav>
     {sections.map((section) => <section id={section.id} key={section.id}><h2>{section.title}</h2>{section.content}</section>)}

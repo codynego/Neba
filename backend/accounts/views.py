@@ -99,7 +99,7 @@ class RegisterSerializer(serializers.ModelSerializer):
             validated_data["phone"] = normalize_phone(phone)
         else:
             validated_data.pop("phone", None)
-        return User.objects.create_user(terms_accepted_at=timezone.now(), legal_policy_version="2026-09-30", **validated_data)
+        return User.objects.create_user(terms_accepted_at=timezone.now(), legal_policy_version="2026-10-08", **validated_data)
 
 class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
