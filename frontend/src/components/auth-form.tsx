@@ -21,11 +21,11 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
     event.preventDefault(); setError(""); setBusy(true);
     const data = Object.fromEntries(new FormData(event.currentTarget));
     try {
-      const result = await api<{ access: string; user?: { profile_complete?: boolean } }>(`/auth/${mode}/`, { method: "POST", body: JSON.stringify(data) });
+      const result = await api<{ access: string; user?: { onboarding_complete?: boolean } }>(`/auth/${mode}/`, { method: "POST", body: JSON.stringify(data) });
       setToken(result.access);
       const next = new URLSearchParams(location.search).get("next");
       const safeNext = next && next.startsWith("/") && !next.startsWith("//") && next !== "/onboarding" ? next : undefined;
-      router.push(mode === "register" || result.user?.profile_complete === false ? `/onboarding${safeNext ? `?next=${encodeURIComponent(safeNext)}` : ""}` : safeNext || "/dashboard");
+      router.push(mode === "register" || result.user?.onboarding_complete === false ? `/onboarding${safeNext ? `?next=${encodeURIComponent(safeNext)}` : ""}` : safeNext || "/dashboard");
     } catch (submitError) { setError((submitError as Error).message); } finally { setBusy(false); }
   }
 

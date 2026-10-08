@@ -25,9 +25,13 @@ from .trust import normalize_phone
 from .emailing import EmailUnavailable, safely, send_password_reset_email, send_verification_email
 
 def _set_refresh_cookie(response, token, request):
-    response.set_cookie(settings.AUTH_REFRESH_COOKIE, token, max_age=7 * 24 * 60 * 60, httponly=True, secure=request.is_secure(), samesite="Lax", path="/api/auth/")
+    secure = request.is_secure() if settings.AUTH_COOKIE_SECURE is None else settings.AUTH_COOKIE_SECURE.lower() == "true"
+    samesite = settings.AUTH_COOKIE_SAMESITE or ("None" if secure and settings.IS_VERCEL and not settings.DEBUG else "Lax")
+    response.delete_cookie(settings.AUTH_REFRESH_COOKIE, path="/api/auth/")
+    response.set_cookie(settings.AUTH_REFRESH_COOKIE, token, max_age=7 * 24 * 60 * 60, httponly=True, secure=secure, samesite=samesite, path="/")
 
 def _clear_refresh_cookie(response):
+    response.delete_cookie(settings.AUTH_REFRESH_COOKIE, path="/")
     response.delete_cookie(settings.AUTH_REFRESH_COOKIE, path="/api/auth/")
 
 def _revoke_refresh_tokens(user):
@@ -44,6 +48,7 @@ class UserSerializer(serializers.ModelSerializer):
     identity_verified = serializers.SerializerMethodField()
     photo_available = serializers.SerializerMethodField()
     profile_complete = serializers.BooleanField(read_only=True)
+    onboarding_complete = serializers.BooleanField(read_only=True)
     email_verified = serializers.SerializerMethodField()
     def get_phone_verified(self, user):
         return bool(user.phone and user.phone_verified_at)
@@ -65,8 +70,8 @@ class UserSerializer(serializers.ModelSerializer):
         return value
     class Meta:
         model = User
-        fields = ("id", "public_id", "username", "email", "email_verified", "display_name", "city", "state", "date_joined", "phone", "phone_verified", "identity_verified", "photo_visible", "photo_available", "profile_complete", "bio", "skills", "neighborhood", "address", "latitude", "longitude", "availability", "nearby_task_emails", "date_of_birth", "gender", "country", "education_level", "field_of_study", "institution", "graduation_year", "gpa", "employment_status", "years_experience", "industry", "opportunity_interests", "goals", "business_status", "financial_need", "business_name", "business_industry", "business_description", "business_website")
-        read_only_fields = ("id", "public_id", "username", "email", "email_verified", "date_joined", "phone_verified", "identity_verified", "photo_available", "profile_complete")
+        fields = ("id", "public_id", "username", "email", "email_verified", "display_name", "city", "state", "date_joined", "phone", "phone_verified", "identity_verified", "photo_visible", "photo_available", "profile_complete", "onboarding_complete", "bio", "skills", "neighborhood", "address", "latitude", "longitude", "availability", "nearby_task_emails", "date_of_birth", "gender", "country", "education_level", "field_of_study", "institution", "graduation_year", "gpa", "employment_status", "years_experience", "industry", "opportunity_interests", "goals", "business_status", "financial_need", "business_name", "business_industry", "business_description", "business_website")
+        read_only_fields = ("id", "public_id", "username", "email", "email_verified", "date_joined", "phone_verified", "identity_verified", "photo_available", "profile_complete", "onboarding_complete")
 
 
 class OrganizationSerializer(serializers.ModelSerializer):

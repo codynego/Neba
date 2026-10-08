@@ -49,6 +49,10 @@ class User(AbstractUser):
     def profile_complete(self):
         return bool(self.display_name and self.country and self.education_level and self.field_of_study and self.employment_status and self.skills and self.opportunity_interests and self.goals)
 
+    @property
+    def onboarding_complete(self):
+        return bool(self.country and self.opportunity_interests and self.goals)
+
 
 class CreditTransaction(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="credit_transactions")

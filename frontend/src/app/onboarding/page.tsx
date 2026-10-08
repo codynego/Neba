@@ -13,7 +13,13 @@ export default function OnboardingPage() {
   useEffect(() => {
     if (!getToken()) { router.replace("/login"); return; }
     setNextPath(new URLSearchParams(window.location.search).get("next") || undefined);
-    api<User>("/auth/me/").then(setUser).catch(() => router.replace("/login"));
+    api<User>("/auth/me/").then((currentUser) => {
+      if (currentUser.onboarding_complete) {
+        router.replace(new URLSearchParams(window.location.search).get("next") || "/dashboard");
+        return;
+      }
+      setUser(currentUser);
+    }).catch(() => router.replace("/login"));
   }, [router]);
   if (!user) return <main className="onboarding-page container"><div className="account-check" role="status" aria-label="Loading your onboarding"><span aria-hidden="true" /></div></main>;
   return <OnboardingForm initialUser={user} nextPath={nextPath} />;

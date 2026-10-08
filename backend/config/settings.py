@@ -104,6 +104,8 @@ SIMPLE_JWT = {
     "AUTH_HEADER_TYPES": ("Bearer",),
 }
 AUTH_REFRESH_COOKIE = "getneba_refresh"
+AUTH_COOKIE_SECURE = os.getenv("AUTH_COOKIE_SECURE")
+AUTH_COOKIE_SAMESITE = os.getenv("AUTH_COOKIE_SAMESITE")
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "Africa/Lagos"
 USE_I18N = True
