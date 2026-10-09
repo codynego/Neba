@@ -65,10 +65,10 @@ class OpportunityApiTests(APITestCase):
 
     def test_recommendations_learn_from_existing_activity_and_hide_archived_items(self):
         similar = Opportunity.objects.create(
-            title="Women in Technology Fellowship",
+            title="Women in Technology Scholarship",
             provider="Example Foundation",
             summary="A software fellowship for undergraduate builders.",
-            category="fellowship",
+            category="scholarship",
             eligible_countries=["Nigeria"],
             education_levels=["Undergraduate"],
         )
