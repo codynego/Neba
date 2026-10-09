@@ -1,5 +1,5 @@
 from collections import Counter
-from datetime import date
+from datetime import timedelta
 import ipaddress
 import re
 import socket
@@ -7,7 +7,7 @@ from html.parser import HTMLParser
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
-from django.db.models import F, Prefetch, Q
+from django.db.models import Count, F, Prefetch, Q
 from django.utils import timezone
 from rest_framework import permissions, serializers, viewsets
 from rest_framework.decorators import action
@@ -16,6 +16,7 @@ from rest_framework.response import Response
 
 from accounts.models import User
 from accounts.notifications import notify
+from .matching import build_match_context, diverse_recommendations, match_for, rank_opportunities
 from .models import Opportunity, OpportunityApplication, OpportunityCorrection, OpportunityMessage, OpportunityThanks, SavedOpportunity
 
 
@@ -107,97 +108,6 @@ def _extract_opportunity_from_url(url):
     return {"title": title[:220], "summary": summary[:1800], "provider": provider[:180], "category": _infer_category(page_text), "application_mode": "external", "application_url": url, "source_url": url, "deadline": deadline, "location_label": "", "is_remote": False, "benefit": "", "eligibility_notes": "", "eligible_countries": [], "education_levels": [], "fields_of_study": [], "employment_statuses": [], "min_age": None, "max_age": None, "requires_business": False}
 
 
-def profile_age(user):
-    if not user.date_of_birth:
-        return None
-    today = date.today()
-    return today.year - user.date_of_birth.year - ((today.month, today.day) < (user.date_of_birth.month, user.date_of_birth.day))
-
-
-def normalized(values):
-    return {str(value).strip().lower() for value in values if str(value).strip()}
-
-
-def matches_text(values, text):
-    return any(value in text for value in normalized(values))
-
-
-INTENT_CATEGORIES = {
-    "work": {"job", "internship"},
-    "learn": {"scholarship", "fellowship", "training"},
-    "build": {"startup", "competition"},
-    "fund": {"grant", "funding"},
-}
-
-INTEREST_TERMS = {
-    "software-&-technology": {"software", "technology", "tech", "developer", "coding", "engineering"},
-    "business": {"business", "entrepreneur", "company", "enterprise"},
-    "finance": {"finance", "financial", "accounting", "investment", "fintech"},
-    "design": {"design", "designer", "creative"},
-    "engineering": {"engineering", "engineer", "technical"},
-    "marketing": {"marketing", "brand", "communications", "growth"},
-    "healthcare": {"healthcare", "health", "medical", "clinical"},
-    "education": {"education", "teaching", "learning", "academic"},
-    "creative-work": {"creative", "media", "content", "writing", "arts"},
-    "agriculture": {"agriculture", "farming", "agribusiness"},
-    "social-impact": {"social impact", "nonprofit", "ngo", "community", "development"},
-}
-
-
-def match_for(user, opportunity):
-    score, reasons, missing = 52, [], []
-    countries = normalized(opportunity.eligible_countries)
-    if countries:
-        if user.country.strip().lower() in countries:
-            score += 16; reasons.append(f"Open to applicants in {user.country}")
-        else: missing.append("Country eligibility needs checking")
-    levels = normalized(opportunity.education_levels)
-    if levels:
-        if user.education_level.strip().lower() in levels:
-            score += 13; reasons.append(f"Matches your {user.education_level.lower()} education level")
-        else: missing.append("Education level needs checking")
-    fields = normalized(opportunity.fields_of_study)
-    if fields:
-        if user.field_of_study and any(field in user.field_of_study.lower() for field in fields):
-            score += 10; reasons.append("Connects with your field of study")
-        else: missing.append("Field of study needs checking")
-    statuses = normalized(opportunity.employment_statuses)
-    if statuses:
-        if user.employment_status.strip().lower() in statuses:
-            score += 7; reasons.append("Fits your current work status")
-        else: missing.append("Employment status needs checking")
-    age = profile_age(user)
-    if opportunity.min_age or opportunity.max_age:
-        if age is None: missing.append("Age eligibility needs checking")
-        elif (opportunity.min_age and age < opportunity.min_age) or (opportunity.max_age and age > opportunity.max_age):
-            return {"score": 0, "reasons": reasons, "missing": ["Outside the published age range"]}
-        else:
-            score += 8; reasons.append("Age requirement met")
-    if opportunity.requires_business:
-        if user.business_status: score += 6; reasons.append("Relevant to your business status")
-        else: missing.append("Business status needs checking")
-    interests = normalized(user.opportunity_interests)
-    goals = normalized(user.goals)
-    if opportunity.category in interests or f"{opportunity.category}s" in interests:
-        score += 8; reasons.append(f"You’re looking for {opportunity.get_category_display().lower()} opportunities")
-    intent_match = next((intent for intent, categories in INTENT_CATEGORIES.items() if intent in goals and opportunity.category in categories), None)
-    if intent_match:
-        score += 7; reasons.append(f"Fits your {intent_match} direction")
-    if opportunity.is_remote and "remote" in interests:
-        score += 4; reasons.append("Matches your remote preference")
-    opportunity_text = f"{opportunity.title} {opportunity.summary} {opportunity.provider} {opportunity.benefit} {opportunity.eligibility_notes} {opportunity.fields_of_study} {opportunity.location_label}".lower()
-    matched_interests = [interest for interest in interests if interest != "remote" and any(term in opportunity_text for term in INTEREST_TERMS.get(interest, {interest.replace("-", " ")}))]
-    if matched_interests:
-        score += min(8, 3 + len(matched_interests) * 2); reasons.append("Connects with your interest areas")
-    if user.skills and matches_text(user.skills, opportunity_text):
-        score += 6; reasons.append("Uses skills in your profile")
-    if user.goals and matches_text(user.goals, opportunity_text):
-        score += 4; reasons.append("Connects with one of your goals")
-    if user.state and user.state.strip().lower() in f"{opportunity.location_label} {opportunity.country}".lower():
-        score += 4; reasons.append(f"Available near {user.state}")
-    return {"score": min(score, 98), "reasons": reasons[:3], "missing": missing[:2]}
-
-
 class OpportunitySerializer(serializers.ModelSerializer):
     match = serializers.SerializerMethodField()
     saved_status = serializers.SerializerMethodField()
@@ -230,7 +140,8 @@ class OpportunitySerializer(serializers.ModelSerializer):
         }
 
     def get_thanks_count(self, opportunity):
-        return opportunity.thanks.count()
+        value = getattr(opportunity, "thanks_count_value", None)
+        return value if value is not None else opportunity.thanks.count()
 
     def get_thanked_by_me(self, opportunity):
         user = self.context["request"].user
@@ -240,7 +151,13 @@ class OpportunitySerializer(serializers.ModelSerializer):
         user = self.context["request"].user
         if not user.is_authenticated:
             return None
-        return match_for(user, opportunity) if user.is_authenticated else None
+        context = self.context.get("match_context")
+        if context is None:
+            context = getattr(self.context["request"], "_opportunity_match_context", None)
+        if context is None:
+            context = build_match_context(user)
+            self.context["request"]._opportunity_match_context = context
+        return match_for(user, opportunity, context)
 
     def get_saved_status(self, opportunity):
         if not self.context["request"].user.is_authenticated:
@@ -329,7 +246,7 @@ class OpportunityViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        queryset = Opportunity.objects.filter(review_status=Opportunity.ReviewStatus.APPROVED, is_published=True).select_related("created_by", "organization")
+        queryset = Opportunity.objects.filter(review_status=Opportunity.ReviewStatus.APPROVED, is_published=True).select_related("created_by", "organization").annotate(thanks_count_value=Count("thanks", distinct=True))
         if self.action in ("list", "matches", "dashboard"):
             queryset = queryset.filter(Q(deadline__isnull=True) | Q(deadline__gte=timezone.now()))
         if user.is_authenticated:
@@ -351,22 +268,22 @@ class OpportunityViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=["get"])
     def matches(self, request):
-        rows = []
-        for opportunity in self.get_queryset():
-            match = match_for(request.user, opportunity)
-            if match["score"] >= 55: rows.append((match["score"], opportunity))
-        rows.sort(key=lambda row: (-row[0], row[1].deadline.timestamp() if row[1].deadline else float("inf")))
-        page = self.paginate_queryset([item[1] for item in rows])
-        return self.get_paginated_response(self.get_serializer(page, many=True).data) if page is not None else Response(self.get_serializer([item[1] for item in rows], many=True).data)
+        context = build_match_context(request.user)
+        request._opportunity_match_context = context
+        ranked = rank_opportunities(request.user, self.get_queryset(), context)
+        opportunities = [item[1] for item in ranked]
+        page = self.paginate_queryset(opportunities)
+        return self.get_paginated_response(self.get_serializer(page, many=True).data) if page is not None else Response(self.get_serializer(opportunities, many=True).data)
 
     @action(detail=False, methods=["get"])
     def dashboard(self, request):
         now = timezone.now()
         opportunities = list(self.get_queryset())
-        matched = [(match_for(request.user, item)["score"], item) for item in opportunities]
-        matched = [(score, item) for score, item in matched if score >= 55]
-        matched.sort(key=lambda row: (-row[0], row[1].deadline.timestamp() if row[1].deadline else float("inf")))
-        urgent = [item for _, item in matched if item.deadline and item.deadline >= now][:3]
+        context = build_match_context(request.user)
+        request._opportunity_match_context = context
+        ranked = rank_opportunities(request.user, opportunities, context, now)
+        top_ranked = diverse_recommendations(ranked, 5)
+        urgent = sorted((item for _, item, _ in ranked if item.deadline and item.deadline >= now), key=lambda item: item.deadline)[:3]
         saved = SavedOpportunity.objects.filter(user=request.user).select_related("opportunity")[:4]
         all_applications = OpportunityApplication.objects.filter(user=request.user).select_related("opportunity")
         applications = all_applications[:5]
@@ -374,8 +291,9 @@ class OpportunityViewSet(viewsets.ReadOnlyModelViewSet):
         complete = sum(bool(getattr(request.user, field)) for field in profile_fields)
         readiness = {"profile": bool(request.user.display_name and request.user.skills and request.user.opportunity_interests), "eligibility": bool(request.user.country and request.user.education_level and request.user.field_of_study), "statement": any(application.notes.strip() for application in applications), "interview": any(application.status in ("interview", "awarded") for application in applications)}
         application_summary = {status: all_applications.filter(status=status).count() for status, _ in OpportunityApplication.Status.choices}
-        upcoming_deadlines = sum(1 for _, item in matched if item.deadline and item.deadline >= now)
-        return Response({"match_count": len(matched), "new_this_week": len(matched), "upcoming_deadlines": upcoming_deadlines, "application_summary": application_summary, "top_matches": self.get_serializer([item for _, item in matched[:5]], many=True).data, "urgent": self.get_serializer(urgent, many=True).data, "saved": SavedOpportunitySerializer(saved, many=True, context={"request": request}).data, "applications": OpportunityApplicationSerializer(applications, many=True, context={"request": request}).data, "profile_completion": round(complete / len(profile_fields) * 100), "missing_profile_fields": [field for field in profile_fields if not getattr(request.user, field)], "readiness": readiness})
+        upcoming_deadlines = sum(1 for _, item, _ in ranked if item.deadline and item.deadline >= now)
+        new_this_week = sum(1 for _, item, _ in ranked if item.created_at >= now - timedelta(days=7))
+        return Response({"match_count": len(ranked), "new_this_week": new_this_week, "upcoming_deadlines": upcoming_deadlines, "application_summary": application_summary, "top_matches": self.get_serializer([item for _, item, _ in top_ranked], many=True).data, "urgent": self.get_serializer(urgent, many=True).data, "saved": SavedOpportunitySerializer(saved, many=True, context={"request": request}).data, "applications": OpportunityApplicationSerializer(applications, many=True, context={"request": request}).data, "profile_completion": round(complete / len(profile_fields) * 100), "missing_profile_fields": [field for field in profile_fields if not getattr(request.user, field)], "readiness": readiness})
 
     @action(detail=True, methods=["post", "delete"])
     def save(self, request, public_id=None):

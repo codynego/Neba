@@ -8,7 +8,8 @@ from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from accounts.models import Organization, User
-from .models import Opportunity, OpportunityCorrection
+from .matching import build_match_context, diverse_recommendations, rank_opportunities
+from .models import Opportunity, OpportunityCorrection, SavedOpportunity
 from .views import match_for
 
 
@@ -46,6 +47,51 @@ class OpportunityApiTests(APITestCase):
         self.assertGreater(result["score"], 52)
         self.assertIn("Fits your build direction", result["reasons"])
         self.assertIn("Matches your remote preference", result["reasons"])
+
+    def test_match_v2_separates_eligibility_confidence_from_fit(self):
+        result = match_for(self.user, self.opportunity)
+        self.assertEqual(result["version"], "v2")
+        self.assertEqual(result["eligibility"], "eligible")
+        self.assertEqual(result["confidence"], "high")
+        self.assertGreaterEqual(result["score"], 70)
+        self.assertGreater(result["breakdown"]["eligibility"], 0)
+
+        self.user.country = "Ghana"
+        self.user.save(update_fields=("country",))
+        excluded = match_for(self.user, self.opportunity)
+        self.assertEqual(excluded["eligibility"], "unlikely")
+        self.assertLess(excluded["score"], 50)
+        self.assertIn("Published country criteria may not match your profile", excluded["missing"])
+
+    def test_recommendations_learn_from_existing_activity_and_hide_archived_items(self):
+        similar = Opportunity.objects.create(
+            title="Women in Technology Fellowship",
+            provider="Example Foundation",
+            summary="A software fellowship for undergraduate builders.",
+            category="fellowship",
+            eligible_countries=["Nigeria"],
+            education_levels=["Undergraduate"],
+        )
+        archived = Opportunity.objects.create(
+            title="Archived Scholarship",
+            provider="Old Foundation",
+            summary="A scholarship that the member has dismissed.",
+            category="scholarship",
+        )
+        SavedOpportunity.objects.create(user=self.user, opportunity=self.opportunity)
+        SavedOpportunity.objects.create(user=self.user, opportunity=archived, status=SavedOpportunity.Status.ARCHIVED)
+        context = build_match_context(self.user)
+        ranked = rank_opportunities(self.user, [similar, archived], context)
+        self.assertEqual([row[1] for row in ranked], [similar])
+        self.assertGreater(match_for(self.user, similar, context)["breakdown"]["activity"], 0)
+
+    def test_diverse_top_matches_reduce_repeated_categories_and_providers(self):
+        first = self.opportunity
+        repeated = Opportunity.objects.create(title="Second Scholarship", provider=first.provider, summary="Another scholarship.", category="scholarship")
+        different = Opportunity.objects.create(title="Product Internship", provider="Different Labs", summary="A product internship.", category="internship")
+        ranked = [(90, first, {}), (89, repeated, {}), (88, different, {})]
+        selected = diverse_recommendations(ranked, 2)
+        self.assertEqual([row[1] for row in selected], [first, different])
 
     @override_settings(OPPORTUNITY_FEED_URLS=["https://source.example/feed.xml"], OPPORTUNITY_FETCH_LIMIT=1)
     @patch("opportunities.management.commands.fetch_opportunities.requests.get")
