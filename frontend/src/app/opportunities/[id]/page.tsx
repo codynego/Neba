@@ -8,6 +8,7 @@ import { api, getToken } from "@/lib/api";
 import { Opportunity, OpportunityApplication, Page } from "@/lib/types";
 import { opportunityIdFromRoute, opportunityPath } from "@/lib/routes";
 import { OpportunityCommunityActions } from "@/components/opportunity-community-actions";
+import { downloadOpportunityShareCard } from "@/lib/opportunity-share-card";
 
 const labels: Record<string, string> = { scholarship: "Scholarship", grant: "Grant", job: "Job", internship: "Internship", fellowship: "Fellowship", competition: "Competition", training: "Training", startup: "Startup / Co-founder", funding: "Business funding", tender: "Tenders & Procurement" };
 const formatDate = (value: string | null) => value ? new Intl.DateTimeFormat("en", { month: "long", day: "numeric", year: "numeric" }).format(new Date(value)) : "No deadline listed";
@@ -37,33 +38,18 @@ export default function OpportunityDetailPage() {
   const shareText = `Found this opportunity on GetNeba: ${item.title} by ${item.provider}. ${item.deadline ? `Deadline: ${formatDate(item.deadline)}. ` : ""}See details: ${shareUrl}`;
   const shareOptions: Array<[string, string, string]> = [["profile", "Basic profile", "Name, location and introduction"], ["skills", "Skills and experience", "What you can do and have worked on"], ["education", "Education", "Your academic background"], ["business", "Business or project", "Projects you are building"], ["documents", "Document list", "Documents available on your profile"]];
   async function copyShareText() { try { await navigator.clipboard.writeText(shareText); } catch { const field = document.createElement("textarea"); field.value = shareText; field.style.position = "fixed"; field.style.opacity = "0"; document.body.appendChild(field); field.select(); document.execCommand("copy"); field.remove(); } setCopied(true); window.setTimeout(() => setCopied(false), 2200); }
-  function downloadShareImage() {
+  async function downloadShareImage() {
     setDownloading(true);
-    const canvas = document.createElement("canvas"); canvas.width = 1080; canvas.height = 1080;
-    const context = canvas.getContext("2d"); if (!context) { setDownloading(false); return; }
-    const ink = "#14251f"; const dark = "#0b3b2c"; const green = "#087f5b"; const pale = "#dff5e8"; const paper = "#f4f7f3"; const orange = "#f2a65a"; const muted = "#65756d";
-    const roundedRect = (x: number, y: number, width: number, height: number, radius: number) => { context.beginPath(); context.roundRect(x, y, width, height, radius); context.fill(); };
-    const makeLines = (text: string, maxWidth: number) => { const words = text.trim().split(/\s+/); const lines: string[] = []; let line = ""; for (const word of words) { const candidate = line ? `${line} ${word}` : word; if (context.measureText(candidate).width > maxWidth && line) { lines.push(line); line = word; } else line = candidate; } if (line) lines.push(line); return lines; };
-    const drawLines = (lines: string[], x: number, y: number, lineHeight: number) => { lines.forEach((line, index) => context.fillText(line, x, y + index * lineHeight)); };
-    context.fillStyle = paper; context.fillRect(0, 0, 1080, 1080);
-    context.fillStyle = dark; context.fillRect(0, 0, 1080, 420);
-    context.fillStyle = green; context.beginPath(); context.arc(1020, 35, 190, 0, Math.PI * 2); context.fill();
-    context.fillStyle = pale; context.beginPath(); context.arc(1000, 25, 112, 0, Math.PI * 2); context.fill();
-    context.fillStyle = "#ffffff"; context.fillRect(72, 58, 58, 7); context.font = "800 31px Arial"; context.fillText("GETNEBA", 72, 116); context.font = "700 15px Arial"; context.fillStyle = "#a7e6c3"; context.fillText("OPPORTUNITY RADAR", 72, 145);
-    context.fillStyle = orange; context.font = "800 17px Arial"; context.fillText((labels[opportunity.category] || opportunity.category).toUpperCase(), 72, 210);
-    let titleSize = 62; let titleLines: string[] = []; do { context.font = `800 ${titleSize}px Arial`; titleLines = makeLines(opportunity.title, 820); if (titleLines.length > 2) titleSize -= 3; } while (titleLines.length > 2 && titleSize >= 44); titleLines = titleLines.slice(0, 2); if (titleLines.length === 2 && context.measureText(titleLines[1]).width > 790) titleLines[1] = `${titleLines[1].slice(0, 24)}…`; context.fillStyle = "#ffffff"; drawLines(titleLines, 72, 248, titleSize + 8);
-    const providerY = 248 + titleLines.length * (titleSize + 8) + 17; const providerLabel = opportunity.provider.slice(0, 62); context.font = "600 21px Arial"; const providerWidth = Math.min(820, context.measureText(providerLabel).width + 34); context.fillStyle = "#ffffff1c"; roundedRect(72, providerY - 28, providerWidth, 38, 19); context.fillStyle = "#d5f2df"; context.fillText(providerLabel, 89, providerY);
-    context.fillStyle = "#ffffff"; roundedRect(48, 430, 984, 500, 24);
-    context.fillStyle = green; context.font = "800 14px Arial"; context.fillText("THE OPPORTUNITY", 80, 480);
-    context.fillStyle = ink; context.font = "400 26px Arial"; const summaryLines = makeLines(opportunity.summary.slice(0, 190), 850).slice(0, 3); drawLines(summaryLines, 80, 530, 37);
-    context.fillStyle = "#dce9e1"; context.fillRect(80, 660, 850, 2);
-    context.fillStyle = dark; context.font = "800 14px Arial"; context.fillText("AT A GLANCE", 80, 700);
-    context.fillStyle = pale; roundedRect(80, 728, 410, 88, 14); context.fillStyle = green; context.font = "800 13px Arial"; context.fillText("DEADLINE", 105, 758); context.fillStyle = ink; context.font = "700 20px Arial"; context.fillText(opportunity.deadline ? formatDate(opportunity.deadline) : "Open opportunity", 105, 793);
-    context.fillStyle = "#eef4ef"; roundedRect(510, 728, 420, 88, 14); context.fillStyle = green; context.font = "800 13px Arial"; context.fillText("LOCATION", 535, 758); context.fillStyle = ink; context.font = "700 20px Arial"; context.fillText(place(opportunity).slice(0, 28), 535, 793);
-    context.fillStyle = dark; roundedRect(80, 850, 850, 52, 12); context.fillStyle = "#ffffff"; context.font = "800 19px Arial"; context.fillText("Find what fits your next step.", 105, 883);
-    context.fillStyle = green; context.font = "800 25px Arial"; context.fillText("getneba.app", 72, 1010); context.fillStyle = muted; context.font = "600 16px Arial"; context.fillText("Explore. Prepare. Apply.", 72, 1038);
-    canvas.toBlob((blob) => { if (blob) { const link = document.createElement("a"); link.download = `${opportunityId}-getneba.png`; link.href = URL.createObjectURL(blob); link.click(); URL.revokeObjectURL(link.href); } setDownloading(false); }, "image/png");
+    setError("");
+    try {
+      await downloadOpportunityShareCard(opportunity, shareUrl);
+    } catch (downloadError) {
+      setError((downloadError as Error).message || "Could not create the share image.");
+    } finally {
+      setDownloading(false);
+    }
   }
+
   return <main className="opportunity-detail opportunity-detail-intelligence container">
     <Link href="/opportunities" className="detail-back"><ArrowLeft size={15} /> Back to opportunities</Link>
     <header className="intelligence-hero"><div className="intelligence-hero-copy"><span className="opportunity-type">{labels[item.category] || item.category}</span><h1>{item.title}</h1><p>{item.provider} · {place(item)}</p>{item.deadline && <span className="intelligence-deadline"><CalendarClock size={14} /> Deadline: {formatDate(item.deadline)}</span>}</div><div className="intelligence-hero-actions">{item.application_mode === "internal" ? authenticated ? <button className="button button-dark" onClick={startTracking}>Apply internally <HeartHandshake size={16} /></button> : <Link className="button button-dark" href={loginHref}>Sign in to apply <ArrowRight size={16} /></Link> : <a className="button button-dark" href={item.application_url} target="_blank" rel="noreferrer">Apply on provider website <ExternalLink size={16} /></a>}<button className={`button button-outline${saved ? " saved" : ""}`} onClick={toggleSave} disabled={saving}><Bookmark size={16} fill={saved ? "currentColor" : "none"} />{saved ? "Saved" : "Save"}</button><button className="button button-outline share-trigger" onClick={() => setShareOpen((open) => !open)} aria-expanded={shareOpen} aria-controls="opportunity-share-panel"><Share2 size={16} />Share</button></div></header>
