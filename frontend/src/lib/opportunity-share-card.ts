@@ -215,7 +215,7 @@ export async function downloadOpportunityShareCard(opportunity: Opportunity, sha
   context.font = "800 24px Arial, sans-serif";
   context.fillText("Find what fits. Pass it on.", 194, 974);
   context.fillStyle = COLORS.muted;
-  context.font = "700 22px Arial, sans-serif";
+  context.font = "700 26px Arial, sans-serif";
   context.textAlign = "right";
   context.fillText(hostLabel(shareUrl), 992, 974);
   context.textAlign = "left";

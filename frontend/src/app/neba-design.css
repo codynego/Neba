@@ -250,8 +250,14 @@ a, button, input, select, textarea { -webkit-tap-highlight-color: transparent; }
 .opportunity-detail-section, .application-v1-card, .organization-dashboard-card, .settings-card, .credits-panel { border-color: var(--border); border-radius: 12px; box-shadow: none; }
 .opportunity-detail-section { padding: 25px; }
 .intelligence-match-panel { background: #eaf0df; border-color: #d1dcc3; }
-.opportunity-action-card { background: var(--primary-dark); }
-.opportunity-action-card .button-dark { background: var(--nb-lime); color: var(--primary-dark); }
+.opportunity-action-card { background: var(--primary-dark); border-color: var(--primary-dark); color: #fff; }
+.opportunity-action-card .eyebrow { color: var(--nb-lime); }
+.opportunity-action-card h2 { color: #fff; }
+.opportunity-action-card p { color: #cde2d7; }
+.opportunity-action-card .button-dark { background: var(--nb-lime); color: var(--primary-dark); font-weight: 750; }
+.opportunity-action-card .button-outline { border-color: #ffffff44; color: #fff; }
+.opportunity-action-card .button-outline:hover { background: #ffffff18; border-color: #fff; }
+.opportunity-action-card .opportunity-tracked { color: var(--nb-lime) !important; }
 .opportunity-source-card { background: #f0f2e9; }
 .landing-footer { background: #f3f5ee; border-top: 1px solid var(--border); }
 .landing-footer .footer-brand p { font-family: var(--nb-display); font-size: 19px; letter-spacing: -.04em; color: var(--primary); max-width: 220px; }
