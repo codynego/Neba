@@ -16,7 +16,7 @@ from rest_framework.response import Response
 
 from accounts.models import User
 from accounts.notifications import notify
-from .models import Opportunity, OpportunityApplication, OpportunityMessage, SavedOpportunity
+from .models import Opportunity, OpportunityApplication, OpportunityCorrection, OpportunityMessage, OpportunityThanks, SavedOpportunity
 
 
 class OpportunityPageParser(HTMLParser):
@@ -177,11 +177,14 @@ def match_for(user, opportunity):
         if user.business_status: score += 6; reasons.append("Relevant to your business status")
         else: missing.append("Business status needs checking")
     interests = normalized(user.opportunity_interests)
+    goals = normalized(user.goals)
     if opportunity.category in interests or f"{opportunity.category}s" in interests:
         score += 8; reasons.append(f"You’re looking for {opportunity.get_category_display().lower()} opportunities")
-    intent_match = next((intent for intent, categories in INTENT_CATEGORIES.items() if intent in interests and opportunity.category in categories), None)
+    intent_match = next((intent for intent, categories in INTENT_CATEGORIES.items() if intent in goals and opportunity.category in categories), None)
     if intent_match:
         score += 7; reasons.append(f"Fits your {intent_match} direction")
+    if opportunity.is_remote and "remote" in interests:
+        score += 4; reasons.append("Matches your remote preference")
     opportunity_text = f"{opportunity.title} {opportunity.summary} {opportunity.provider} {opportunity.benefit} {opportunity.eligibility_notes} {opportunity.fields_of_study} {opportunity.location_label}".lower()
     matched_interests = [interest for interest in interests if interest != "remote" and any(term in opportunity_text for term in INTEREST_TERMS.get(interest, {interest.replace("-", " ")}))]
     if matched_interests:
@@ -192,8 +195,6 @@ def match_for(user, opportunity):
         score += 4; reasons.append("Connects with one of your goals")
     if user.state and user.state.strip().lower() in f"{opportunity.location_label} {opportunity.country}".lower():
         score += 4; reasons.append(f"Available near {user.state}")
-    if opportunity.is_remote and "remote" in interests:
-        score += 4; reasons.append("Matches your remote preference")
     return {"score": min(score, 98), "reasons": reasons[:3], "missing": missing[:2]}
 
 
@@ -203,19 +204,37 @@ class OpportunitySerializer(serializers.ModelSerializer):
     application_status = serializers.SerializerMethodField()
     application_count = serializers.SerializerMethodField()
     verification = serializers.SerializerMethodField()
+    contributor = serializers.SerializerMethodField()
+    thanks_count = serializers.SerializerMethodField()
+    thanked_by_me = serializers.SerializerMethodField()
 
     class Meta:
         model = Opportunity
-        fields = ("public_id", "title", "provider", "summary", "category", "application_mode", "application_url", "deadline", "country", "location_label", "is_remote", "benefit", "eligibility_notes", "eligible_countries", "education_levels", "fields_of_study", "employment_statuses", "min_age", "max_age", "requires_business", "source_url", "view_count", "application_count", "created_at", "match", "saved_status", "application_status", "verification")
+        fields = ("public_id", "title", "provider", "summary", "category", "application_mode", "application_url", "deadline", "country", "location_label", "is_remote", "benefit", "eligibility_notes", "eligible_countries", "education_levels", "fields_of_study", "employment_statuses", "min_age", "max_age", "requires_business", "source_url", "share_note", "view_count", "application_count", "created_at", "updated_at", "match", "saved_status", "application_status", "verification", "contributor", "thanks_count", "thanked_by_me")
 
     def get_verification(self, opportunity):
         if opportunity.created_by_id and opportunity.created_by and opportunity.created_by.is_staff and not opportunity.organization_id:
             return {"kind": "neba", "label": "Neba Verified"}
         if opportunity.organization_id and opportunity.organization and opportunity.organization.status == "verified":
             return {"kind": "organization", "label": "Verified organization"}
-        if opportunity.created_by_id and opportunity.created_by and opportunity.created_by.identity_verified_at:
-            return {"kind": "member", "label": "Verified member"}
         return None
+
+    def get_contributor(self, opportunity):
+        contributor = opportunity.created_by
+        if not contributor or contributor.is_staff or opportunity.organization_id:
+            return None
+        return {
+            "name": contributor.display_name or contributor.username,
+            "public_id": str(contributor.public_id),
+            "identity_checked": bool(contributor.identity_verified_at),
+        }
+
+    def get_thanks_count(self, opportunity):
+        return opportunity.thanks.count()
+
+    def get_thanked_by_me(self, opportunity):
+        user = self.context["request"].user
+        return bool(user.is_authenticated and opportunity.thanks.filter(user=user).exists())
 
     def get_match(self, opportunity):
         user = self.context["request"].user
@@ -251,6 +270,23 @@ class SavedOpportunitySerializer(serializers.ModelSerializer):
         fields = ("id", "opportunity_id", "opportunity", "status", "note", "saved_at", "updated_at")
 
 
+def shared_profile_snapshot(user, shared_fields):
+    shared = set(shared_fields or [])
+    profile = {}
+    if "profile" in shared:
+        profile["profile"] = {"name": user.display_name or user.username, "country": user.country, "city": user.city, "bio": user.bio}
+    if "skills" in shared:
+        profile["skills"] = user.skills or []
+        profile["experience"] = user.years_experience
+    if "education" in shared:
+        profile["education"] = {"level": user.education_level, "institution": user.institution, "field": user.field_of_study, "graduation_year": user.graduation_year}
+    if "business" in shared:
+        profile["business"] = {"name": user.business_name, "stage": user.business_status, "industry": user.business_industry or user.industry, "description": user.business_description, "website": user.business_website}
+    if "documents" in shared:
+        profile["documents"] = [{"name": document.name, "type": document.get_document_type_display(), "created_at": document.created_at.isoformat()} for document in user.profile_documents.all()]
+    return profile
+
+
 class OpportunityApplicationSerializer(serializers.ModelSerializer):
     opportunity = OpportunitySerializer(read_only=True)
     opportunity_id = serializers.UUIDField(source="opportunity.public_id", read_only=True)
@@ -261,7 +297,7 @@ class OpportunityApplicationSerializer(serializers.ModelSerializer):
     unread_message_count = serializers.SerializerMethodField()
     unread_activity_count = serializers.SerializerMethodField()
     def get_applicant_name(self, application): return application.user.display_name or application.user.username
-    def get_is_poster(self, application): return application.opportunity.created_by_id == self.context["request"].user.id or application.opportunity.organization_id == getattr(getattr(self.context["request"].user, "organization", None), "id", None)
+    def get_is_poster(self, application): return application.opportunity.organization_id == getattr(getattr(self.context["request"].user, "organization", None), "id", None)
     def get_messages(self, application): return [{"id": message.id, "sender": message.sender_id, "sender_name": message.sender.display_name or message.sender.username, "text": message.text, "created_at": message.created_at, "is_mine": message.sender_id == self.context["request"].user.id} for message in application.messages.select_related("sender").all()]
     def get_unread_message_count(self, application): return application.messages.filter(read_at__isnull=True).exclude(sender=self.context["request"].user).count()
     def get_unread_activity_count(self, application):
@@ -271,21 +307,14 @@ class OpportunityApplicationSerializer(serializers.ModelSerializer):
         unread_status = bool(application.status_updated_at and (not seen_at or application.status_updated_at > seen_at)) if is_poster is False else False
         return unread_messages + (1 if unread_status else 0)
     def get_shared_profile(self, application):
-        user = application.user
-        shared = set(application.shared_fields or [])
-        profile = {}
-        if "profile" in shared:
-            profile["profile"] = {"name": user.display_name or user.username, "country": user.country, "city": user.city, "bio": user.bio}
-        if "skills" in shared:
-            profile["skills"] = user.skills or []
-            profile["experience"] = user.years_experience
-        if "education" in shared:
-            profile["education"] = {"level": user.education_level, "institution": user.institution, "field": user.field_of_study, "graduation_year": user.graduation_year}
-        if "business" in shared:
-            profile["business"] = {"name": user.business_name, "stage": user.business_status, "industry": user.business_industry or user.industry, "description": user.business_description, "website": user.business_website}
-        if "documents" in shared:
-            profile["documents"] = [{"name": document.name, "type": document.get_document_type_display(), "created_at": document.created_at} for document in user.profile_documents.all()]
-        return profile
+        if application.shared_profile_snapshot:
+            return application.shared_profile_snapshot
+        return shared_profile_snapshot(application.user, application.shared_fields)
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if self.get_is_poster(instance):
+            data["notes"] = ""
+        return data
     class Meta:
         model = OpportunityApplication
         fields = ("id", "public_id", "opportunity_id", "opportunity", "status", "applied_at", "next_action", "next_action_at", "notes", "application_message", "additional_information", "shared_fields", "shared_profile", "applicant_name", "is_poster", "messages", "unread_message_count", "unread_activity_count", "created_at", "updated_at")
@@ -300,7 +329,9 @@ class OpportunityViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        queryset = Opportunity.objects.filter(review_status=Opportunity.ReviewStatus.APPROVED).select_related("created_by", "organization")
+        queryset = Opportunity.objects.filter(review_status=Opportunity.ReviewStatus.APPROVED, is_published=True).select_related("created_by", "organization")
+        if self.action in ("list", "matches", "dashboard"):
+            queryset = queryset.filter(Q(deadline__isnull=True) | Q(deadline__gte=timezone.now()))
         if user.is_authenticated:
             queryset = queryset.prefetch_related(
                 Prefetch("saves", queryset=SavedOpportunity.objects.filter(user=user), to_attr="user_saves"),
@@ -359,6 +390,33 @@ class OpportunityViewSet(viewsets.ReadOnlyModelViewSet):
         if status in dict(SavedOpportunity.Status.choices): saved.status = status; saved.save(update_fields=("status", "updated_at"))
         return Response(SavedOpportunitySerializer(saved, context={"request": request}).data, status=201)
 
+    @action(detail=True, methods=["post", "delete"])
+    def thank(self, request, public_id=None):
+        opportunity = self.get_object()
+        if request.method == "DELETE":
+            OpportunityThanks.objects.filter(user=request.user, opportunity=opportunity).delete()
+        else:
+            OpportunityThanks.objects.get_or_create(user=request.user, opportunity=opportunity)
+        return Response({
+            "thanked": request.method == "POST",
+            "thanks_count": opportunity.thanks.count(),
+        }, status=201 if request.method == "POST" else 200)
+
+    @action(detail=True, methods=["post"])
+    def correction(self, request, public_id=None):
+        opportunity = self.get_object()
+        payload = serializers.Serializer(data=request.data)
+        payload.fields["reason"] = serializers.ChoiceField(choices=OpportunityCorrection.Reason.choices)
+        payload.fields["details"] = serializers.CharField(max_length=1000, allow_blank=True, required=False)
+        payload.is_valid(raise_exception=True)
+        report = OpportunityCorrection.objects.create(
+            opportunity=opportunity,
+            reporter=request.user,
+            reason=payload.validated_data["reason"],
+            details=payload.validated_data.get("details", ""),
+        )
+        return Response({"id": report.id, "status": report.status}, status=201)
+
 
 class SavedOpportunityViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
@@ -371,21 +429,27 @@ class OpportunityApplicationViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = OpportunityApplicationSerializer
     lookup_field = "public_id"
-    def get_queryset(self): return OpportunityApplication.objects.filter(Q(user=self.request.user) | Q(opportunity__created_by=self.request.user) | Q(opportunity__organization__owner=self.request.user)).select_related("opportunity", "user").prefetch_related("messages__sender").distinct()
+    def get_queryset(self): return OpportunityApplication.objects.filter(Q(user=self.request.user) | Q(opportunity__organization__owner=self.request.user)).select_related("opportunity", "user").prefetch_related("messages__sender").distinct()
     def create(self, request, *args, **kwargs):
-        opportunity = Opportunity.objects.filter(public_id=request.data.get("opportunity_id"), review_status=Opportunity.ReviewStatus.APPROVED).first()
+        opportunity = Opportunity.objects.filter(public_id=request.data.get("opportunity_id"), review_status=Opportunity.ReviewStatus.APPROVED, is_published=True).first()
         if not opportunity: raise serializers.ValidationError({"opportunity_id": "Choose a valid opportunity."})
         status = request.data.get("status", "preparing")
+        if status not in dict(OpportunityApplication.Status.choices):
+            raise serializers.ValidationError({"status": "Choose a valid application status."})
         submitted = status in ("applied", "shortlisted", "interview", "awarded")
         now = timezone.now()
-        item, created = OpportunityApplication.objects.get_or_create(user=request.user, opportunity=opportunity, defaults={"status": status, "applied_at": now if submitted else None, "application_message": str(request.data.get("application_message", ""))[:2000], "additional_information": str(request.data.get("additional_information", ""))[:3000], "shared_fields": request.data.get("shared_fields", []), "status_updated_at": now, "applicant_updates_seen_at": now})
+        internal = opportunity.application_mode == Opportunity.ApplicationMode.INTERNAL
+        if internal and not opportunity.organization_id:
+            raise serializers.ValidationError("This listing is not connected to an authorised application recipient.")
+        shared_fields = request.data.get("shared_fields", []) if internal else []
+        item, created = OpportunityApplication.objects.get_or_create(user=request.user, opportunity=opportunity, defaults={"status": status, "applied_at": now if submitted else None, "application_message": str(request.data.get("application_message", ""))[:2000] if internal else "", "additional_information": str(request.data.get("additional_information", ""))[:3000] if internal else "", "shared_fields": shared_fields, "shared_profile_snapshot": shared_profile_snapshot(request.user, shared_fields) if internal else {}, "status_updated_at": now, "applicant_updates_seen_at": now})
         if not created: raise serializers.ValidationError("This opportunity is already in your application tracker.")
         SavedOpportunity.objects.update_or_create(user=request.user, opportunity=opportunity, defaults={"status": "applied" if submitted else "preparing"})
         return Response(self.get_serializer(item).data, status=201)
 
     def update(self, request, *args, **kwargs):
         application = self.get_object()
-        is_poster = application.opportunity.created_by_id == request.user.id or application.opportunity.organization_id == getattr(getattr(request.user, "organization", None), "id", None)
+        is_poster = application.opportunity.organization_id == getattr(getattr(request.user, "organization", None), "id", None)
         if is_poster:
             if set(request.data) - {"status"}: raise permissions.PermissionDenied("Posters can update application status only.")
         elif request.data.get("status") in ("applied", "shortlisted", "interview", "awarded"):
@@ -419,6 +483,8 @@ class OpportunityApplicationViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["get", "post"])
     def messages(self, request, public_id=None):
         application = self.get_object()
+        if application.opportunity.application_mode != Opportunity.ApplicationMode.INTERNAL:
+            raise permissions.PermissionDenied("Messages are available only for applications submitted inside Getneba.")
         if request.method == "GET":
             application.messages.filter(read_at__isnull=True).exclude(sender=request.user).update(read_at=timezone.now())
             return Response(self.get_serializer(application).data["messages"])
@@ -426,7 +492,7 @@ class OpportunityApplicationViewSet(viewsets.ModelViewSet):
             raise permissions.PermissionDenied("Messaging is closed for this application.")
         text = serializers.CharField(max_length=2000).run_validation(request.data.get("text"))
         message = OpportunityMessage.objects.create(application=application, sender=request.user, text=text)
-        recipient = application.user if request.user.id != application.user_id else (application.opportunity.created_by or getattr(getattr(application.opportunity, "organization", None), "owner", None))
+        recipient = application.user if request.user.id != application.user_id else getattr(getattr(application.opportunity, "organization", None), "owner", None)
         if recipient and recipient.id != request.user.id:
             notify(recipient, f"New message about {application.opportunity.title}", f"/opportunity-applications/{application.public_id}/messages", "You have a new message about an application.")
         return Response({"id": message.id, "sender": message.sender_id, "sender_name": message.sender.display_name or request.user.username, "text": message.text, "created_at": message.created_at, "is_mine": True}, status=201)
@@ -442,7 +508,7 @@ class OrganizationOpportunitySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Opportunity
-        fields = ("public_id", "title", "provider", "summary", "category", "application_mode", "application_url", "deadline", "country", "location_label", "is_remote", "benefit", "eligibility_notes", "eligible_countries", "education_levels", "fields_of_study", "employment_statuses", "min_age", "max_age", "requires_business", "source_url", "review_status", "review_note", "is_published", "view_count", "created_at", "updated_at")
+        fields = ("public_id", "title", "provider", "summary", "category", "application_mode", "application_url", "deadline", "country", "location_label", "is_remote", "benefit", "eligibility_notes", "eligible_countries", "education_levels", "fields_of_study", "employment_statuses", "min_age", "max_age", "requires_business", "source_url", "share_note", "review_status", "review_note", "is_published", "view_count", "created_at", "updated_at")
         read_only_fields = ("public_id", "provider", "review_status", "review_note", "is_published", "created_at", "updated_at")
 
 
@@ -466,7 +532,7 @@ class OrganizationOpportunityViewSet(viewsets.ModelViewSet):
         rows = []
         for application in applications:
             match = match_for(application.user, opportunity)
-            rows.append({"id": application.id, "application_id": str(application.public_id), "applicant_id": application.user.id, "name": application.user.display_name or application.user.username, "country": application.user.country, "status": application.status, "match_score": match["score"], "match_reasons": match["reasons"], "missing": match["missing"], "notes": application.notes, "application_message": application.application_message, "additional_information": application.additional_information, "shared_fields": application.shared_fields, "created_at": application.created_at})
+            rows.append({"id": application.id, "application_id": str(application.public_id), "applicant_id": application.user.id, "name": application.user.display_name or application.user.username, "country": application.user.country, "status": application.status, "match_score": match["score"], "match_reasons": match["reasons"], "missing": match["missing"], "application_message": application.application_message, "additional_information": application.additional_information, "shared_fields": application.shared_fields, "created_at": application.created_at})
         return sorted(rows, key=lambda row: (-row["match_score"], row["created_at"]))
 
     def _audience(self, opportunity):
@@ -539,14 +605,28 @@ class OrganizationOpportunityViewSet(viewsets.ModelViewSet):
         serializer.save(review_status=Opportunity.ReviewStatus.PENDING, is_published=False, review_note="")
 
 
+class PersonalOpportunitySerializer(OrganizationOpportunitySerializer):
+    def validate(self, attrs):
+        attrs["application_mode"] = Opportunity.ApplicationMode.EXTERNAL
+        if not attrs.get("application_url", getattr(self.instance, "application_url", "")):
+            raise serializers.ValidationError({"application_url": "Add the provider's official application link."})
+        if not attrs.get("provider", getattr(self.instance, "provider", "")):
+            raise serializers.ValidationError({"provider": "Add the organisation offering this opportunity."})
+        return attrs
+
+    class Meta(OrganizationOpportunitySerializer.Meta):
+        read_only_fields = ("public_id", "review_status", "review_note", "is_published", "created_at", "updated_at")
+
+
 class PersonalOpportunityViewSet(OrganizationOpportunityViewSet):
+    serializer_class = PersonalOpportunitySerializer
     def get_queryset(self):
         return Opportunity.objects.filter(created_by=self.request.user).order_by("-updated_at")
 
     def perform_create(self, serializer):
         serializer.save(
             created_by=self.request.user,
-            provider=self.request.user.display_name or self.request.user.username,
+            application_mode=Opportunity.ApplicationMode.EXTERNAL,
             review_status=Opportunity.ReviewStatus.PENDING,
             is_published=False,
         )

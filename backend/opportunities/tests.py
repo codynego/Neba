@@ -7,8 +7,8 @@ from django.test import override_settings
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
-from accounts.models import User
-from .models import Opportunity
+from accounts.models import Organization, User
+from .models import Opportunity, OpportunityCorrection
 from .views import match_for
 
 
@@ -63,3 +63,88 @@ class OpportunityApiTests(APITestCase):
         self.assertFalse(item.is_published)
         self.assertIn("Fetched 1 new opportunity", output.getvalue())
         mock_get.assert_called_once()
+
+    def test_personal_share_keeps_provider_separate_and_cannot_receive_applications(self):
+        contributor = User.objects.create_user(username="connector", email="connector@example.test", display_name="Community Connector", password="test-password-123")
+        self.client.force_authenticate(contributor)
+        response = self.client.post("/api/my-opportunities/", {
+            "title": "Global Product Internship",
+            "provider": "Example Labs",
+            "summary": "A paid internship open to early-career product builders.",
+            "share_note": "This could help someone looking for their first product role.",
+            "category": "internship",
+            "application_mode": "internal",
+            "application_url": "https://example.test/careers/product-intern",
+            "source_url": "https://example.test/careers/product-intern",
+        }, format="json")
+        self.assertEqual(response.status_code, 201, response.data)
+        shared = Opportunity.objects.get(public_id=response.data["public_id"])
+        self.assertEqual(shared.provider, "Example Labs")
+        self.assertEqual(shared.application_mode, Opportunity.ApplicationMode.EXTERNAL)
+        shared.review_status = Opportunity.ReviewStatus.APPROVED
+        shared.is_published = True
+        shared.save(update_fields=("review_status", "is_published"))
+
+        self.client.force_authenticate(self.user)
+        application = self.client.post("/api/opportunity-applications/", {
+            "opportunity_id": str(shared.public_id),
+            "status": "preparing",
+            "application_message": "Private introduction",
+            "shared_fields": ["profile", "skills"],
+        }, format="json")
+        self.assertEqual(application.status_code, 201, application.data)
+        self.assertEqual(application.data["application_message"], "")
+        self.assertEqual(application.data["shared_fields"], [])
+
+        self.client.force_authenticate(contributor)
+        hidden = self.client.get(f"/api/opportunity-applications/{application.data['public_id']}/")
+        self.assertEqual(hidden.status_code, 404)
+
+    def test_thanks_and_corrections_create_honest_community_signals(self):
+        thanked = self.client.post(f"/api/opportunities/{self.opportunity.public_id}/thank/", {}, format="json")
+        self.assertEqual(thanked.status_code, 201, thanked.data)
+        self.assertTrue(thanked.data["thanked"])
+        self.assertEqual(thanked.data["thanks_count"], 1)
+
+        thanked_again = self.client.post(f"/api/opportunities/{self.opportunity.public_id}/thank/", {}, format="json")
+        self.assertEqual(thanked_again.data["thanks_count"], 1)
+
+        correction = self.client.post(f"/api/opportunities/{self.opportunity.public_id}/correction/", {"reason": "deadline", "details": "The official page lists a different date."}, format="json")
+        self.assertEqual(correction.status_code, 201, correction.data)
+        report = OpportunityCorrection.objects.get(pk=correction.data["id"])
+        self.assertEqual(report.reporter, self.user)
+        self.assertEqual(report.status, OpportunityCorrection.Status.OPEN)
+
+        removed = self.client.delete(f"/api/opportunities/{self.opportunity.public_id}/thank/")
+        self.assertEqual(removed.status_code, 200, removed.data)
+        self.assertEqual(removed.data["thanks_count"], 0)
+
+    def test_internal_application_shares_a_snapshot_and_keeps_notes_private(self):
+        owner = User.objects.create_user(username="provider", email="provider@example.test", display_name="Provider Owner", password="test-password-123")
+        organization = Organization.objects.create(owner=owner, name="Example Foundation", status=Organization.Status.VERIFIED)
+        internal = Opportunity.objects.create(
+            title="Foundation Fellowship",
+            provider=organization.name,
+            summary="A fellowship with applications reviewed inside GetNeba.",
+            category="fellowship",
+            application_mode=Opportunity.ApplicationMode.INTERNAL,
+            organization=organization,
+        )
+        self.user.bio = "Original application biography"
+        self.user.save(update_fields=("bio",))
+        application = self.client.post("/api/opportunity-applications/", {
+            "opportunity_id": str(internal.public_id),
+            "status": "applied",
+            "application_message": "I would like to be considered.",
+            "shared_fields": ["profile"],
+        }, format="json")
+        self.assertEqual(application.status_code, 201, application.data)
+        self.client.patch(f"/api/opportunity-applications/{application.data['public_id']}/", {"notes": "Private preparation note"}, format="json")
+        self.user.bio = "Biography changed after applying"
+        self.user.save(update_fields=("bio",))
+
+        self.client.force_authenticate(owner)
+        provider_view = self.client.get(f"/api/opportunity-applications/{application.data['public_id']}/")
+        self.assertEqual(provider_view.status_code, 200, provider_view.data)
+        self.assertEqual(provider_view.data["notes"], "")
+        self.assertEqual(provider_view.data["shared_profile"]["profile"]["bio"], "Original application biography")

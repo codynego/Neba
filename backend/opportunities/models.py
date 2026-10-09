@@ -49,6 +49,7 @@ class Opportunity(models.Model):
     requires_business = models.BooleanField(default=False)
     is_published = models.BooleanField(default=True, db_index=True)
     source_url = models.URLField(max_length=500, blank=True)
+    share_note = models.CharField(max_length=500, blank=True)
     view_count = models.PositiveIntegerField(default=0)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="created_opportunities")
     organization = models.ForeignKey("accounts.Organization", on_delete=models.SET_NULL, null=True, blank=True, related_name="opportunities")
@@ -107,6 +108,7 @@ class OpportunityApplication(models.Model):
     application_message = models.TextField(max_length=2000, blank=True)
     additional_information = models.TextField(max_length=3000, blank=True)
     shared_fields = models.JSONField(default=list, blank=True)
+    shared_profile_snapshot = models.JSONField(default=dict, blank=True)
     status_updated_at = models.DateTimeField(null=True, blank=True)
     applicant_updates_seen_at = models.DateTimeField(null=True, blank=True)
     poster_updates_seen_at = models.DateTimeField(null=True, blank=True)
@@ -116,6 +118,42 @@ class OpportunityApplication(models.Model):
     class Meta:
         constraints = [models.UniqueConstraint(fields=("user", "opportunity"), name="one_application_per_user_opportunity")]
         ordering = ("next_action_at", "-updated_at")
+
+
+class OpportunityThanks(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="opportunity_thanks")
+    opportunity = models.ForeignKey(Opportunity, on_delete=models.CASCADE, related_name="thanks")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=("user", "opportunity"), name="one_thanks_per_user_opportunity")]
+        ordering = ("-created_at",)
+
+
+class OpportunityCorrection(models.Model):
+    class Reason(models.TextChoices):
+        CLOSED = "closed", "Opportunity is closed"
+        DEADLINE = "deadline", "Deadline is incorrect"
+        ELIGIBILITY = "eligibility", "Eligibility is incorrect"
+        LINK = "link", "Application link is broken"
+        DETAILS = "details", "Other details are incorrect"
+
+    class Status(models.TextChoices):
+        OPEN = "open", "Open"
+        REVIEWED = "reviewed", "Reviewed"
+        RESOLVED = "resolved", "Resolved"
+        DISMISSED = "dismissed", "Dismissed"
+
+    opportunity = models.ForeignKey(Opportunity, on_delete=models.CASCADE, related_name="corrections")
+    reporter = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="opportunity_corrections")
+    reason = models.CharField(max_length=24, choices=Reason.choices)
+    details = models.TextField(max_length=1000, blank=True)
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.OPEN, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ("-created_at",)
 
 
 class OpportunityMessage(models.Model):
