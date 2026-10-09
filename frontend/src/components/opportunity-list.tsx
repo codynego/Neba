@@ -2,46 +2,80 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowRight, Bookmark, CalendarClock, Check, ChevronDown, Filter, Search, Sparkles } from "lucide-react";
-import { api } from "@/lib/api";
-import { Opportunity, Page } from "@/lib/types";
+import { ArrowRight, ArrowUpRight, Bookmark, Filter, Link2, Search, SlidersHorizontal, X } from "lucide-react";
+import { api, getToken } from "@/lib/api";
+import type { Opportunity, Page } from "@/lib/types";
 import { opportunityPath } from "@/lib/routes";
-import { VerificationBadge } from "./verification-badge";
+import { OpportunityCard, opportunityLabels } from "./opportunity-card";
 
-const labels: Record<string, string> = { scholarship: "Scholarship", grant: "Grant", job: "Job", internship: "Internship", fellowship: "Fellowship", competition: "Competition", training: "Training", startup: "Startup program", funding: "Funding", tender: "Tender", remote: "Remote" };
-const intentCategories: Record<string, string[]> = { all: [], work: ["job", "internship", "remote"], learn: ["scholarship", "fellowship", "training"], build: ["startup", "competition", "tender"], fund: ["grant", "funding"] };
-const intents = ["all", "work", "learn", "build", "fund"];
-const deadline = (value: string | null) => value ? new Intl.DateTimeFormat("en", { month: "short", day: "numeric", year: "numeric" }).format(new Date(value)) : "No deadline listed";
-const location = (item: Opportunity) => item.is_remote ? "Remote" : item.location_label || item.country || "Open location";
-const daysUntil = (value: string | null) => value ? Math.ceil((new Date(value).getTime() - Date.now()) / 86400000) : null;
-
-function OpportunityCard({ item, onSave }: { item: Opportunity; onSave: (item: Opportunity) => void }) {
-  return <article className="opportunity-card opportunity-card-reframed">
-    <div className="opportunity-card-top"><span className="opportunity-type">{labels[item.category] || item.category}</span>{item.match && <strong className="opportunity-match">{item.match.score}% profile fit</strong>}</div>
-    <h3>{item.title}</h3><p className="opportunity-provider">{item.provider} · {item.is_remote ? "Remote" : labels[item.category] || item.category} <VerificationBadge verification={item.verification} /></p>
-    <p className="opportunity-summary">{item.summary}</p>
-    <div className="opportunity-meta"><span>{item.benefit || labels[item.category]}</span><span>{location(item)}</span></div>
-    <div className="opportunity-deadline"><CalendarClock size={15} /><span><small>{item.deadline && daysUntil(item.deadline) !== null && daysUntil(item.deadline)! <= 14 ? "Closes" : "Deadline"}</small>{deadline(item.deadline)}</span></div>
-    {item.match?.reasons.length ? <div className="opportunity-card-reasons"><small>Why you match</small>{item.match.reasons.slice(0, 2).map((reason) => <span key={reason}><Check size={13} />{reason}</span>)}</div> : null}
-    <footer><button className={`opportunity-save${item.saved_status ? " saved" : ""}`} onClick={() => onSave(item)} aria-label={item.saved_status ? "Remove saved opportunity" : "Save opportunity"}><Bookmark size={16} fill={item.saved_status ? "currentColor" : "none"} />{item.saved_status ? "Saved" : "Save"}</button><Link className="opportunity-view" href={opportunityPath(item.title, item.public_id)}>View opportunity <ArrowRight size={15} /></Link></footer>
-  </article>;
-}
+const goals = [{ value: "", label: "All opportunities" }, { value: "internship", label: "Internships" }, { value: "job", label: "Jobs" }, { value: "scholarship", label: "Scholarships" }, { value: "grant", label: "Grants" }, { value: "training", label: "Training" }];
 
 export function OpportunityList({ matches = false }: { matches?: boolean }) {
-  const [items, setItems] = useState<Opportunity[]>([]); const [loading, setLoading] = useState(true); const [loadingMore, setLoadingMore] = useState(false); const [hasMore, setHasMore] = useState(false); const [page, setPage] = useState(1); const [query, setQuery] = useState(""); const [activeIntent, setActiveIntent] = useState("all"); const [filtersOpen, setFiltersOpen] = useState(false); const [remoteOnly, setRemoteOnly] = useState(false); const [locationQuery, setLocationQuery] = useState(""); const [deadlineFilter, setDeadlineFilter] = useState("all"); const [typeFilter, setTypeFilter] = useState("");
-  const loadMoreRef = useRef<HTMLDivElement | null>(null); const endpoint = matches ? "/opportunities/matches/" : "/opportunities/";
-  const loadPage = useCallback(async (pageNumber: number, replace = false) => { if (replace) setLoading(true); else setLoadingMore(true); try { const result = await api<Page<Opportunity>>(`${endpoint}?page=${pageNumber}`); setItems((current) => replace ? result.results : [...current, ...result.results.filter((item) => !current.some((existing) => existing.public_id === item.public_id))]); setPage(pageNumber); setHasMore(Boolean(result.next)); } catch (error) { if (replace) setItems([]); else console.error("Could not load more opportunities", error); } finally { if (replace) setLoading(false); else setLoadingMore(false); } }, [endpoint]);
-  useEffect(() => { void loadPage(1, true); }, [loadPage]);
-  useEffect(() => { const target = loadMoreRef.current; if (!target || !hasMore) return; const observer = new IntersectionObserver(([entry]) => { if (entry.isIntersecting && !loading && !loadingMore) void loadPage(page + 1); }, { rootMargin: "600px 0px" }); observer.observe(target); return () => observer.disconnect(); }, [hasMore, loading, loadingMore, page, loadPage]);
-  const visible = items.filter((item) => { const haystack = `${item.title} ${item.provider} ${item.category} ${item.summary} ${item.benefit} ${item.country} ${item.location_label}`.toLowerCase(); const matchesSearch = haystack.includes(query.toLowerCase()); const categoryMatches = activeIntent === "all" || intentCategories[activeIntent].includes(item.category); const matchesType = !typeFilter || item.category === typeFilter; const matchesLocation = !locationQuery.trim() || `${item.country} ${item.location_label} ${item.is_remote ? "remote" : ""}`.toLowerCase().includes(locationQuery.trim().toLowerCase()); const days = daysUntil(item.deadline); const matchesDeadline = deadlineFilter === "all" || (days !== null && days >= 0 && days <= Number(deadlineFilter)); return matchesSearch && categoryMatches && matchesType && matchesLocation && matchesDeadline && (!remoteOnly || item.is_remote); });
-  const recommended = visible.filter((item) => item.match).sort((a, b) => (b.match?.score || 0) - (a.match?.score || 0)).slice(0, 3); const remaining = visible.filter((item) => !recommended.some((match) => match.public_id === item.public_id)); const closingSoon = visible.filter((item) => { const days = daysUntil(item.deadline); return days !== null && days >= 0 && days <= 14; }).sort((a, b) => (daysUntil(a.deadline) || 99) - (daysUntil(b.deadline) || 99)).slice(0, 3);
-  function save(item: Opportunity) { const saved = Boolean(item.saved_status); api(`/opportunities/${item.public_id}/save/`, { method: saved ? "DELETE" : "POST", body: JSON.stringify({}) }).then(() => setItems((current) => current.map((row) => row.public_id === item.public_id ? { ...row, saved_status: saved ? null : "saved" } : row))).catch(() => {}); }
+  const [items, setItems] = useState<Opportunity[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [hasMore, setHasMore] = useState(false);
+  const [page, setPage] = useState(1);
+  const [query, setQuery] = useState("");
+  const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("");
+  const [ready, setReady] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [remoteOnly, setRemoteOnly] = useState(false);
+  const [saving, setSaving] = useState<string | null>(null);
+  const generation = useRef(0);
+  const endpoint = matches ? "/opportunities/matches/" : "/opportunities/";
 
-  return <main className="opportunity-list-page opportunity-discover-page container">
-    <header className="opportunity-page-header opportunity-discover-header"><div><span className="eyebrow">YOUR OPPORTUNITY RADAR</span><h1>Discover opportunities</h1><p>Find things worth pursuing — from work and funding to learning, building, and collaboration.</p></div><Link className="button button-outline" href="/my-opportunities/new">+ Post an opportunity</Link></header>
-    <div className="opportunity-search-row"><div className="opportunity-list-search"><Search size={19} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search opportunities, skills, organizations..." aria-label="Search opportunities" /></div><button className={`opportunity-filter-button${filtersOpen ? " active" : ""}`} onClick={() => setFiltersOpen((open) => !open)}><Filter size={16} /> Filters <ChevronDown size={15} /></button></div>
-    <nav className="opportunity-tabs opportunity-intent-tabs" aria-label="Opportunity goals">{intents.map((intent) => <button key={intent} className={activeIntent === intent ? "active" : ""} onClick={() => setActiveIntent(intent)}>{intent === "all" ? "All" : intent[0].toUpperCase() + intent.slice(1)}</button>)}</nav>
-    {filtersOpen && <div className="opportunity-filter-panel"><label>Location<input value={locationQuery} onChange={(event) => setLocationQuery(event.target.value)} placeholder="Any location" /></label><label>Deadline<select value={deadlineFilter} onChange={(event) => setDeadlineFilter(event.target.value)}><option value="all">Any deadline</option><option value="7">Next 7 days</option><option value="30">Next 30 days</option><option value="90">Next 90 days</option></select></label><label>Opportunity type<select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)}><option value="">All types</option>{Object.entries(labels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label><label className="opportunity-toggle"><input type="checkbox" checked={remoteOnly} onChange={(event) => setRemoteOnly(event.target.checked)} /> Remote only</label></div>}
-    {loading ? <div className="dashboard-loading">Loading opportunities...</div> : visible.length ? <>{recommended.length > 0 && <section className="opportunity-recommended"><div className="opportunity-section-heading"><div><span className="eyebrow">BASED ON YOUR PROFILE</span><h2>Recommended for you</h2><p>These opportunities line up with your interests, profile, and previous activity.</p></div><Sparkles size={24} /></div><div className="opportunity-card-grid">{recommended.map((item) => <OpportunityCard key={item.public_id} item={item} onSave={save} />)}</div></section>}{closingSoon.length > 0 && <section className="opportunity-closing-soon"><div className="opportunity-section-heading compact"><div><span className="eyebrow">DON’T MISS THE WINDOW</span><h2>Closing soon</h2><p>Opportunities worth checking before their deadline passes.</p></div></div><div className="opportunity-closing-list">{closingSoon.map((item) => <Link href={opportunityPath(item.title, item.public_id)} key={item.public_id}><div><strong>{item.title}</strong><span>{labels[item.category] || item.category} · {item.is_remote ? "Remote" : location(item)}</span></div><b>{daysUntil(item.deadline) === 0 ? "Closes today" : `Closes in ${daysUntil(item.deadline)} days`} <ArrowRight size={14} /></b></Link>)}</div></section>}<section className="opportunity-results"><div className="opportunity-section-heading compact"><div><span className="eyebrow">KEEP EXPLORING</span><h2>{activeIntent === "all" ? "More opportunities" : `${activeIntent[0].toUpperCase() + activeIntent.slice(1)} opportunities`}</h2></div><span className="opportunity-result-count">{visible.length} found</span></div><div className="opportunity-card-grid">{remaining.map((item) => <OpportunityCard key={item.public_id} item={item} onSave={save} />)}</div></section><div ref={loadMoreRef} className={`opportunity-load-more${loadingMore ? " loading" : ""}`} aria-live="polite">{loadingMore ? "Finding more opportunities…" : hasMore ? "Scroll to load more" : "You’ve reached the end."}</div></> : <div className="radar-empty"><Sparkles size={26} /><div><strong>{matches ? "No matches yet" : "No opportunities found"}</strong><p>{matches ? "Complete more of your profile or check back when new opportunities are added." : "Try a different search or filter."}</p></div></div>}
+  useEffect(() => { const params = new URLSearchParams(window.location.search); setQuery(params.get("search") || ""); setSearch(params.get("search") || ""); setCategory(params.get("category") || ""); setReady(true); }, []);
+  const load = useCallback(async (number: number, replace: boolean, signal?: AbortSignal) => {
+    const requestGeneration = generation.current;
+    setLoading(true); setError("");
+    try {
+      const params = new URLSearchParams({ page: String(number) });
+      if (search) params.set("search", search);
+      if (category) params.set("category", category);
+      const result = await api<Page<Opportunity>>(`${endpoint}?${params}`, { signal });
+      if (signal?.aborted || generation.current !== requestGeneration) return;
+      setItems((current) => replace ? result.results : [...current, ...result.results.filter((item) => !current.some((row) => row.public_id === item.public_id))]);
+      setHasMore(Boolean(result.next)); setPage(number);
+    } catch { if (!signal?.aborted && generation.current === requestGeneration) setError("We couldn’t load opportunities. Please try again."); }
+    finally { if (!signal?.aborted && generation.current === requestGeneration) setLoading(false); }
+  }, [category, endpoint, search]);
+  useEffect(() => {
+    if (!ready) return;
+    generation.current += 1;
+    const controller = new AbortController();
+    setItems([]); setPage(1); setHasMore(false);
+    const params = new URLSearchParams();
+    if (search) params.set("search", search);
+    if (category) params.set("category", category);
+    window.history.replaceState(null, "", `${window.location.pathname}${params.size ? `?${params}` : ""}`);
+    void load(1, true, controller.signal);
+    return () => controller.abort();
+  }, [load, ready, search, category]);
+
+  async function save(item: Opportunity) {
+    if (!getToken()) { window.location.assign(`/login?next=${encodeURIComponent(opportunityPath(item.title, item.public_id))}`); return; }
+    if (saving) return;
+    setSaving(item.public_id); setError("");
+    try { await api(`/opportunities/${item.public_id}/save/`, { method: item.saved_status ? "DELETE" : "POST", body: JSON.stringify({}) }); setItems((current) => current.map((row) => row.public_id === item.public_id ? { ...row, saved_status: row.saved_status ? null : "saved" } : row)); }
+    catch { setError("That opportunity couldn’t be saved. Please try again."); }
+    finally { setSaving(null); }
+  }
+  const visible = items.filter((item) => !remoteOnly || item.is_remote);
+  function clearFilters() { setQuery(""); setSearch(""); setCategory(""); setRemoteOnly(false); }
+
+  return <main className="nb-explore container">
+    <header className="nb-explore-heading"><div><span className="nb-kicker">A GOOD PLACE TO START</span><h1>Find your next move.</h1><p>Work, learn, build, or fund an idea. There’s more than one way forward.</p></div><Link href="/my-opportunities/new" className="nb-button nb-button-green"><Link2 size={18} /> Share an opportunity</Link></header>
+    <form className="nb-search" onSubmit={(event) => { event.preventDefault(); setSearch(query.trim()); }}><Search size={21} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Try a role, skill, or organisation" aria-label="Search opportunities" /><button type="submit">Search <ArrowRight size={16} /></button></form>
+    <div className="nb-explore-tabs"><nav aria-label="Opportunity types">{goals.map((goal) => <button key={goal.value} type="button" className={category === goal.value ? "active" : ""} onClick={() => setCategory(goal.value)} aria-pressed={category === goal.value}>{goal.label}</button>)}</nav><button className={`nb-filter-toggle${filtersOpen ? " active" : ""}`} onClick={() => setFiltersOpen((open) => !open)} aria-expanded={filtersOpen} aria-controls="opportunity-filters"><SlidersHorizontal size={17} />Filters</button></div>
+    {filtersOpen && <div className="nb-filters" id="opportunity-filters"><label>Opportunity type<select value={category} onChange={(event) => setCategory(event.target.value)}><option value="">All types</option>{Object.entries(opportunityLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label className="nb-check-filter"><input type="checkbox" checked={remoteOnly} onChange={(event) => setRemoteOnly(event.target.checked)} /> Remote only <small>Filters loaded results</small></label><button type="button" className="nb-text-link" onClick={clearFilters}>Reset filters <X size={15} /></button></div>}
+    <div className="nb-explore-layout"><section className="nb-results" aria-label="Opportunity results"><div className="nb-results-heading"><h2>{search ? `Results for “${search}”` : category ? opportunityLabels[category] || "Opportunities" : "Open doors. New possibilities."}</h2><span>{loading ? "Loading…" : `${visible.length} ${hasMore ? "loaded" : "opportunities"}`}</span></div>
+      {error && <div className="nb-feedback" role="alert"><p>{error}</p><button type="button" onClick={() => void load(items.length ? page : 1, !items.length)}>Try again</button></div>}
+      {loading && !items.length ? <div className="nb-results-grid" aria-label="Loading opportunities" role="status">{[0, 1, 2, 3].map((item) => <div key={item} className="nb-card-skeleton"><span /><i /><i /><i /></div>)}</div> : visible.length ? <div className="nb-results-grid">{visible.map((item) => <OpportunityCard key={item.public_id} item={item} onSave={save} saving={saving === item.public_id} />)}</div> : !error && <div className="nb-empty"><Search size={30} /><h3>No opportunities here just yet.</h3><p>{search || category || remoteOnly ? "Try another search or clear your filters." : "Check back for new finds, or share an opportunity with the community."}</p><button className="nb-button nb-button-green" onClick={clearFilters}>Clear filters <ArrowRight size={17} /></button></div>}
+      {hasMore && <button type="button" className="nb-load-more" disabled={loading} onClick={() => void load(page + 1, false)}>{loading ? "Loading…" : "Load more opportunities"}<ArrowDownIcon /></button>}
+    </section><aside className="nb-explore-aside"><div className="nb-share-note"><span className="nb-kicker">SOMEONE COULD USE THAT LINK</span><Link2 size={31} /><h2>A good find?<br />Pass it on.</h2><p>Share an opportunity that could open a door for someone else.</p><Link href="/my-opportunities/new">Share with GetNeba <ArrowUpRight size={18} /></Link></div><div className="nb-aside-tip"><Bookmark size={21} /><h3>Find it now. Pursue it later.</h3><p>Save promising opportunities and keep your next steps together.</p><Link href="/saved" className="nb-text-link">Your saved opportunities <ArrowRight size={16} /></Link></div><p className="nb-aside-foot">A little connection.<br />A big next step.</p></aside></div>
   </main>;
 }
+
+function ArrowDownIcon() { return <Filter size={15} aria-hidden="true" />; }

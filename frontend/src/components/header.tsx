@@ -1,70 +1,39 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { FormEvent, useEffect, useState } from "react";
-import { ArrowUpRight, BarChart3, Bell, Bookmark, Building2, Compass, FileText, House, ListChecks, MessageCircle, MoreHorizontal, Search, Settings, Sparkles, UserRound, UsersRound } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ArrowUpRight, BarChart3, Bell, Bookmark, Building2, Compass, FileText, House, Link2, ListChecks, Menu, MessageCircle, Plus, Search, Settings, UserRound, UsersRound, X } from "lucide-react";
 import { Brand } from "./brand";
-import { api, clearToken, getToken } from "@/lib/api";
+import { api, getToken } from "@/lib/api";
 import { NotificationBell } from "./notification-bell";
 import { isOpportunityPath, isPublicPath } from "@/lib/routes";
 import { OperationsHeader } from "./operations-header";
 
-const primaryLinks = [
-  { href: "/dashboard", label: "Overview", icon: House },
-  { href: "/opportunities", label: "Opportunities", icon: Compass },
-  { href: "/saved", label: "Saved", icon: Bookmark },
-  { href: "/applications", label: "Applications", icon: ListChecks },
-  { href: "/alerts", label: "Alerts", icon: Bell },
-  { href: "/assistant", label: "Practice", icon: MessageCircle },
-];
-const secondaryLinks = [
-  { href: "/profile", label: "Profile", icon: UserRound },
-  { href: "/settings", label: "Settings", icon: Settings },
-];
-const organizationLinks = [
-  { href: "/organization/dashboard", label: "Overview", icon: House },
-  { href: "/organization/opportunities", label: "My opportunities", icon: FileText },
-  { href: "/organization/applicants", label: "Applicants", icon: UsersRound },
-  { href: "/organization/analytics", label: "Analytics", icon: BarChart3 },
-  { href: "/organization/assistant", label: "AI Assistant", icon: Sparkles },
-];
+const memberLinks = [{ href: "/dashboard", label: "Home", icon: House }, { href: "/opportunities", label: "Explore", icon: Compass }, { href: "/saved", label: "Saved", icon: Bookmark }, { href: "/applications", label: "My progress", icon: ListChecks }, { href: "/my-opportunities", label: "My contributions", icon: Link2 }, { href: "/assistant", label: "Practice", icon: MessageCircle }];
+const orgLinks = [{ href: "/organization/dashboard", label: "Overview", icon: House }, { href: "/organization/opportunities", label: "Opportunities", icon: FileText }, { href: "/organization/applicants", label: "Applicants", icon: UsersRound }, { href: "/organization/analytics", label: "Analytics", icon: BarChart3 }, { href: "/organization/onboarding", label: "Organisation", icon: Building2 }];
+const publicLinks = [{ href: "/opportunities", label: "Find opportunities" }, { href: "/#how-it-works", label: "How it works" }, { href: "/my-opportunities/new", label: "Share a find" }, { href: "/about", label: "Our story" }];
+
 export function Header() {
-  const path = usePathname();
-  const router = useRouter();
-  const [signedIn, setSignedIn] = useState(false);
-  const [search, setSearch] = useState("");
-  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
-  const [unread, setUnread] = useState({ activity_count: 0, message_count: 0, application_count: 0 });
+  const path = usePathname(); const router = useRouter();
+  const [signedIn, setSignedIn] = useState(false); const [search, setSearch] = useState(""); const [menuOpen, setMenuOpen] = useState(false);
+  const [unread, setUnread] = useState({ activity_count: 0, application_count: 0 });
+  useEffect(() => { const sync = () => setSignedIn(Boolean(getToken())); sync(); window.addEventListener("nearwork_auth", sync); return () => window.removeEventListener("nearwork_auth", sync); }, []);
+  useEffect(() => { setMenuOpen(false); }, [path]);
+  useEffect(() => { if (!menuOpen) return; const close = (event: KeyboardEvent) => { if (event.key === "Escape") setMenuOpen(false); }; window.addEventListener("keydown", close); return () => window.removeEventListener("keydown", close); }, [menuOpen]);
   useEffect(() => {
-    const sync = () => setSignedIn(Boolean(getToken()));
-    sync();
-    window.addEventListener("nearwork_auth", sync);
-    return () => window.removeEventListener("nearwork_auth", sync);
-  }, []);
-  useEffect(() => {
+    if (!signedIn) return;
     const controller = new AbortController();
-    const refresh = () => {
-      if (!getToken()) { setUnread({ activity_count: 0, message_count: 0, application_count: 0 }); return; }
-      if (!document.hidden) Promise.all([api<{ activity_count: number; message_count: number }>("/notifications/unread/", { signal: controller.signal }), api<{ count: number }>("/opportunity-applications/unread/", { signal: controller.signal })]).then(([notifications, applications]) => setUnread({ ...notifications, application_count: applications.count })).catch(() => {});
-    };
-    refresh();
-    const timer = setInterval(refresh, 20000);
-    window.addEventListener("neba_notifications", refresh);
-    document.addEventListener("visibilitychange", refresh);
+    const refresh = () => { if (document.hidden) return; Promise.all([api<{ activity_count: number }>("/notifications/unread/", { signal: controller.signal }), api<{ count: number }>("/opportunity-applications/unread/", { signal: controller.signal })]).then(([notifications, applications]) => setUnread({ activity_count: notifications.activity_count, application_count: applications.count })).catch(() => {}); };
+    refresh(); const timer = setInterval(refresh, 30000); window.addEventListener("neba_notifications", refresh); document.addEventListener("visibilitychange", refresh);
     return () => { controller.abort(); clearInterval(timer); window.removeEventListener("neba_notifications", refresh); document.removeEventListener("visibilitychange", refresh); };
-  }, []);
-  const active = (href: string) => href === "/" ? path === "/" : href === "/tasks" ? path === "/tasks" || path.startsWith("/offers") || (path.startsWith("/tasks/") && path !== "/tasks/new") : path.startsWith(href);
-  function submit(event: FormEvent) {
-    event.preventDefault();
-    router.push(`/tasks?search=${encodeURIComponent(search.trim())}`);
-  }
+  }, [signedIn]);
+  const active = (href: string) => path === href || path.startsWith(`${href}/`);
   if (path.startsWith("/operations")) return <OperationsHeader />;
-  if (path.startsWith("/organization")) return <><header className="site-header organization-header"><div className="nav-wrap"><Brand /><span className="organization-header-label">Organization</span><div className="header-account"><Link className="account-link" href="/settings"><Settings size={18} /> Settings</Link></div></div></header><aside className="sidebar organization-sidebar"><Brand /><span className="organization-sidebar-label">Organization</span><nav aria-label="Organization navigation">{organizationLinks.map(({ href, label, icon: Icon }) => <Link key={href} href={href} className={active(href) ? "side-link active" : "side-link"} aria-current={active(href) ? "page" : undefined}><Icon size={20} /><span>{label}</span></Link>)}</nav><div className="sidebar-divider" /><nav aria-label="Organization account navigation"><Link className={active("/organization/onboarding") ? "side-link active" : "side-link"} href="/organization/onboarding"><Building2 size={20} /><span>Organization</span></Link><Link className={active("/settings") ? "side-link active" : "side-link"} href="/settings"><Settings size={20} /><span>Settings</span></Link></nav></aside><nav className="bottom-nav organization-bottom-nav" aria-label="Organization mobile navigation">{organizationLinks.slice(0, 4).map(({ href, label, icon: Icon }) => <Link key={href} href={href} className={active(href) ? "active" : ""}><Icon size={21} /><span>{label}</span></Link>)}</nav></>;
-  if (isPublicPath(path) && !(signedIn && isOpportunityPath(path))) return <header className="site-header public-header"><div className="landing-container public-nav"><Brand /><nav className="public-links" aria-label="Website navigation"><Link href="/#opportunities">Explore opportunities</Link><Link href="/#how-it-works">How it works</Link><Link href="/assistant">Practice</Link><Link href="/about">Why GetNeba</Link><Link href="/help">Help center</Link></nav><div className="header-account">{signedIn ? <Link className="button button-dark compact" href="/dashboard">Open my radar <ArrowUpRight size={16} /></Link> : <><Link className="login-link" href="/login">Log in</Link><Link className="button button-dark compact" href="/register">Get started <ArrowUpRight size={16} /></Link></>}</div></div></header>;
-  return <>
-    <header className="site-header"><div className="nav-wrap"><Brand /><form className="header-search" onSubmit={(event) => { event.preventDefault(); router.push(`/opportunities?search=${encodeURIComponent(search.trim())}`); }}><Search size={18} /><input aria-label="Search opportunities" placeholder="Search opportunities…" value={search} onChange={(event) => setSearch(event.target.value)} /><button type="submit" aria-label="Search"><ArrowUpRight size={18} /></button></form><div className="header-account">{signedIn && <NotificationBell />}{signedIn ? <Link className="account-link" href="/profile"><UserRound size={19} /> My profile</Link> : <><Link className="login-link" href="/login">Log in</Link><Link className="button button-dark compact" href="/register">Join GetNeba <ArrowUpRight size={16} /></Link></>}</div></div></header>
-    <aside className="sidebar"><Brand /><nav aria-label="Main navigation">{primaryLinks.map(({ href, label, icon: Icon }) => { const count = href === "/alerts" ? unread.activity_count : href === "/applications" ? unread.application_count : 0; return <Link key={href} href={href} className={active(href) ? "side-link active" : "side-link"} aria-current={active(href) ? "page" : undefined}><Icon size={20} /><span>{label}</span>{count > 0 && <b className="nav-count">{count > 99 ? "99+" : count}</b>}</Link>; })}</nav><div className="sidebar-divider" /><nav aria-label="Account navigation">{secondaryLinks.map(({ href, label, icon: Icon }) => <Link key={href} href={href} className={active(href) ? "side-link active" : "side-link"} aria-current={active(href) ? "page" : undefined}><Icon size={20} /><span>{label}</span></Link>)}</nav><div className="sidebar-pro"><strong>Getneba Pro</strong><p>Unlock more matches &amp; intelligence</p><Link href="/profile">Upgrade <ArrowUpRight size={15} /></Link></div></aside>
-    <nav className="bottom-nav" aria-label="Mobile navigation">{[primaryLinks[0], primaryLinks[1], primaryLinks[2], primaryLinks[4]].map(({ href, label, icon: Icon }) => { const count = href === "/alerts" ? unread.activity_count : 0; return <Link key={href} href={href} className={active(href) ? "active" : ""} aria-current={active(href) ? "page" : undefined}><Icon size={21} /><span>{label}</span>{count > 0 && <b className="nav-count">{count > 99 ? "99+" : count}</b>}</Link>; })}<button type="button" className={`mobile-more-toggle${mobileMoreOpen ? " active" : ""}`} onClick={() => setMobileMoreOpen((open) => !open)} aria-expanded={mobileMoreOpen} aria-controls="mobile-more-menu"><MoreHorizontal size={21} /><span>More</span></button></nav>
-    {mobileMoreOpen && <div className="mobile-more-menu" id="mobile-more-menu"><div className="mobile-more-menu-inner">{[primaryLinks[2], primaryLinks[3], primaryLinks[5], secondaryLinks[0], secondaryLinks[1]].map(({ href, label, icon: Icon }) => <Link key={href} href={href} className={active(href) ? "active" : ""} onClick={() => setMobileMoreOpen(false)}><Icon size={18} /><span>{label}</span>{href === "/applications" && unread.application_count > 0 && <b className="nav-count">{unread.application_count > 99 ? "99+" : unread.application_count}</b>}<ArrowUpRight size={14} /></Link>)}</div></div>}
-  </>;
+  const publicPage = isPublicPath(path) && !(signedIn && isOpportunityPath(path));
+  if (publicPage) return <header className="site-header public-header nb-public-header"><div className="nb-wrap public-nav"><Brand /><nav className="public-links" aria-label="Website navigation">{publicLinks.map((link) => <Link key={link.href} href={link.href} aria-current={path === link.href ? "page" : undefined}>{link.label}</Link>)}</nav><div className="header-account">{signedIn ? <Link className="nb-button nb-button-green" href="/dashboard">My home <ArrowUpRight size={17} /></Link> : <><Link className="login-link" href="/login">Log in</Link><Link className="nb-button nb-button-green" href="/register">Join GetNeba <ArrowUpRight size={17} /></Link></>}<button className="nb-menu-button" aria-label={menuOpen ? "Close navigation" : "Open navigation"} aria-expanded={menuOpen} aria-controls="public-mobile-menu" onClick={() => setMenuOpen((open) => !open)}>{menuOpen ? <X size={22} /> : <Menu size={22} />}</button></div></div>{menuOpen && <nav id="public-mobile-menu" className="nb-public-mobile" aria-label="Mobile website navigation">{publicLinks.map((link) => <Link href={link.href} key={link.href} onClick={() => setMenuOpen(false)}>{link.label}<ArrowUpRight size={17} /></Link>)}<Link href="/login">Log in <UserRound size={17} /></Link></nav>}</header>;
+  const organization = path.startsWith("/organization"); const links = organization ? orgLinks : memberLinks;
+  const mobileLinks = organization ? orgLinks.slice(0, 4) : [memberLinks[0], memberLinks[1], { href: "/my-opportunities/new", label: "Share", icon: Plus }, memberLinks[3], { href: "/profile", label: "Profile", icon: UserRound }];
+  return <><header className="site-header nb-workspace-header"><div className="nav-wrap"><Brand /><form className="header-search" onSubmit={(event) => { event.preventDefault(); router.push(`/opportunities?search=${encodeURIComponent(search.trim())}`); }}><Search size={18} /><input aria-label="Search opportunities" placeholder="What’s your next move?" value={search} onChange={(event) => setSearch(event.target.value)} /><button type="submit" aria-label="Search"><ArrowUpRight size={18} /></button></form><div className="header-account">{signedIn && <NotificationBell />}<Link className="nb-profile-link" href="/profile" aria-label="My profile"><UserRound size={20} /></Link></div></div></header>
+    <aside className="sidebar nb-sidebar"><Brand /><span className="nb-nav-label">{organization ? "YOUR ORGANISATION" : "YOUR NEXT CHAPTER"}</span><nav aria-label={organization ? "Organisation navigation" : "Main navigation"}>{links.map(({ href, label, icon: Icon }) => <Link href={href} key={href} className={`side-link${active(href) ? " active" : ""}`} aria-current={active(href) ? "page" : undefined}><Icon size={19} /><span>{label}</span>{href === "/applications" && unread.application_count > 0 && <b className="nav-count">{Math.min(unread.application_count, 99)}</b>}</Link>)}</nav><Link href={organization ? "/organization/opportunities/new" : "/my-opportunities/new"} className="nb-button nb-button-green nb-sidebar-share"><Plus size={18} />{organization ? "Post opportunity" : "Share a good find"}</Link><div className="nb-sidebar-bottom"><nav aria-label="Account navigation"><Link href="/alerts" className={`side-link${active("/alerts") ? " active" : ""}`}><Bell size={19} /><span>Notifications</span>{unread.activity_count > 0 && <b className="nav-count">{Math.min(unread.activity_count, 99)}</b>}</Link><Link href="/profile" className={`side-link${active("/profile") ? " active" : ""}`}><UserRound size={19} /><span>My profile</span></Link><Link href="/settings" className={`side-link${active("/settings") ? " active" : ""}`}><Settings size={19} /><span>Settings</span></Link></nav><span className="nb-sidebar-note">Good finds. Passed on.</span></div></aside>
+    <nav className="bottom-nav nb-bottom-nav" aria-label="Mobile navigation">{mobileLinks.map(({ href, label, icon: Icon }) => <Link href={href} key={href} className={`${active(href) ? "active " : ""}${label === "Share" ? "nb-mobile-share" : ""}`} aria-current={active(href) ? "page" : undefined}><Icon size={21} /><span>{label}</span></Link>)}</nav></>;
 }
