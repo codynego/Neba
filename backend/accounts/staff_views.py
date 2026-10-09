@@ -80,6 +80,8 @@ def _fallback_paste_fields(content):
         "min_age": None,
         "max_age": None,
         "requires_business": False,
+        "requires_physical_presence": False,
+        "requires_local_residency": False,
     }
     confidence = {"title": 94 if fields["title"] else 0, "summary": 78 if summary else 0, "provider": 82 if provider else 0, "deadline": 88 if deadline else 0, "application_url": 92 if application_url else 0}
     warnings = [f"Add {label.replace('_', ' ')}" for label, value in (("provider", provider), ("deadline", deadline), ("application URL", application_url)) if not value]
@@ -98,6 +100,7 @@ def _paste_fields(content):
         "Never invent or infer a fact that is not supported by the text; use empty strings, empty arrays, false, or null when unknown. "
         "Choose exactly one category from scholarship, grant, job, internship, fellowship, competition, training, startup, funding, tender. "
         "Use the precise role in role and title when a role is stated. Put salary, stipend, allowance, prize, grant amount, or other monetary support in compensation and benefit. "
+        "Set requires_physical_presence only when attendance at a named location is required. Set requires_local_residency only when applicants must already reside there. "
         "Preserve useful eligibility and application details instead of shortening them away. Dates must be ISO local datetime strings when a date is explicit. "
         "Return JSON with fields, confidence, and warnings. Confidence values are integer percentages."
     )
@@ -107,6 +110,7 @@ def _paste_fields(content):
             "application_url": "", "source_url": "", "deadline": None, "country": "", "location_label": "", "is_remote": False,
             "benefit": "", "compensation": "", "eligibility_notes": "", "eligible_countries": [], "education_levels": [],
             "fields_of_study": [], "employment_statuses": [], "min_age": None, "max_age": None, "requires_business": False,
+            "requires_physical_presence": False, "requires_local_residency": False,
         },
         "confidence": {}, "warnings": [],
     }
@@ -199,7 +203,10 @@ class StaffOpportunityCollection(APIView):
             category=str(fields.get("category") or "job"), application_mode=application_mode,
             application_url=application_url, deadline=fields.get("deadline") or None,
             country=str(fields.get("country") or ""), location_label=str(fields.get("location_label") or ""),
-            is_remote=bool(fields.get("is_remote")), benefit=str(fields.get("benefit") or "")[:220],
+            is_remote=bool(fields.get("is_remote")),
+            requires_physical_presence=bool(not fields.get("is_remote") and (fields.get("requires_physical_presence") or fields.get("requires_local_residency"))),
+            requires_local_residency=bool(not fields.get("is_remote") and fields.get("requires_local_residency")),
+            benefit=str(fields.get("benefit") or "")[:220],
             eligibility_notes=str(fields.get("eligibility_notes") or "")[:1200], eligible_countries=fields.get("eligible_countries") or [],
             education_levels=fields.get("education_levels") or [], fields_of_study=fields.get("fields_of_study") or [],
             employment_statuses=fields.get("employment_statuses") or [], min_age=fields.get("min_age") or None,

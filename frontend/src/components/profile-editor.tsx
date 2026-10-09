@@ -104,7 +104,9 @@ function PersonalSection({ user, onSaved }: { user: User; onSaved: (u: User) => 
     const data = new FormData(event.currentTarget);
     data.delete("profile_photo");
     try {
-      let updated = await patchUser({ ...Object.fromEntries(data), photo_visible: data.get("photo_visible") === "on", latitude: coords.latitude || null, longitude: coords.longitude || null });
+      const relocationCountries = String(data.get("relocation_countries") || "").split(",").map((country) => country.trim()).filter(Boolean);
+      data.delete("relocation_countries");
+      let updated = await patchUser({ ...Object.fromEntries(data), relocation_countries: relocationCountries, photo_visible: data.get("photo_visible") === "on", latitude: coords.latitude || null, longitude: coords.longitude || null });
       if (photo) { const r = await uploadPhoto(); if (r) updated = r; setPhoto(null); }
       onSaved(updated); setMsg("Saved.");
     } catch (e) { setMsg((e as Error).message); } finally { setBusy(false); }
@@ -137,6 +139,18 @@ function PersonalSection({ user, onSaved }: { user: User; onSaved: (u: User) => 
         <label>State<input name="state" defaultValue={user.state} maxLength={120} /></label>
         <label>City<input name="city" defaultValue={user.city} maxLength={120} /></label>
       </div>
+      <label>Relocation preference
+        <select name="relocation_preference" defaultValue={user.relocation_preference || "not_set"}>
+          <option value="not_set">Not specified yet</option>
+          <option value="no">I am not open to relocating</option>
+          <option value="open">I am open to relocating</option>
+          <option value="active">I am actively looking to relocate</option>
+        </select>
+      </label>
+      <label>Places you would relocate to <small>Optional, comma-separated</small>
+        <input name="relocation_countries" defaultValue={(user.relocation_countries || []).join(", ")} maxLength={500} placeholder="United Arab Emirates, Canada, United Kingdom" />
+        <small>Leave blank if you are open to opportunities anywhere.</small>
+      </label>
       <label>Area / neighborhood<input name="neighborhood" defaultValue={user.neighborhood} maxLength={120} placeholder="e.g. GRA, Lekki" /></label>
       <label>Address (private)<input name="address" defaultValue={user.address} maxLength={240} placeholder="Street or landmark" /><small>Stays private. Others see only your area.</small></label>
       <button className="location-capture" type="button" onClick={locateMe}><LocateFixed size={16} />Use my current location</button>

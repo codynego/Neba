@@ -3,6 +3,12 @@ from django.contrib.auth.models import AbstractUser
 from django.db import models
 
 class User(AbstractUser):
+    class RelocationPreference(models.TextChoices):
+        NOT_SET = "not_set", "Not specified"
+        NO = "no", "Not open to relocating"
+        OPEN = "open", "Open to relocating"
+        ACTIVE = "active", "Actively looking to relocate"
+
     public_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False, db_index=True)
     display_name = models.CharField(max_length=80)
     city = models.CharField(max_length=120, blank=True)
@@ -28,6 +34,12 @@ class User(AbstractUser):
     date_of_birth = models.DateField(null=True, blank=True)
     gender = models.CharField(max_length=32, blank=True)
     country = models.CharField(max_length=120, blank=True)
+    relocation_preference = models.CharField(
+        max_length=16,
+        choices=RelocationPreference.choices,
+        default=RelocationPreference.NOT_SET,
+    )
+    relocation_countries = models.JSONField(default=list, blank=True)
     education_level = models.CharField(max_length=80, blank=True)
     field_of_study = models.CharField(max_length=160, blank=True)
     institution = models.CharField(max_length=180, blank=True)

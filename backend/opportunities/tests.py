@@ -50,7 +50,7 @@ class OpportunityApiTests(APITestCase):
 
     def test_match_v2_separates_eligibility_confidence_from_fit(self):
         result = match_for(self.user, self.opportunity)
-        self.assertEqual(result["version"], "v2")
+        self.assertEqual(result["version"], "v3")
         self.assertEqual(result["eligibility"], "eligible")
         self.assertEqual(result["confidence"], "high")
         self.assertGreaterEqual(result["score"], 70)
@@ -62,6 +62,63 @@ class OpportunityApiTests(APITestCase):
         self.assertEqual(excluded["eligibility"], "unlikely")
         self.assertLess(excluded["score"], 50)
         self.assertIn("Published country criteria may not match your profile", excluded["missing"])
+
+    def test_physical_location_prefers_locals_and_respects_relocation_choices(self):
+        dubai = Opportunity.objects.create(
+            title="Dubai Product Fellowship",
+            provider="Example Dubai Lab",
+            summary="An in-person product fellowship based in Dubai.",
+            category="fellowship",
+            country="United Arab Emirates",
+            location_label="Dubai, United Arab Emirates",
+            requires_physical_presence=True,
+        )
+
+        self.user.relocation_preference = User.RelocationPreference.OPEN
+        self.user.relocation_countries = ["UAE"]
+        self.user.save(update_fields=("relocation_preference", "relocation_countries"))
+        relocating = match_for(self.user, dubai)
+        self.assertIn("Matches a place you’re open to relocating to: United Arab Emirates", relocating["reasons"])
+
+        self.user.country = "United Arab Emirates"
+        self.user.city = "Dubai"
+        self.user.relocation_preference = User.RelocationPreference.NO
+        self.user.save(update_fields=("country", "city", "relocation_preference"))
+        local = match_for(self.user, dubai)
+        self.assertIn("You already live where this takes place: United Arab Emirates", local["reasons"])
+        self.assertGreater(local["score"], relocating["score"])
+
+        self.user.country = "Nigeria"
+        self.user.city = "Benin City"
+        self.user.save(update_fields=("country", "city"))
+        cannot_move = match_for(self.user, dubai)
+        self.assertEqual(cannot_move["eligibility"], "unlikely")
+        self.assertEqual(rank_opportunities(self.user, [dubai]), [])
+
+    def test_local_residency_requirement_cannot_be_overridden_by_relocation(self):
+        resident_only = Opportunity.objects.create(
+            title="Dubai Residents Grant",
+            provider="Example Dubai Fund",
+            summary="A grant only for people already residing in Dubai.",
+            category="grant",
+            country="United Arab Emirates",
+            location_label="Dubai, United Arab Emirates",
+            requires_physical_presence=True,
+            requires_local_residency=True,
+        )
+        self.user.relocation_preference = User.RelocationPreference.ACTIVE
+        self.user.relocation_countries = ["United Arab Emirates"]
+        self.user.save(update_fields=("relocation_preference", "relocation_countries"))
+
+        result = match_for(self.user, resident_only)
+        self.assertEqual(result["eligibility"], "unlikely")
+        self.assertIn("Must already live in United Arab Emirates", result["missing"])
+
+        self.user.country = "United Arab Emirates"
+        self.user.city = "Abu Dhabi"
+        self.user.save(update_fields=("country", "city"))
+        wrong_city = match_for(self.user, resident_only)
+        self.assertEqual(wrong_city["eligibility"], "unlikely")
 
     def test_recommendations_learn_from_existing_activity_and_hide_archived_items(self):
         similar = Opportunity.objects.create(

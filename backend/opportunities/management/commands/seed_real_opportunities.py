@@ -242,6 +242,7 @@ ROWS = [
         "fields_of_study": [],
         "employment_statuses": ["self_employed", "unemployed", "employed"],
         "requires_business": True,
+        "requires_local_residency": True,
         "eligibility_notes": "For young South African entrepreneurs with an early-stage business or working idea. Review the provider's FAQ and application form for age, registration, trading-stage, and documentation requirements.",
         "application_url": "https://www.absa.africa/absa-youth-entrepreneurship-fund/",
     },
@@ -354,6 +355,7 @@ ROWS = [
         "country": "United States",
         "location_label": "Hybrid · California and Washington, DC",
         "is_remote": True,
+        "requires_physical_presence": True,
         "eligible_countries": ["United States"],
         "education_levels": ["university"],
         "fields_of_study": [],
@@ -383,6 +385,11 @@ class Command(BaseCommand):
             defaults = {
                 **row,
                 "application_mode": Opportunity.ApplicationMode.EXTERNAL,
+                "requires_physical_presence": row.get(
+                    "requires_physical_presence",
+                    not row.get("is_remote", False) and row.get("country") not in {"", "Global"},
+                ),
+                "requires_local_residency": row.get("requires_local_residency", False),
                 "is_published": True,
                 "review_status": Opportunity.ReviewStatus.APPROVED,
                 "source_url": row["application_url"],

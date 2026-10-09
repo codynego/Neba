@@ -42,6 +42,7 @@ class UserSerializer(serializers.ModelSerializer):
     skills = serializers.ListField(child=serializers.CharField(max_length=80), max_length=20, required=False)
     opportunity_interests = serializers.ListField(child=serializers.CharField(max_length=80), max_length=12, required=False)
     goals = serializers.ListField(child=serializers.CharField(max_length=80), max_length=12, required=False)
+    relocation_countries = serializers.ListField(child=serializers.CharField(max_length=120), max_length=20, required=False)
     def validate_skills(self, value):
         return list(dict.fromkeys(value))
     phone_verified = serializers.SerializerMethodField()
@@ -70,7 +71,7 @@ class UserSerializer(serializers.ModelSerializer):
         return value
     class Meta:
         model = User
-        fields = ("id", "public_id", "username", "email", "email_verified", "display_name", "city", "state", "date_joined", "phone", "phone_verified", "identity_verified", "photo_visible", "photo_available", "profile_complete", "onboarding_complete", "bio", "skills", "neighborhood", "address", "latitude", "longitude", "availability", "nearby_task_emails", "date_of_birth", "gender", "country", "education_level", "field_of_study", "institution", "graduation_year", "gpa", "employment_status", "years_experience", "industry", "opportunity_interests", "goals", "business_status", "financial_need", "business_name", "business_industry", "business_description", "business_website")
+        fields = ("id", "public_id", "username", "email", "email_verified", "display_name", "city", "state", "date_joined", "phone", "phone_verified", "identity_verified", "photo_visible", "photo_available", "profile_complete", "onboarding_complete", "bio", "skills", "neighborhood", "address", "latitude", "longitude", "availability", "nearby_task_emails", "date_of_birth", "gender", "country", "relocation_preference", "relocation_countries", "education_level", "field_of_study", "institution", "graduation_year", "gpa", "employment_status", "years_experience", "industry", "opportunity_interests", "goals", "business_status", "financial_need", "business_name", "business_industry", "business_description", "business_website")
         read_only_fields = ("id", "public_id", "username", "email", "email_verified", "date_joined", "phone_verified", "identity_verified", "photo_available", "profile_complete", "onboarding_complete")
 
 

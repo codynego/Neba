@@ -40,6 +40,7 @@ COUNTRY_GROUPS = (
     {"nigeria", "ng", "nigerian"},
     {"united states", "united states of america", "usa", "us"},
     {"united kingdom", "uk", "great britain", "britain"},
+    {"united arab emirates", "uae"},
 )
 
 
@@ -195,6 +196,44 @@ def match_for(user, opportunity, context=None):
         else:
             missing.append("Business or project details need checking")
 
+    if opportunity.requires_physical_presence:
+        criteria_total += 1
+        destination = opportunity.country or opportunity.location_label or "the opportunity location"
+        country_match = bool(user.country and opportunity.country and country_matches(user.country, [opportunity.country]))
+        location_label = canonical(opportunity.location_label)
+        country_label = canonical(opportunity.country)
+        names_specific_place = bool(location_label and location_label != country_label)
+        local_place_match = any_text_match([user.city, user.state], location_label)
+        local_match = country_match and (not names_specific_place or local_place_match)
+        relocation_preference = getattr(user, "relocation_preference", "not_set")
+        relocation_countries = getattr(user, "relocation_countries", []) or []
+        relocation_match = not relocation_countries or country_matches(opportunity.country, relocation_countries)
+
+        if local_match:
+            criteria_checked += 1
+            criteria_passed += 1
+            breakdown["location"] += 8
+            reasons.append(f"You already live where this takes place: {destination}")
+        elif opportunity.requires_local_residency:
+            criteria_checked += int(bool(user.country))
+            hard_failure = f"Must already live in {destination}"
+            conflicts.append(hard_failure)
+        elif relocation_preference in {"open", "active"} and relocation_match:
+            criteria_checked += 1
+            criteria_passed += 1
+            breakdown["location"] += 7 if relocation_preference == "active" else 5
+            reasons.append(f"Matches a place you’re open to relocating to: {destination}")
+        elif relocation_preference == "no":
+            criteria_checked += 1
+            hard_failure = f"Requires physical presence in {destination}, but your profile says you are not relocating"
+            conflicts.append(hard_failure)
+        elif relocation_preference in {"open", "active"}:
+            criteria_checked += 1
+            hard_failure = f"Requires relocation to {destination}, outside your preferred destinations"
+            conflicts.append(hard_failure)
+        else:
+            missing.append(f"Requires physical presence in {destination}; add your relocation preference")
+
     interests = normalized(user.opportunity_interests)
     goals = normalized(user.goals)
     category_variants = {canonical(opportunity.category), canonical(f"{opportunity.category}s")}
@@ -229,7 +268,7 @@ def match_for(user, opportunity, context=None):
         breakdown["experience"] += 6; reasons.append("Relevant to your background")
 
     location_text = canonical(f"{opportunity.location_label} {opportunity.country}")
-    if any_text_match([user.city, user.state, user.country], location_text):
+    if not opportunity.requires_physical_presence and any_text_match([user.city, user.state, user.country], location_text):
         breakdown["location"] += 5; reasons.append("Available in a location that fits your profile")
 
     activity_value = min(8, context.category_affinity[opportunity.category] * 2)
@@ -254,7 +293,7 @@ def match_for(user, opportunity, context=None):
         points = min(points, 24 if "age" in hard_failure.lower() else 34)
 
     eligibility = "unlikely" if hard_failure else "eligible" if criteria_total and criteria_checked == criteria_total and criteria_passed == criteria_total else "check" if criteria_total and (missing or conflicts) else "likely"
-    profile_signals = sum(bool(value) for value in (user.country, user.education_level, user.field_of_study, user.employment_status, user.skills, user.opportunity_interests, user.goals))
+    profile_signals = sum(bool(value) for value in (user.country, user.education_level, user.field_of_study, user.employment_status, user.skills, user.opportunity_interests, user.goals, getattr(user, "relocation_preference", "") not in {"", "not_set"}))
     criteria_coverage = criteria_checked / criteria_total if criteria_total else min(1, profile_signals / 5)
     confidence = "high" if criteria_coverage >= .8 and profile_signals >= 4 else "medium" if criteria_coverage >= .4 and profile_signals >= 2 else "low"
     combined_gaps = list(dict.fromkeys(conflicts + missing))
@@ -265,7 +304,7 @@ def match_for(user, opportunity, context=None):
         "reasons": list(dict.fromkeys(reasons))[:4],
         "missing": combined_gaps[:3],
         "breakdown": breakdown,
-        "version": "v2",
+        "version": "v3",
     }
 
 

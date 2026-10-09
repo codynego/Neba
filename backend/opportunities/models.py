@@ -38,6 +38,8 @@ class Opportunity(models.Model):
     country = models.CharField(max_length=120, blank=True)
     location_label = models.CharField(max_length=140, blank=True)
     is_remote = models.BooleanField(default=False)
+    requires_physical_presence = models.BooleanField(default=False)
+    requires_local_residency = models.BooleanField(default=False)
     benefit = models.CharField(max_length=220, blank=True)
     eligibility_notes = models.TextField(max_length=1200, blank=True)
     eligible_countries = models.JSONField(default=list, blank=True)

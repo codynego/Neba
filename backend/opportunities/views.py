@@ -105,7 +105,7 @@ def _extract_opportunity_from_url(url):
             deadline = f"{year:04d}-{int(parts[1]):02d}-{int(parts[0]):02d}T23:59"
     if not title:
         raise serializers.ValidationError({"url": "We could not find an opportunity title on that page."})
-    return {"title": title[:220], "summary": summary[:1800], "provider": provider[:180], "category": _infer_category(page_text), "application_mode": "external", "application_url": url, "source_url": url, "deadline": deadline, "location_label": "", "is_remote": False, "benefit": "", "eligibility_notes": "", "eligible_countries": [], "education_levels": [], "fields_of_study": [], "employment_statuses": [], "min_age": None, "max_age": None, "requires_business": False}
+    return {"title": title[:220], "summary": summary[:1800], "provider": provider[:180], "category": _infer_category(page_text), "application_mode": "external", "application_url": url, "source_url": url, "deadline": deadline, "location_label": "", "is_remote": False, "requires_physical_presence": False, "requires_local_residency": False, "benefit": "", "eligibility_notes": "", "eligible_countries": [], "education_levels": [], "fields_of_study": [], "employment_statuses": [], "min_age": None, "max_age": None, "requires_business": False}
 
 
 class OpportunitySerializer(serializers.ModelSerializer):
@@ -120,7 +120,7 @@ class OpportunitySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Opportunity
-        fields = ("public_id", "title", "provider", "summary", "category", "application_mode", "application_url", "deadline", "country", "location_label", "is_remote", "benefit", "eligibility_notes", "eligible_countries", "education_levels", "fields_of_study", "employment_statuses", "min_age", "max_age", "requires_business", "source_url", "share_note", "view_count", "application_count", "created_at", "updated_at", "match", "saved_status", "application_status", "verification", "contributor", "thanks_count", "thanked_by_me")
+        fields = ("public_id", "title", "provider", "summary", "category", "application_mode", "application_url", "deadline", "country", "location_label", "is_remote", "requires_physical_presence", "requires_local_residency", "benefit", "eligibility_notes", "eligible_countries", "education_levels", "fields_of_study", "employment_statuses", "min_age", "max_age", "requires_business", "source_url", "share_note", "view_count", "application_count", "created_at", "updated_at", "match", "saved_status", "application_status", "verification", "contributor", "thanks_count", "thanked_by_me")
 
     def get_verification(self, opportunity):
         if opportunity.created_by_id and opportunity.created_by and opportunity.created_by.is_staff and not opportunity.organization_id:
@@ -422,11 +422,20 @@ class OrganizationOpportunitySerializer(serializers.ModelSerializer):
         url = attrs.get("application_url", getattr(self.instance, "application_url", ""))
         if mode == Opportunity.ApplicationMode.EXTERNAL and not url:
             raise serializers.ValidationError({"application_url": "Add an application URL for an external application."})
+        is_remote = attrs.get("is_remote", getattr(self.instance, "is_remote", False))
+        requires_local_residency = attrs.get(
+            "requires_local_residency", getattr(self.instance, "requires_local_residency", False)
+        )
+        if requires_local_residency:
+            attrs["requires_physical_presence"] = True
+        if is_remote:
+            attrs["requires_physical_presence"] = False
+            attrs["requires_local_residency"] = False
         return attrs
 
     class Meta:
         model = Opportunity
-        fields = ("public_id", "title", "provider", "summary", "category", "application_mode", "application_url", "deadline", "country", "location_label", "is_remote", "benefit", "eligibility_notes", "eligible_countries", "education_levels", "fields_of_study", "employment_statuses", "min_age", "max_age", "requires_business", "source_url", "share_note", "review_status", "review_note", "is_published", "view_count", "created_at", "updated_at")
+        fields = ("public_id", "title", "provider", "summary", "category", "application_mode", "application_url", "deadline", "country", "location_label", "is_remote", "requires_physical_presence", "requires_local_residency", "benefit", "eligibility_notes", "eligible_countries", "education_levels", "fields_of_study", "employment_statuses", "min_age", "max_age", "requires_business", "source_url", "share_note", "review_status", "review_note", "is_published", "view_count", "created_at", "updated_at")
         read_only_fields = ("public_id", "provider", "review_status", "review_note", "is_published", "created_at", "updated_at")
 
 
