@@ -114,7 +114,7 @@ export async function downloadOpportunityShareCard(opportunity: Opportunity, sha
   context.translate(57, 875);
   context.rotate(-Math.PI / 2);
   context.fillStyle = "#b7e8ca";
-  context.font = "800 18px Arial, sans-serif";
+  context.font = "800 20px Arial, sans-serif";
   context.fillText("GETNEBA  ·  OPPORTUNITY PASS  ·  SHARE WHAT OPENS A DOOR", 0, 0);
   context.restore();
   context.fillStyle = COLORS.gold;
@@ -129,12 +129,12 @@ export async function downloadOpportunityShareCard(opportunity: Opportunity, sha
     context.drawImage(logo, 194, 76, 214, 50);
   } catch {
     context.fillStyle = COLORS.green;
-    context.font = "800 31px Arial, sans-serif";
+    context.font = "800 33px Arial, sans-serif";
     context.fillText("GETNEBA", 194, 116);
   }
 
   const trustLabel = opportunity.verification?.label || "Opportunity card";
-  context.font = "800 13px Arial, sans-serif";
+  context.font = "800 14px Arial, sans-serif";
   const trustWidth = context.measureText(trustLabel.toUpperCase()).width + 48;
   const trustX = 992 - trustWidth;
   roundedRect(context, trustX, 80, trustWidth, 40, 20, COLORS.mist);
@@ -152,38 +152,38 @@ export async function downloadOpportunityShareCard(opportunity: Opportunity, sha
   context.stroke();
 
   const category = (CATEGORY_LABELS[opportunity.category] || opportunity.category).toUpperCase();
-  context.font = "800 15px Arial, sans-serif";
-  const categoryWidth = context.measureText(category).width + 34;
+  context.font = "800 16px Arial, sans-serif";
+  const categoryWidth = context.measureText(category).width + 36;
   roundedRect(context, 194, 194, categoryWidth, 40, 20, COLORS.forest);
   context.fillStyle = "#ffffff";
   context.fillText(category, 211, 220);
 
   context.fillStyle = COLORS.green;
-  context.font = "800 15px Arial, sans-serif";
+  context.font = "800 16px Arial, sans-serif";
   context.textAlign = "right";
   context.fillText("OPEN OPPORTUNITY", 992, 220);
   context.textAlign = "left";
 
-  let titleSize = 65;
+  let titleSize = 68;
   let titleLines: string[] = [];
   do {
     context.font = `800 ${titleSize}px Arial, sans-serif`;
     titleLines = fitLines(context, opportunity.title, 798, 3);
     if (titleLines.length > 2) titleSize -= 3;
-  } while (titleLines.length > 2 && titleSize > 50);
+  } while (titleLines.length > 2 && titleSize > 52);
   context.fillStyle = COLORS.ink;
   drawLines(context, titleLines, 194, 304, titleSize + 9);
 
   const titleBottom = 304 + (titleLines.length - 1) * (titleSize + 9);
   context.fillStyle = COLORS.muted;
-  context.font = "600 22px Arial, sans-serif";
+  context.font = "600 24px Arial, sans-serif";
   const provider = fitLines(context, `Offered by ${opportunity.provider}`, 760, 1);
   drawLines(context, provider, 194, titleBottom + 50, 28);
 
   const summaryY = Math.max(494, titleBottom + 96);
   context.fillStyle = COLORS.ink;
-  context.font = "400 23px Arial, sans-serif";
-  drawLines(context, fitLines(context, opportunity.summary, 780, 3), 194, summaryY, 34);
+  context.font = "400 25px Arial, sans-serif";
+  drawLines(context, fitLines(context, opportunity.summary, 780, 3), 194, summaryY, 36);
 
   const factsY = 666;
   const factWidth = 250;
@@ -196,26 +196,26 @@ export async function downloadOpportunityShareCard(opportunity: Opportunity, sha
     const x = 194 + index * 270;
     roundedRect(context, x, factsY, factWidth, 112, 18, index === 0 ? COLORS.mint : COLORS.mist);
     context.fillStyle = COLORS.green;
-    context.font = "800 12px Arial, sans-serif";
+    context.font = "800 13px Arial, sans-serif";
     context.fillText(label, x + 20, factsY + 31);
     context.fillStyle = COLORS.ink;
-    context.font = "700 18px Arial, sans-serif";
-    drawLines(context, fitLines(context, value, factWidth - 40, 2), x + 20, factsY + 66, 23);
+    context.font = "700 20px Arial, sans-serif";
+    drawLines(context, fitLines(context, value, factWidth - 40, 2), x + 20, factsY + 66, 25);
   });
 
   roundedRect(context, 194, 806, 798, 112, 18, COLORS.forest);
   context.fillStyle = "#9fe0ba";
-  context.font = "800 12px Arial, sans-serif";
+  context.font = "800 13px Arial, sans-serif";
   context.fillText("WHAT IT OFFERS", 220, 838);
   context.fillStyle = "#ffffff";
-  context.font = "700 20px Arial, sans-serif";
-  drawLines(context, fitLines(context, opportunity.benefit || "See the official opportunity page for full benefits.", 744, 2), 220, 873, 27);
+  context.font = "700 22px Arial, sans-serif";
+  drawLines(context, fitLines(context, opportunity.benefit || "See the official opportunity page for full benefits.", 744, 2), 220, 873, 29);
 
   context.fillStyle = COLORS.green;
-  context.font = "800 22px Arial, sans-serif";
+  context.font = "800 24px Arial, sans-serif";
   context.fillText("Find what fits. Pass it on.", 194, 974);
   context.fillStyle = COLORS.muted;
-  context.font = "600 16px Arial, sans-serif";
+  context.font = "700 22px Arial, sans-serif";
   context.textAlign = "right";
   context.fillText(hostLabel(shareUrl), 992, 974);
   context.textAlign = "left";
