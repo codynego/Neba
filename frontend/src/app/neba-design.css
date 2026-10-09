@@ -205,6 +205,7 @@ a, button, input, select, textarea { -webkit-tap-highlight-color: transparent; }
 .nb-sidebar-share { margin: 24px 5px; font-size: 11px; padding-inline: 12px; }
 .nb-sidebar-bottom { margin-top: auto; padding-top: 25px; border-top: 1px solid var(--border); }
 .nb-sidebar-note { display: block; margin: 24px 13px 0; color: #7d8a75; font-size: 10px; }
+.nb-mobile-more-backdrop { display: none; }
 .nb-workspace-header.site-header { background: white; height: 72px; }
 .nb-workspace-header .header-search { border: 0; background: #f3f5ee; border-radius: 8px; max-width: 430px; }
 .nb-workspace-header .header-search input { font-size: 12px; }
@@ -302,6 +303,21 @@ a, button, input, select, textarea { -webkit-tap-highlight-color: transparent; }
 @media (max-width: 760px) {
   :root { --sidebar-width: 0px; }
   .app-content { width: 100%; min-width: 0; margin-left: 0; }
+  .nb-bottom-nav button { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-width: 0; min-height: 44px; border: 0; padding: 0; background: transparent; color: #788172; font: inherit; font-size: 9px; cursor: pointer; }
+  .nb-bottom-nav button.active { color: var(--primary); }
+  .nb-mobile-more-backdrop { position: fixed; inset: 0; z-index: 90; display: flex; align-items: flex-end; padding: 14px 12px calc(14px + env(safe-area-inset-bottom)); background: #102f278f; backdrop-filter: blur(3px); }
+  .nb-mobile-more { width: min(100%, 520px); max-height: calc(100dvh - 32px); margin-inline: auto; overflow-y: auto; overscroll-behavior: contain; border: 1px solid #d9e1d5; border-radius: 22px; padding: 21px; background: #fbfcf8; box-shadow: 0 24px 70px #0922194d; }
+  .nb-mobile-more > header { position: sticky; top: -21px; z-index: 1; display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin: -21px -21px 5px; padding: 21px 21px 15px; background: #fbfcf8; }
+  .nb-mobile-more h2 { margin: 4px 0 0; font-size: 24px; line-height: 1.15; letter-spacing: -.045em; }
+  .nb-mobile-more > header > button { display: grid; place-items: center; width: 40px; height: 40px; flex: 0 0 40px; border: 1px solid var(--border); border-radius: 50%; background: white; color: var(--primary); cursor: pointer; }
+  .nb-mobile-more nav { display: grid; gap: 7px; }
+  .nb-mobile-more nav a { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto auto; align-items: center; gap: 12px; min-height: 58px; border: 1px solid transparent; border-radius: 12px; padding: 8px 12px 8px 8px; color: var(--text); background: #f1f4ec; }
+  .nb-mobile-more nav a.active { border-color: #b7c8a8; background: #e5edd8; color: var(--primary-dark); }
+  .nb-mobile-more nav a > span { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 10px; background: white; color: var(--primary); }
+  .nb-mobile-more nav a strong { min-width: 0; font-size: 13px; }
+  .nb-mobile-more nav a b { display: grid; place-items: center; min-width: 20px; height: 20px; border-radius: 99px; padding-inline: 5px; background: var(--primary); color: white; font-size: 9px; }
+  .nb-mobile-more nav a > svg { color: #809078; }
+  .nb-mobile-more > p { margin: 15px 2px 0; color: var(--muted); font-size: 10px; line-height: 1.6; }
 }
 @media (max-width: 700px) {
   :root { --header-height: 68px; }
