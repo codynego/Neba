@@ -55,6 +55,7 @@ Provision pooled PostgreSQL and Redis integrations, then configure these Product
 - `CSRF_TRUSTED_ORIGINS`: `https://getneba.app,https://www.getneba.app`
 - the Cloudflare R2 values documented in `backend/.env.example`
 - `WEB_PUSH_VAPID_PUBLIC_KEY`, `WEB_PUSH_VAPID_PRIVATE_KEY`, and `WEB_PUSH_VAPID_SUBJECT`: one VAPID key pair and a contact URI such as `mailto:support@getneba.app`
+- `BACHS_API_KEY`, `BACHS_WEBHOOK_SECRET`, `BACHS_PLUS_MONTHLY_PRODUCT_ID`, `BACHS_PLUS_YEARLY_PRODUCT_ID`, and the `BILLING_PLUS_*` values documented in [Bachs billing setup](docs/bachs-billing.md)
 
 Web push is opt-in: after a member signs in, GetNeba presents a one-time browser permission prompt. The backend stores a separate subscription for each browser or device and sends the existing in-app notifications there after their database transaction completes. Generate and retain one VAPID key pair for the API deployment; do not expose the private key. A notification click opens its saved in-app path, including the exact message when applicable.
 
