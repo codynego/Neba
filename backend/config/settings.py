@@ -88,6 +88,7 @@ REST_FRAMEWORK = {
         "phone_send": "5/hour", "phone_check": "15/hour", "identity_submit": "3/day",
         "capture_challenge": "10/hour", "safety_report": "10/hour", "block_user": "30/hour",
         "task_messages": "120/hour", "application_messages": "120/hour",
+        "opportunity_check": "10/hour",
         "register": "5/hour", "login": "10/hour", "password_reset": "5/hour",
         "email_verification": "5/hour",
     },
@@ -160,6 +161,7 @@ WEB_PUSH_VAPID_SUBJECT = os.getenv("WEB_PUSH_VAPID_SUBJECT", "")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_REALTIME_MODEL = os.getenv("OPENAI_REALTIME_MODEL", "gpt-realtime")
 OPENAI_TEXT_MODEL = os.getenv("OPENAI_TEXT_MODEL", "gpt-4.1-mini")
+OPPORTUNITY_CHECK_MODEL = os.getenv("OPPORTUNITY_CHECK_MODEL", OPENAI_TEXT_MODEL)
 OPPORTUNITY_FEED_URLS = env_list("OPPORTUNITY_FEED_URLS", "https://www.afdb.org/en/vacancies/news-and-events/rss")
 OPPORTUNITY_FETCH_LIMIT = min(int(os.getenv("OPPORTUNITY_FETCH_LIMIT", "5")), 20)
 CRON_SECRET = os.getenv("CRON_SECRET", "")

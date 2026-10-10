@@ -123,6 +123,58 @@ class OpportunityApplication(models.Model):
         ordering = ("next_action_at", "-updated_at")
 
 
+class OpportunityCheck(models.Model):
+    class InputType(models.TextChoices):
+        URL = "url", "Link"
+        TEXT = "text", "Pasted text"
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Checking"
+        COMPLETED = "completed", "Completed"
+        FAILED = "failed", "Could not complete"
+
+    class Verdict(models.TextChoices):
+        CONFIRMED = "confirmed", "Confirmed"
+        SUPPORTED = "supported", "Supported by evidence"
+        SUSPICIOUS = "suspicious", "Suspicious"
+        UNABLE = "unable", "Unable to verify"
+
+    class Level(models.TextChoices):
+        LOW = "low", "Low"
+        MEDIUM = "medium", "Medium"
+        HIGH = "high", "High"
+
+    public_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False, db_index=True)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="opportunity_checks")
+    input_type = models.CharField(max_length=8, choices=InputType.choices)
+    submitted_url = models.URLField(max_length=1000, blank=True)
+    submitted_text = models.TextField(max_length=12000, blank=True)
+    input_hash = models.CharField(max_length=64, db_index=True)
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.PENDING, db_index=True)
+    verdict = models.CharField(max_length=16, choices=Verdict.choices, blank=True)
+    evidence_confidence = models.CharField(max_length=8, choices=Level.choices, blank=True)
+    risk_level = models.CharField(max_length=8, choices=Level.choices, blank=True)
+    title = models.CharField(max_length=220, blank=True)
+    organization = models.CharField(max_length=180, blank=True)
+    opportunity_type = models.CharField(max_length=80, blank=True)
+    report_summary = models.TextField(max_length=2400, blank=True)
+    recommended_action = models.TextField(max_length=1200, blank=True)
+    deterministic_checks = models.JSONField(default=list, blank=True)
+    claims = models.JSONField(default=list, blank=True)
+    sources = models.JSONField(default=list, blank=True)
+    warnings = models.JSONField(default=list, blank=True)
+    extracted_data = models.JSONField(default=dict, blank=True)
+    model_name = models.CharField(max_length=80, blank=True)
+    failure_reason = models.CharField(max_length=500, blank=True)
+    checked_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+        indexes = [models.Index(fields=("user", "input_hash", "status"))]
+
+
 class OpportunityThanks(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="opportunity_thanks")
     opportunity = models.ForeignKey(Opportunity, on_delete=models.CASCADE, related_name="thanks")

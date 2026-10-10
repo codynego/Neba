@@ -9,7 +9,8 @@ from rest_framework.test import APITestCase
 
 from accounts.models import Organization, User
 from .matching import build_match_context, diverse_recommendations, rank_opportunities
-from .models import Opportunity, OpportunityApplication, OpportunityCorrection, SavedOpportunity
+from .checks import CheckError, _validate_public_url, evidence_verdict
+from .models import Opportunity, OpportunityApplication, OpportunityCheck, OpportunityCorrection, SavedOpportunity
 from .views import match_for
 
 
@@ -62,6 +63,49 @@ class OpportunityApiTests(APITestCase):
         removed = self.client.delete(f"/api/opportunity-applications/{application.public_id}/")
         self.assertEqual(removed.status_code, 204)
         self.assertFalse(Opportunity.objects.filter(pk=application.opportunity_id).exists())
+
+    @patch("opportunities.views.run_opportunity_check")
+    def test_opportunity_check_creates_a_private_evidence_report(self, run_check):
+        run_check.return_value = {
+            "verdict": "confirmed", "evidence_confidence": "high", "risk_level": "low",
+            "title": "Global Builders Fellowship", "organization": "Builders Foundation", "opportunity_type": "fellowship",
+            "report_summary": "The official programme page confirms the fellowship.", "recommended_action": "Apply on the official programme page.",
+            "deterministic_checks": [{"key": "https", "status": "pass", "label": "Encrypted connection", "detail": "Uses HTTPS."}],
+            "claims": [{"claim": "The fellowship exists", "assessment": "confirmed", "evidence_summary": "Official page found.", "source_url": "https://foundation.example/fellowship", "source_authority": "official"}],
+            "sources": [{"url": "https://foundation.example/fellowship", "title": "Official fellowship", "authority": "official", "supports": "Programme details"}],
+            "warnings": [], "extracted_data": {"official_source_found": True, "application_route": "confirmed"}, "model_name": "test-model",
+        }
+        response = self.client.post("/api/opportunity-checks/", {"url": "https://foundation.example/fellowship"}, format="json")
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(response.data["verdict"], "confirmed")
+        self.assertEqual(OpportunityCheck.objects.get().user, self.user)
+
+        other = User.objects.create_user(username="other-checker", password="test-password-123")
+        OpportunityCheck.objects.create(user=other, input_type="text", submitted_text="A different private submission with sufficient text.", input_hash="x" * 64)
+        history = self.client.get("/api/opportunity-checks/")
+        self.assertEqual(history.status_code, 200)
+        self.assertEqual(history.data["count"], 1)
+
+    @patch("opportunities.views.run_opportunity_check", side_effect=CheckError("Evidence search unavailable."))
+    def test_failed_opportunity_check_is_recorded_without_a_false_verdict(self, run_check):
+        response = self.client.post("/api/opportunity-checks/", {"text": "This is a sufficiently detailed fellowship advert to inspect for evidence."}, format="json")
+        self.assertEqual(response.status_code, 503)
+        check = OpportunityCheck.objects.get()
+        self.assertEqual(check.status, OpportunityCheck.Status.FAILED)
+        self.assertEqual(check.verdict, "")
+        self.assertEqual(response.data["detail"], "Evidence search unavailable.")
+
+    def test_evidence_verdict_requires_verified_sources_for_confirmation(self):
+        report = {"official_source_found": True, "application_route": "confirmed", "claims": [{"assessment": "confirmed"}]}
+        self.assertEqual(evidence_verdict(report, 0, 0), ("unable", "low", "low"))
+        self.assertEqual(evidence_verdict(report, 0, 1), ("confirmed", "high", "low"))
+        contradicted = {"official_source_found": False, "application_route": "contradicted", "claims": []}
+        self.assertEqual(evidence_verdict(contradicted, 0, 2), ("suspicious", "high", "high"))
+
+    @patch("opportunities.checks.socket.getaddrinfo", return_value=[(2, 1, 6, "", ("127.0.0.1", 443))])
+    def test_opportunity_check_rejects_private_network_urls(self, getaddrinfo):
+        with self.assertRaises(CheckError):
+            _validate_public_url("https://internal.example/report")
 
     def test_onboarding_intents_interest_areas_remote_and_state_feed_match(self):
         self.user.goals = ["build"]

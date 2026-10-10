@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Opportunity, OpportunityApplication, OpportunityCorrection, OpportunityThanks, SavedOpportunity
+from .models import Opportunity, OpportunityApplication, OpportunityCheck, OpportunityCorrection, OpportunityThanks, SavedOpportunity
 
 
 @admin.register(Opportunity)
@@ -27,6 +27,14 @@ class OpportunityApplicationAdmin(admin.ModelAdmin):
     list_display = ("user", "opportunity", "status", "next_action_at", "updated_at")
     list_filter = ("status",)
     search_fields = ("user__username", "opportunity__title")
+
+
+@admin.register(OpportunityCheck)
+class OpportunityCheckAdmin(admin.ModelAdmin):
+    list_display = ("title", "user", "verdict", "evidence_confidence", "risk_level", "status", "checked_at")
+    list_filter = ("status", "verdict", "evidence_confidence", "risk_level", "input_type")
+    search_fields = ("title", "organization", "submitted_url", "user__username")
+    readonly_fields = ("public_id", "created_at", "updated_at", "checked_at")
 
 
 @admin.register(OpportunityCorrection)

@@ -10,7 +10,7 @@ from urllib.request import Request, urlopen
 from django.db import transaction
 from django.db.models import Count, F, Prefetch, Q
 from django.utils import timezone
-from rest_framework import permissions, serializers, viewsets
+from rest_framework import mixins, permissions, serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
@@ -18,7 +18,8 @@ from rest_framework.response import Response
 from accounts.models import User
 from accounts.notifications import notify
 from .matching import build_match_context, diverse_recommendations, match_for, rank_opportunities
-from .models import Opportunity, OpportunityApplication, OpportunityCorrection, OpportunityMessage, OpportunityThanks, SavedOpportunity
+from .checks import CheckError, normalized_input_hash, run_opportunity_check
+from .models import Opportunity, OpportunityApplication, OpportunityCheck, OpportunityCorrection, OpportunityMessage, OpportunityThanks, SavedOpportunity
 
 
 class OpportunityPageParser(HTMLParser):
@@ -238,6 +239,59 @@ class OpportunityApplicationSerializer(serializers.ModelSerializer):
     class Meta:
         model = OpportunityApplication
         fields = ("id", "public_id", "opportunity_id", "opportunity", "status", "applied_at", "next_action", "next_action_at", "notes", "application_message", "additional_information", "shared_fields", "shared_profile", "applicant_name", "is_poster", "messages", "unread_message_count", "unread_activity_count", "created_at", "updated_at")
+
+
+class OpportunityCheckSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OpportunityCheck
+        fields = ("public_id", "input_type", "submitted_url", "submitted_text", "status", "verdict", "evidence_confidence", "risk_level", "title", "organization", "opportunity_type", "report_summary", "recommended_action", "deterministic_checks", "claims", "sources", "warnings", "extracted_data", "failure_reason", "checked_at", "created_at")
+        read_only_fields = fields
+
+
+class OpportunityCheckViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
+    serializer_class = OpportunityCheckSerializer
+    permission_classes = (permissions.IsAuthenticated,)
+    lookup_field = "public_id"
+    throttle_scope = None
+
+    def get_throttles(self):
+        self.throttle_scope = "opportunity_check" if self.action == "create" else None
+        return super().get_throttles()
+
+    def get_queryset(self):
+        return OpportunityCheck.objects.filter(user=self.request.user)
+
+    def create(self, request, *args, **kwargs):
+        submitted_url = str(request.data.get("url", "")).strip()
+        submitted_text = str(request.data.get("text", "")).strip()
+        if bool(submitted_url) == bool(submitted_text):
+            raise serializers.ValidationError({"detail": "Submit either one opportunity link or pasted text."})
+        if submitted_text and len(submitted_text) < 40:
+            raise serializers.ValidationError({"text": "Paste at least 40 characters so Neba has enough evidence to inspect."})
+        if len(submitted_text) > 12000:
+            raise serializers.ValidationError({"text": "Pasted text must be 12,000 characters or fewer."})
+        if submitted_url:
+            submitted_url = serializers.URLField(max_length=1000).run_validation(submitted_url)
+        input_type = OpportunityCheck.InputType.URL if submitted_url else OpportunityCheck.InputType.TEXT
+        value = submitted_url or submitted_text
+        digest = normalized_input_hash(input_type, value)
+        cached = self.get_queryset().filter(input_hash=digest, status=OpportunityCheck.Status.COMPLETED, checked_at__gte=timezone.now() - timedelta(hours=24)).first()
+        if cached:
+            return Response(self.get_serializer(cached).data)
+        check = OpportunityCheck.objects.create(user=request.user, input_type=input_type, submitted_url=submitted_url, submitted_text=submitted_text, input_hash=digest)
+        try:
+            result = run_opportunity_check(input_type, value)
+        except CheckError as exc:
+            check.status = OpportunityCheck.Status.FAILED
+            check.failure_reason = str(exc)[:500]
+            check.save(update_fields=("status", "failure_reason", "updated_at"))
+            return Response({"detail": check.failure_reason, "check": self.get_serializer(check).data}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        for field, field_value in result.items():
+            setattr(check, field, field_value)
+        check.status = OpportunityCheck.Status.COMPLETED
+        check.checked_at = timezone.now()
+        check.save()
+        return Response(self.get_serializer(check).data, status=status.HTTP_201_CREATED)
 
 
 class OpportunityViewSet(viewsets.ReadOnlyModelViewSet):
