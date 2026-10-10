@@ -37,7 +37,7 @@ INSTALLED_APPS = [
     "django.contrib.admin", "django.contrib.auth", "django.contrib.contenttypes",
     "django.contrib.sessions", "django.contrib.messages", "django.contrib.staticfiles",
     "rest_framework", "rest_framework.authtoken", "rest_framework_simplejwt.token_blacklist", "corsheaders",
-    "accounts.apps.AccountsConfig", "locations", "tasks", "offers", "bookings", "opportunities.apps.OpportunitiesConfig",
+    "accounts.apps.AccountsConfig", "billing.apps.BillingConfig", "locations", "tasks", "offers", "bookings", "opportunities.apps.OpportunitiesConfig",
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -165,5 +165,15 @@ OPPORTUNITY_CHECK_MODEL = os.getenv("OPPORTUNITY_CHECK_MODEL", OPENAI_TEXT_MODEL
 OPPORTUNITY_FEED_URLS = env_list("OPPORTUNITY_FEED_URLS", "https://www.afdb.org/en/vacancies/news-and-events/rss")
 OPPORTUNITY_FETCH_LIMIT = min(int(os.getenv("OPPORTUNITY_FETCH_LIMIT", "5")), 20)
 CRON_SECRET = os.getenv("CRON_SECRET", "")
+BACHS_API_KEY = os.getenv("BACHS_API_KEY", "")
+BACHS_WEBHOOK_SECRET = os.getenv("BACHS_WEBHOOK_SECRET", "")
+BACHS_BASE_URL = os.getenv("BACHS_BASE_URL", "").rstrip("/") or (
+    "https://api.bachs.io" if BACHS_API_KEY.startswith("sk_live_") else "https://sandbox-api.bachs.io"
+)
+BACHS_PLUS_MONTHLY_PRODUCT_ID = os.getenv("BACHS_PLUS_MONTHLY_PRODUCT_ID", "")
+BACHS_PLUS_YEARLY_PRODUCT_ID = os.getenv("BACHS_PLUS_YEARLY_PRODUCT_ID", "")
+BILLING_PLUS_MONTHLY_PRICE = os.getenv("BILLING_PLUS_MONTHLY_PRICE", "5.00")
+BILLING_PLUS_YEARLY_PRICE = os.getenv("BILLING_PLUS_YEARLY_PRICE", "48.00")
+BILLING_PLUS_CURRENCY = os.getenv("BILLING_PLUS_CURRENCY", "USD").upper()
 DATA_UPLOAD_MAX_MEMORY_SIZE = 12 * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 3 * 1024 * 1024

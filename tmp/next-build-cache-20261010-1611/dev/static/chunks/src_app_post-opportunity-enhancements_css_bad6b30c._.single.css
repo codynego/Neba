@@ -1,0 +1,132 @@
+/* [project]/src/app/post-opportunity-enhancements.css [app-client] (css) */
+.post-form-overview {
+  border: 1px solid var(--border);
+  background: #f8fbf9;
+  border-radius: 12px;
+  align-items: center;
+  gap: 9px;
+  margin-top: 28px;
+  padding: 11px 13px;
+  display: flex;
+}
+
+.post-form-overview span {
+  color: var(--muted);
+  white-space: nowrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 650;
+  display: flex;
+}
+
+.post-form-overview span.active {
+  color: var(--primary);
+}
+
+.post-form-overview b {
+  width: 19px;
+  height: 19px;
+  color: var(--muted);
+  background: #e1ebe5;
+  border-radius: 50%;
+  place-items: center;
+  font-size: 9px;
+  display: grid;
+}
+
+.post-form-overview .active b {
+  background: var(--primary);
+  color: #fff;
+}
+
+.post-form-overview i {
+  background: var(--border);
+  flex: 1;
+  height: 1px;
+}
+
+.post-form-footer {
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  display: flex;
+}
+
+.post-form-footer > span {
+  color: var(--muted);
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  display: flex;
+}
+
+.post-form-footer > span svg {
+  color: var(--primary);
+}
+
+.post-form-footer .post-review-button {
+  margin-top: 0;
+}
+
+.post-type-grid button span {
+  width: 17px;
+  height: 17px;
+}
+
+.post-type-grid button span svg {
+  stroke-width: 3px;
+  width: 10px;
+  height: 10px;
+}
+
+.post-opportunity-card .organization-check {
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+.post-opportunity-card .organization-check input {
+  width: 15px;
+  min-width: 15px;
+  height: 15px;
+  min-height: 15px;
+  accent-color: var(--primary);
+  margin: 0;
+}
+
+.post-opportunity-card .organization-check span {
+  line-height: 1.35;
+}
+
+.post-form-hidden {
+  display: none !important;
+}
+
+@media (max-width: 600px) {
+  .post-form-overview {
+    gap: 5px;
+    padding: 9px;
+  }
+
+  .post-form-overview span {
+    gap: 4px;
+    font-size: 8px;
+  }
+
+  .post-form-overview b {
+    width: 17px;
+    height: 17px;
+  }
+
+  .post-form-footer {
+    gap: 13px;
+    display: grid;
+  }
+
+  .post-form-footer .post-review-button {
+    justify-content: center;
+    width: 100%;
+  }
+}
+
+/*# sourceMappingURL=src_app_post-opportunity-enhancements_css_bad6b30c._.single.css.map*/

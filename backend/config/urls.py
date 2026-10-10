@@ -28,6 +28,7 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/health/", health),
     path("api/auth/", include("accounts.urls")),
+    path("api/billing/", include("billing.urls")),
     path("api/operations/dashboard/", StaffDashboard.as_view()),
     path("api/operations/opportunities/fetch/", OpportunityFetch.as_view()),
     path("api/operations/opportunities/", StaffOpportunityCollection.as_view()),

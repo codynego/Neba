@@ -24,6 +24,7 @@ import "./application-updates.css";
 import "./operations/operations.css";
 import "./verification-badges.css";
 import "./opportunity-check.css";
+import "./pricing-billing.css";
 import "./neba-design.css";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-geist" });

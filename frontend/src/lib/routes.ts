@@ -1,4 +1,4 @@
-export const publicRoutes = ["/", "/install", "/login", "/register", "/forgot-password", "/reset-password", "/verify-email", "/about", "/stories", "/help", "/community-guidelines", "/privacy", "/terms"];
+export const publicRoutes = ["/", "/pricing", "/install", "/login", "/register", "/forgot-password", "/reset-password", "/verify-email", "/about", "/stories", "/help", "/community-guidelines", "/privacy", "/terms"];
 export const isPublicPath = (path: string) => publicRoutes.includes(path) || path === "/opportunities" || path.startsWith("/opportunities/") || path.startsWith("/u/");
 export const isOpportunityPath = (path: string) => path === "/opportunities" || path.startsWith("/opportunities/");
 export function opportunitySlug(title: string) {

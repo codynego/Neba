@@ -11,7 +11,7 @@ import { OperationsHeader } from "./operations-header";
 
 const memberLinks = [{ href: "/dashboard", label: "Home", icon: House }, { href: "/opportunities", label: "Explore", icon: Compass }, { href: "/matches", label: "For you", icon: Sparkles }, { href: "/saved", label: "Saved", icon: Bookmark }, { href: "/applications", label: "My progress", icon: ListChecks }, { href: "/my-opportunities", label: "My contributions", icon: Link2 }, { href: "/assistant", label: "AI Assistant", icon: MessageCircle }];
 const orgLinks = [{ href: "/organization/dashboard", label: "Overview", icon: House }, { href: "/organization/opportunities", label: "Opportunities", icon: FileText }, { href: "/organization/applicants", label: "Applicants", icon: UsersRound }, { href: "/organization/analytics", label: "Analytics", icon: BarChart3 }, { href: "/organization/onboarding", label: "Organisation", icon: Building2 }];
-const publicLinks = [{ href: "/opportunities", label: "Find opportunities" }, { href: "/#how-it-works", label: "How it works" }, { href: "/my-opportunities/new", label: "Share a find" }, { href: "/about", label: "Our story" }];
+const publicLinks = [{ href: "/opportunities", label: "Find opportunities" }, { href: "/#how-it-works", label: "How it works" }, { href: "/pricing", label: "Pricing" }, { href: "/my-opportunities/new", label: "Share a find" }, { href: "/about", label: "Our story" }];
 
 export function Header() {
   const path = usePathname(); const router = useRouter();

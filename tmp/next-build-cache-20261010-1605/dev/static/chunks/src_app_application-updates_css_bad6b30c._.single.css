@@ -1,0 +1,37 @@
+/* [project]/src/app/application-updates.css [app-client] (css) */
+.application-update-indicator {
+  color: var(--primary);
+  white-space: nowrap;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  font-size: 9px;
+  font-weight: 750;
+  display: inline-flex;
+}
+
+.application-update-indicator i {
+  background: var(--primary);
+  border-radius: 50%;
+  width: 6px;
+  height: 6px;
+}
+
+.application-page-update {
+  color: var(--primary);
+  align-items: center;
+  gap: 6px;
+  margin-top: 11px;
+  font-size: 10px;
+  font-weight: 750;
+  display: inline-flex;
+}
+
+.application-page-update i {
+  background: var(--primary);
+  border-radius: 50%;
+  width: 7px;
+  height: 7px;
+}
+
+/*# sourceMappingURL=src_app_application-updates_css_bad6b30c._.single.css.map*/

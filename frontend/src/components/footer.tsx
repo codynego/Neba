@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Brand } from "./brand";
 const groups = [
   { title: "Discover", links: [["/register", "Build my radar"], ["/#opportunities", "Explore categories"], ["/#how-it-works", "How it works"], ["/register", "Create an account"]] },
-  { title: "GetNeba", links: [["/about", "Why GetNeba"], ["/help", "Opportunity guide"], ["/stories", "Stories"], ["/install", "Install the app"], ["/register", "Get started free"]] },
+  { title: "GetNeba", links: [["/about", "Why GetNeba"], ["/pricing", "Pricing"], ["/help", "Opportunity guide"], ["/stories", "Stories"], ["/install", "Install the app"], ["/register", "Get started free"]] },
   { title: "Trust & clarity", links: [["/community-guidelines", "Community guidelines"], ["/privacy", "Privacy notice"], ["/terms", "Terms of service"], ["/safety", "Safety center"]] },
 ];
 export function Footer() {

@@ -1,0 +1,330 @@
+/* [project]/src/app/credits-page.css [app-client] (css) */
+.pp-header-actions {
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  display: flex;
+}
+
+.pp-credit-button {
+  color: var(--primary-dark);
+  background: #effbf5;
+  border: 1px solid #b9dfc9;
+  border-radius: 999px;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  font-size: 11px;
+  font-weight: 750;
+  display: inline-flex;
+}
+
+.pp-credit-button svg {
+  color: var(--primary);
+}
+
+.pp-credit-button small {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.credits-page {
+  max-width: 1020px;
+  padding-top: 44px;
+  padding-bottom: 90px;
+}
+
+.credits-back {
+  color: var(--muted);
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  display: inline-flex;
+}
+
+.credits-heading {
+  justify-content: space-between;
+  align-items: center;
+  gap: 48px;
+  margin: 42px 0 34px;
+  display: flex;
+}
+
+.credits-heading h1 {
+  letter-spacing: -.075em;
+  margin: 13px 0 10px;
+  font-size: clamp(42px, 6vw, 72px);
+  line-height: .97;
+}
+
+.credits-heading h1 em {
+  color: var(--primary);
+  font-style: normal;
+}
+
+.credits-heading p {
+  max-width: 480px;
+  color: var(--muted);
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.credits-balance-orb {
+  color: #fff;
+  background: #123127;
+  border-radius: 50%;
+  flex: none;
+  place-items: center;
+  width: 190px;
+  height: 190px;
+  display: grid;
+  box-shadow: 20px 20px #ddf5ea;
+}
+
+.credits-balance-orb span {
+  color: #9ae2be;
+  letter-spacing: .12em;
+  font-size: 9px;
+  font-weight: 750;
+}
+
+.credits-balance-orb strong {
+  letter-spacing: -.08em;
+  margin: -2px 0;
+  font-size: 58px;
+  line-height: 1;
+}
+
+.credits-balance-orb small {
+  color: #c4ddcf;
+  font-size: 11px;
+}
+
+.credits-earn-card {
+  background: #effbf5;
+  border: 1px solid #cce8d8;
+  border-radius: 18px;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 18px;
+  padding: 20px 22px;
+  display: flex;
+}
+
+.credits-earn-icon, .credits-topup-mark {
+  width: 42px;
+  height: 42px;
+  color: var(--primary);
+  background: #d8f1e2;
+  border-radius: 13px;
+  flex: none;
+  place-items: center;
+  display: grid;
+}
+
+.credits-earn-card > div:nth-child(2) {
+  flex: 1;
+}
+
+.credits-earn-card h2 {
+  letter-spacing: -.04em;
+  margin: 6px 0 3px;
+  font-size: 18px;
+}
+
+.credits-earn-card p, .credits-topup p {
+  color: var(--muted);
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.credits-earn-card .button {
+  flex: none;
+}
+
+.credits-grid {
+  grid-template-columns: 1.2fr .8fr;
+  gap: 18px;
+  display: grid;
+}
+
+.credits-panel {
+  border: 1px solid var(--border);
+  background: #fff;
+  border-radius: 18px;
+  padding: 24px;
+}
+
+.credits-panel-heading {
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 15px;
+  margin-bottom: 18px;
+  display: flex;
+}
+
+.credits-panel-heading h2 {
+  letter-spacing: -.05em;
+  margin: 8px 0 0;
+  font-size: 23px;
+}
+
+.credits-panel-heading > span {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.credits-history {
+  border-top: 1px solid var(--border);
+}
+
+.credits-history-row {
+  border-bottom: 1px solid var(--border);
+  align-items: center;
+  gap: 11px;
+  padding: 14px 0;
+  display: flex;
+}
+
+.credits-history-icon {
+  width: 30px;
+  height: 30px;
+  color: var(--primary);
+  background: #effbf5;
+  border-radius: 9px;
+  place-items: center;
+  display: grid;
+}
+
+.credits-history-row > div {
+  flex: 1;
+  gap: 4px;
+  min-width: 0;
+  display: grid;
+}
+
+.credits-history-row strong {
+  text-transform: capitalize;
+  font-size: 11px;
+}
+
+.credits-history-row small {
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 9px;
+  overflow: hidden;
+}
+
+.credits-history-row b {
+  font-size: 14px;
+}
+
+.credits-history-row b.positive {
+  color: var(--primary);
+}
+
+.credits-history-row b.negative {
+  color: #b9573b;
+}
+
+.credits-empty {
+  color: var(--primary);
+  align-items: center;
+  gap: 10px;
+  padding: 18px 0;
+  display: flex;
+}
+
+.credits-empty p {
+  color: var(--muted);
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.credits-topup {
+  flex-direction: column;
+  align-items: flex-start;
+  display: flex;
+}
+
+.credits-topup h2 {
+  letter-spacing: -.055em;
+  margin: 17px 0 8px;
+  font-size: 26px;
+  line-height: 1.05;
+}
+
+.credits-topup .button {
+  justify-content: space-between;
+  width: 100%;
+  margin-top: 24px;
+  display: flex;
+}
+
+.credits-topup .button span {
+  opacity: .65;
+  font-size: 9px;
+  font-weight: 500;
+}
+
+.credits-topup > small {
+  color: var(--muted);
+  margin-top: 10px;
+  font-size: 9px;
+}
+
+@media (max-width: 760px) {
+  .pp-header-actions {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .credits-page {
+    padding-top: 30px;
+  }
+
+  .credits-heading {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 30px;
+    margin: 34px 0 28px;
+  }
+
+  .credits-heading h1 {
+    font-size: 49px;
+  }
+
+  .credits-balance-orb {
+    width: 145px;
+    height: 145px;
+    box-shadow: 14px 14px #ddf5ea;
+  }
+
+  .credits-balance-orb strong {
+    font-size: 45px;
+  }
+
+  .credits-earn-card {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .credits-earn-card > div:nth-child(2) {
+    min-width: calc(100% - 57px);
+  }
+
+  .credits-earn-card .button {
+    margin-left: 57px;
+  }
+
+  .credits-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/*# sourceMappingURL=src_app_credits-page_css_bad6b30c._.single.css.map*/

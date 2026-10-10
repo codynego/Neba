@@ -1,0 +1,37 @@
+/* [project]/src/app/verification-badges.css [app-client] (css) */
+.verification-badge {
+  color: var(--primary);
+  vertical-align: middle;
+  white-space: nowrap;
+  background: #f2fbf6;
+  border: 1px solid #b9dfc9;
+  border-radius: 999px;
+  align-items: center;
+  gap: 4px;
+  margin-left: 6px;
+  padding: 4px 7px;
+  font-size: 9px;
+  font-weight: 750;
+  line-height: 1;
+  display: inline-flex;
+}
+
+.verification-badge-neba {
+  color: #245ca8;
+  background: #eff5ff;
+  border-color: #a8c9ff;
+}
+
+.verification-badge-organization {
+  color: #6241a3;
+  background: #f6f2ff;
+  border-color: #c8b7f5;
+}
+
+.verification-badge-member {
+  color: var(--primary);
+  background: #f2fbf6;
+  border-color: #b9dfc9;
+}
+
+/*# sourceMappingURL=src_app_verification-badges_css_bad6b30c._.single.css.map*/

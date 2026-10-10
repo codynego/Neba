@@ -1,0 +1,183 @@
+/* [project]/src/app/opportunity-discover.css [app-client] (css) */
+.opportunity-discover-header {
+  align-items: flex-end;
+}
+
+.opportunity-discover-header > div {
+  max-width: 680px;
+}
+
+.opportunity-discover-header .button {
+  flex: none;
+}
+
+.opportunity-discover-page {
+  padding-bottom: 90px;
+}
+
+.opportunity-intent-tabs {
+  margin-top: 24px;
+}
+
+.opportunity-what-can-i-do {
+  background: #effbf5;
+  border: 1px solid #cce6d8;
+  border-radius: 20px;
+  grid-template-columns: minmax(220px, .7fr) minmax(0, 1.3fr);
+  align-items: center;
+  gap: 30px;
+  margin: 34px 0 52px;
+  padding: 24px 26px;
+  display: grid;
+}
+
+.opportunity-what-can-i-do h2 {
+  letter-spacing: -.04em;
+  margin: 10px 0 0;
+  font-size: 20px;
+}
+
+.opportunity-prompt-chips {
+  flex-wrap: wrap;
+  gap: 8px;
+  display: flex;
+}
+
+.opportunity-prompt-chips button {
+  color: var(--primary-dark);
+  font: inherit;
+  cursor: pointer;
+  background: #fff;
+  border: 1px solid #c9e4d5;
+  border-radius: 99px;
+  padding: 10px 12px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.opportunity-prompt-chips button:hover {
+  border-color: var(--primary);
+  background: #e5f7ed;
+}
+
+.opportunity-card-reframed {
+  min-height: 0;
+}
+
+.opportunity-card-reframed .opportunity-summary {
+  color: var(--muted);
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  margin: 12px 0 0;
+  font-size: 12px;
+  line-height: 1.65;
+  display: -webkit-box;
+  overflow: hidden;
+}
+
+.opportunity-card-reframed .opportunity-provider {
+  margin-top: 6px;
+}
+
+.opportunity-closing-soon {
+  margin: 54px 0;
+}
+
+.opportunity-closing-list {
+  border-top: 1px solid var(--border);
+  gap: 0;
+  display: grid;
+}
+
+.opportunity-closing-list a {
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  padding: 17px 2px;
+  display: flex;
+}
+
+.opportunity-closing-list a:hover strong {
+  color: var(--primary);
+}
+
+.opportunity-closing-list a > div {
+  gap: 6px;
+  display: grid;
+}
+
+.opportunity-closing-list strong {
+  font-size: 13px;
+}
+
+.opportunity-closing-list span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.opportunity-closing-list b {
+  color: var(--primary);
+  flex: none;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  display: flex;
+}
+
+.opportunity-closing-list b svg {
+  transition: transform .18s;
+}
+
+.opportunity-closing-list a:hover b svg {
+  transform: translateX(3px);
+}
+
+@media (max-width: 760px) {
+  .opportunity-discover-page {
+    padding-top: 34px;
+  }
+
+  .opportunity-discover-header {
+    align-items: flex-start;
+    gap: 18px;
+  }
+
+  .opportunity-discover-header .button {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .opportunity-what-can-i-do {
+    grid-template-columns: 1fr;
+    margin: 26px 0 38px;
+    padding: 20px;
+  }
+
+  .opportunity-prompt-chips {
+    grid-template-columns: 1fr 1fr;
+    display: grid;
+  }
+
+  .opportunity-prompt-chips button {
+    text-align: left;
+    line-height: 1.35;
+  }
+
+  .opportunity-closing-soon {
+    margin: 38px 0;
+  }
+
+  .opportunity-closing-list a {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 9px;
+  }
+
+  .opportunity-closing-list b {
+    font-size: 10px;
+  }
+}
+
+/*# sourceMappingURL=src_app_opportunity-discover_css_bad6b30c._.single.css.map*/

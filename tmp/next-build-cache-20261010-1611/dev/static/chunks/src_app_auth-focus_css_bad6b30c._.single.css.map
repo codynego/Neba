@@ -1,0 +1,6 @@
+{
+  "version": 3,
+  "sources": [],
+  "sections": [
+    {"offset": {"line": 1, "column": 0}, "map": {"version":3,"sources":["turbopack:///[project]/src/app/auth-focus.css"],"sourcesContent":["@media (max-width: 760px) {\n  .auth-radar-intro {\n    display: none;\n  }\n\n  .auth-radar-page {\n    min-height: calc(100vh - var(--header-height));\n    background: #fff;\n  }\n\n  .auth-radar-panel {\n    min-height: calc(100vh - var(--header-height));\n    align-items: start;\n    padding-top: 42px;\n  }\n}\n"],"names":[],"mappings":"AAAA;EACE;;;;EAIA;;;;;EAKA"}}]
+}

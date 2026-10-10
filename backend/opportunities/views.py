@@ -262,6 +262,10 @@ class OpportunityCheckViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, mi
         return OpportunityCheck.objects.filter(user=self.request.user)
 
     def create(self, request, *args, **kwargs):
+        from billing.entitlements import opportunity_check_usage
+        usage = opportunity_check_usage(request.user)
+        if usage["remaining"] <= 0:
+            return Response({"detail": f"You have used all {usage['limit']} opportunity checks for this month.", "usage": usage}, status=status.HTTP_402_PAYMENT_REQUIRED)
         submitted_url = str(request.data.get("url", "")).strip()
         submitted_text = str(request.data.get("text", "")).strip()
         if bool(submitted_url) == bool(submitted_text):

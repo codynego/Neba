@@ -1,0 +1,398 @@
+/* [project]/src/app/post-opportunity.css [app-client] (css) */
+.post-opportunity-flow {
+  grid-template-columns: 210px minmax(0, 760px);
+  align-items: start;
+  gap: 58px;
+  max-width: 1120px;
+  padding-top: 56px;
+  padding-bottom: 90px;
+  display: grid;
+}
+
+.post-opportunity-rail {
+  align-content: start;
+  gap: 13px;
+  display: grid;
+  position: sticky;
+  top: 110px;
+}
+
+.post-opportunity-rail .eyebrow {
+  margin-top: 22px;
+}
+
+.post-opportunity-rail > p {
+  color: var(--muted);
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.65;
+}
+
+.post-progress {
+  gap: 7px;
+  margin-top: 8px;
+  display: grid;
+}
+
+.post-progress span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.post-progress span.active {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.post-progress i {
+  background: var(--border);
+  width: 1px;
+  height: 15px;
+  margin-left: 4px;
+}
+
+.post-opportunity-card {
+  padding: 40px;
+}
+
+.dynamic-opportunity-form {
+  gap: 16px;
+  margin-top: 30px;
+  display: grid;
+}
+
+.post-form-section {
+  border: 1px solid var(--border);
+  background: #fff;
+  border-radius: 18px;
+  gap: 16px;
+  padding: 24px;
+  display: grid;
+}
+
+.post-form-section > div:not(.form-row) {
+  gap: 7px;
+  display: grid;
+}
+
+.post-form-section h2 {
+  letter-spacing: -.035em;
+  margin: 3px 0 0;
+  font-size: 19px;
+}
+
+.post-form-section p {
+  color: var(--muted);
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.65;
+}
+
+.post-section-number {
+  color: var(--primary);
+  letter-spacing: .1em;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.post-category-grid, .post-type-grid {
+  flex-wrap: wrap;
+  gap: 8px;
+  display: flex;
+}
+
+.post-category-grid button, .post-type-grid button {
+  border: 1px solid var(--border);
+  min-height: 40px;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+  background: #fff;
+  border-radius: 11px;
+  padding: 8px 13px;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.post-category-grid button.active {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: #fff;
+}
+
+.post-type-grid button {
+  border-radius: 99px;
+  align-items: center;
+  gap: 7px;
+  display: flex;
+}
+
+.post-type-grid button.active {
+  border-color: var(--primary);
+  color: var(--primary-dark);
+  background: #e5f7ed;
+}
+
+.post-type-grid button span {
+  color: #fff;
+  background: #dce6e1;
+  border-radius: 50%;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  display: grid;
+}
+
+.post-type-grid button.active span {
+  background: var(--primary);
+}
+
+.dynamic-opportunity-form > label, .post-form-section > label {
+  color: var(--text);
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 650;
+  display: grid;
+}
+
+.post-form-section label small {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 400;
+}
+
+.dynamic-opportunity-form input, .dynamic-opportunity-form textarea, .dynamic-opportunity-form select {
+  border: 1px solid var(--border);
+  width: 100%;
+  min-height: 47px;
+  color: var(--text);
+  font: inherit;
+  background: #fff;
+  border-radius: 11px;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+.dynamic-opportunity-form textarea {
+  resize: vertical;
+  min-height: 106px;
+}
+
+.dynamic-opportunity-form input:focus, .dynamic-opportunity-form textarea:focus, .dynamic-opportunity-form select:focus {
+  border-color: var(--primary);
+  outline: 2px solid #087f5b22;
+}
+
+.dynamic-opportunity-form .form-row {
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  display: grid;
+}
+
+.post-review-button {
+  justify-self: start;
+  margin-top: 4px;
+}
+
+.post-review {
+  gap: 18px;
+  margin-top: 30px;
+  display: grid;
+}
+
+.post-review-notice {
+  background: #effbf5;
+  border: 1px solid #cce6d8;
+  border-radius: 15px;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 17px;
+  display: flex;
+}
+
+.post-review-notice > svg {
+  color: var(--primary);
+  flex: none;
+}
+
+.post-review-notice strong {
+  font-size: 13px;
+}
+
+.post-review-notice p {
+  color: var(--muted);
+  margin: 5px 0 0;
+  font-size: 11px;
+}
+
+.post-review-checks {
+  gap: 10px;
+  padding: 4px 0;
+  display: grid;
+}
+
+.post-review-checks span {
+  color: var(--muted);
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  display: flex;
+}
+
+.post-review-checks span.done {
+  color: var(--primary-dark);
+}
+
+.post-review-checks span.needs {
+  color: #9a6a16;
+}
+
+.post-review-checks span > span {
+  color: #9a6a16;
+  background: #f6e7c3;
+  border-radius: 50%;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  font-size: 10px;
+  font-weight: 800;
+  display: grid;
+}
+
+.post-preview-card {
+  border: 1px solid var(--border);
+  background: #fff;
+  border-radius: 18px;
+  padding: 24px;
+  box-shadow: 0 16px 35px #10271e08;
+}
+
+.post-preview-card h2 {
+  letter-spacing: -.045em;
+  margin: 13px 0 6px;
+  font-size: 25px;
+}
+
+.post-preview-card > p {
+  color: var(--muted);
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.post-preview-card > div {
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 18px;
+  display: flex;
+}
+
+.post-preview-card > div span {
+  color: var(--primary-dark);
+  background: #effbf5;
+  border-radius: 99px;
+  padding: 7px 10px;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.post-review-actions {
+  justify-content: space-between;
+  gap: 12px;
+  display: flex;
+}
+
+.post-review-actions .button {
+  align-items: center;
+  gap: 8px;
+  display: inline-flex;
+}
+
+.post-opportunity-flow .link-import-panel {
+  margin-top: 28px;
+}
+
+.post-opportunity-flow .organization-form-heading h1 {
+  font-size: clamp(34px, 4vw, 48px);
+}
+
+@media (max-width: 900px) {
+  .post-opportunity-flow {
+    grid-template-columns: 1fr;
+    gap: 22px;
+  }
+
+  .post-opportunity-rail {
+    position: static;
+  }
+
+  .post-opportunity-rail .eyebrow {
+    margin-top: 0;
+  }
+
+  .post-progress {
+    align-items: center;
+    gap: 9px;
+    display: flex;
+  }
+
+  .post-progress i {
+    width: 28px;
+    height: 1px;
+    margin: 0;
+  }
+
+  .post-opportunity-card {
+    padding: 30px;
+  }
+}
+
+@media (max-width: 600px) {
+  .post-opportunity-flow {
+    width: 100%;
+    padding: 25px 0 45px;
+  }
+
+  .post-opportunity-rail {
+    padding: 0 20px;
+  }
+
+  .post-opportunity-card {
+    box-shadow: none;
+    border: 0;
+    border-radius: 0;
+    padding: 23px 20px;
+  }
+
+  .post-form-section {
+    border-radius: 15px;
+    padding: 19px 15px;
+  }
+
+  .dynamic-opportunity-form .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .dynamic-opportunity-form input, .dynamic-opportunity-form textarea, .dynamic-opportunity-form select {
+    font-size: 16px;
+  }
+
+  .post-review-actions {
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    background: #ffffffed;
+    border: 1px solid #e5eae7cc;
+    border-radius: 15px;
+    padding: 8px;
+    position: sticky;
+    bottom: 8px;
+    box-shadow: 0 12px 32px #10271e1a;
+  }
+
+  .post-review-actions .button {
+    flex: 1;
+    justify-content: center;
+  }
+}
+
+/*# sourceMappingURL=src_app_post-opportunity_css_bad6b30c._.single.css.map*/

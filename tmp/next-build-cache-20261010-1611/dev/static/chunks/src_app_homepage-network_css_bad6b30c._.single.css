@@ -1,0 +1,28 @@
+/* [project]/src/app/homepage-network.css [app-client] (css) */
+.getneba-home-credit-note {
+  color: var(--muted);
+  margin-top: 24px;
+  font-size: 11px;
+  line-height: 1.5;
+  display: block;
+}
+
+.home-quality-note {
+  color: var(--primary);
+  margin-top: 18px;
+  font-size: 10px;
+  line-height: 1.5;
+  display: block;
+}
+
+@media (max-width: 600px) {
+  .getneba-home-credit-note {
+    margin-top: 19px;
+  }
+
+  .home-quality-note {
+    max-width: 290px;
+  }
+}
+
+/*# sourceMappingURL=src_app_homepage-network_css_bad6b30c._.single.css.map*/

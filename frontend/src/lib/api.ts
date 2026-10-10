@@ -1,6 +1,6 @@
 export const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
 const SESSION_MARKER = "getneba_session";
-const publicAuthPaths = new Set(["/auth/login/", "/auth/register/", "/auth/token/refresh/", "/auth/password-reset/", "/auth/password-reset/confirm/", "/auth/email/verify/"]);
+const publicAuthPaths = new Set(["/auth/login/", "/auth/register/", "/auth/token/refresh/", "/auth/password-reset/", "/auth/password-reset/confirm/", "/auth/email/verify/", "/billing/plans/"]);
 let accessToken: string | null = null;
 let refreshPromise: Promise<string | null> | null = null;
 

@@ -1,0 +1,12 @@
+/* [project]/src/app/opportunity-flow.css [app-client] (css) */
+@media (max-width: 760px) {
+  :is(body:has(.opportunity-onboarding) .bottom-nav, body:has(.opportunity-onboarding) .pwa-install) {
+    display: none;
+  }
+
+  body:has(.opportunity-onboarding) .app-content {
+    padding-bottom: 0;
+  }
+}
+
+/*# sourceMappingURL=src_app_opportunity-flow_css_bad6b30c._.single.css.map*/
