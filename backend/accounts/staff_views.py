@@ -37,7 +37,7 @@ def _fallback_paste_fields(content):
     title = lines[0][:220] if lines else ""
     labeled = {}
     for line in lines:
-        match = re.match(r"^(title|provider|organization|summary|description|deadline|closing date|location|country|eligibility|application url|apply here)\s*[:\-]\s*(.+)$", line, re.I)
+        match = re.match(r"^(title|provider|organization|summary|description|deadline|closing date|location|country|eligibility|application url|application email|application phone|contact email|contact phone|apply here)\s*[:\-]\s*(.+)$", line, re.I)
         if match:
             labeled[match.group(1).lower()] = match.group(2).strip()
     summary = labeled.get("summary") or labeled.get("description") or " ".join(lines[1:])[:1800]
@@ -57,7 +57,11 @@ def _fallback_paste_fields(content):
             deadline = parsed.isoformat()
         except ValueError:
             deadline = None
-    application_url = labeled.get("application url") or labeled.get("apply here") or ""
+    apply_here = labeled.get("apply here") or ""
+    application_url = labeled.get("application url") or (apply_here if apply_here.startswith(("http://", "https://")) else "")
+    application_email = labeled.get("application email") or labeled.get("contact email") or (apply_here if re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", apply_here) else "")
+    application_phone = labeled.get("application phone") or labeled.get("contact phone") or (apply_here if re.fullmatch(r"\+?[0-9()\-\s]{7,32}", apply_here) else "")
+    application_channel = "website" if application_url else "email" if application_email else "phone" if application_phone else "website"
     category = _category_from_text(text)
     fields = {
         "title": labeled.get("title") or title,
@@ -65,7 +69,10 @@ def _fallback_paste_fields(content):
         "summary": summary,
         "category": category,
         "application_mode": "external",
+        "application_channel": application_channel,
         "application_url": application_url,
+        "application_email": application_email,
+        "application_phone": application_phone,
         "source_url": "",
         "deadline": deadline,
         "country": labeled.get("country", ""),
@@ -83,8 +90,8 @@ def _fallback_paste_fields(content):
         "requires_physical_presence": False,
         "requires_local_residency": False,
     }
-    confidence = {"title": 94 if fields["title"] else 0, "summary": 78 if summary else 0, "provider": 82 if provider else 0, "deadline": 88 if deadline else 0, "application_url": 92 if application_url else 0}
-    warnings = [f"Add {label.replace('_', ' ')}" for label, value in (("provider", provider), ("deadline", deadline), ("application URL", application_url)) if not value]
+    confidence = {"title": 94 if fields["title"] else 0, "summary": 78 if summary else 0, "provider": 82 if provider else 0, "deadline": 88 if deadline else 0, "application_contact": 92 if application_url or application_email or application_phone else 0}
+    warnings = [f"Add {label.replace('_', ' ')}" for label, value in (("provider", provider), ("deadline", deadline), ("application contact", application_url or application_email or application_phone)) if not value]
     fields["role"] = fields["title"] if category in ("job", "internship") else ""
     fields["compensation"] = fields["benefit"]
     return fields, confidence, warnings
@@ -101,13 +108,13 @@ def _paste_fields(content):
         "Choose exactly one category from scholarship, grant, job, internship, fellowship, competition, training, startup, funding, tender. "
         "Use the precise role in role and title when a role is stated. Put salary, stipend, allowance, prize, grant amount, or other monetary support in compensation and benefit. "
         "Set requires_physical_presence only when attendance at a named location is required. Set requires_local_residency only when applicants must already reside there. "
-        "Preserve useful eligibility and application details instead of shortening them away. Dates must be ISO local datetime strings when a date is explicit. "
+        "Preserve useful eligibility and application details instead of shortening them away. Set application_channel to website, email, or phone based only on the stated application route, and extract its matching URL, email, or phone field. Dates must be ISO local datetime strings when a date is explicit. "
         "Return JSON with fields, confidence, and warnings. Confidence values are integer percentages."
     )
     schema = {
         "fields": {
-            "title": "", "role": "", "provider": "", "summary": "", "category": "job", "application_mode": "external",
-            "application_url": "", "source_url": "", "deadline": None, "country": "", "location_label": "", "is_remote": False,
+            "title": "", "role": "", "provider": "", "summary": "", "category": "job", "application_mode": "external", "application_channel": "website",
+            "application_url": "", "application_email": "", "application_phone": "", "source_url": "", "deadline": None, "country": "", "location_label": "", "is_remote": False,
             "benefit": "", "compensation": "", "eligibility_notes": "", "eligible_countries": [], "education_levels": [],
             "fields_of_study": [], "employment_statuses": [], "min_age": None, "max_age": None, "requires_business": False,
             "requires_physical_presence": False, "requires_local_residency": False,
@@ -137,8 +144,8 @@ def _paste_fields(content):
             fields["category"] = fallback_fields["category"]
         if fields.get("application_mode") not in {choice[0] for choice in Opportunity.ApplicationMode.choices}:
             fields["application_mode"] = "external"
-        if not fields.get("application_url"):
-            fields["application_mode"] = "external"
+        if fields.get("application_channel") not in {choice[0] for choice in Opportunity.ApplicationChannel.choices}:
+            fields["application_channel"] = "website"
         fields["role"] = str(fields.get("role") or "")
         fields["compensation"] = str(fields.get("compensation") or fields.get("benefit") or "")
         fields["benefit"] = str(fields.get("benefit") or fields["compensation"] or "")
@@ -195,13 +202,32 @@ class StaffOpportunityCollection(APIView):
         if not title or not summary:
             return Response({"detail": "Add a title and summary before publishing."}, status=400)
         application_mode = str(fields.get("application_mode") or "external")
+        application_channel = str(fields.get("application_channel") or "website")
         application_url = str(fields.get("application_url") or "").strip()
-        if application_mode == "external" and not application_url:
-            return Response({"detail": "Add an application URL or change the application method to Inside Getneba."}, status=400)
+        application_email = str(fields.get("application_email") or "").strip()
+        application_phone = str(fields.get("application_phone") or "").strip()
+        if application_mode not in {choice[0] for choice in Opportunity.ApplicationMode.choices}:
+            return Response({"detail": "Choose a valid application location."}, status=400)
+        if application_channel not in {choice[0] for choice in Opportunity.ApplicationChannel.choices}:
+            return Response({"detail": "Choose website, email, or phone as the application method."}, status=400)
+        if application_mode == "external":
+            if application_channel == "website" and not application_url:
+                return Response({"detail": "Add the official application website."}, status=400)
+            if application_channel == "email" and not application_email:
+                return Response({"detail": "Add the application email address."}, status=400)
+            if application_channel == "email":
+                try:
+                    application_email = serializers.EmailField().run_validation(application_email)
+                except serializers.ValidationError:
+                    return Response({"detail": "Add a valid application email address."}, status=400)
+            if application_channel == "phone" and not re.fullmatch(r"\+?[0-9()\-\s]{7,32}", application_phone):
+                return Response({"detail": "Add a valid application phone number."}, status=400)
+        else:
+            application_channel, application_url, application_email, application_phone = "website", "", "", ""
         opportunity = Opportunity.objects.create(
             title=title[:220], provider=str(fields.get("provider") or "Getneba").strip()[:180], summary=summary[:1800],
-            category=str(fields.get("category") or "job"), application_mode=application_mode,
-            application_url=application_url, deadline=fields.get("deadline") or None,
+            category=str(fields.get("category") or "job"), application_mode=application_mode, application_channel=application_channel,
+            application_url=application_url if application_channel == "website" else "", application_email=application_email if application_channel == "email" else "", application_phone=application_phone if application_channel == "phone" else "", deadline=fields.get("deadline") or None,
             country=str(fields.get("country") or ""), location_label=str(fields.get("location_label") or ""),
             is_remote=bool(fields.get("is_remote")),
             requires_physical_presence=bool(not fields.get("is_remote") and (fields.get("requires_physical_presence") or fields.get("requires_local_residency"))),

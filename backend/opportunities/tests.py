@@ -281,6 +281,32 @@ class OpportunityApiTests(APITestCase):
         hidden = self.client.get(f"/api/opportunity-applications/{application.data['public_id']}/")
         self.assertEqual(hidden.status_code, 404)
 
+    def test_personal_share_can_use_email_or_phone_instead_of_a_website(self):
+        contributor = User.objects.create_user(username="offline-sharer", password="test-password-123")
+        self.client.force_authenticate(contributor)
+        base = {"provider": "Community Skills Hub", "summary": "A practical training opportunity for local applicants.", "category": "training"}
+
+        emailed = self.client.post("/api/my-opportunities/", {
+            **base, "title": "Email Application Training", "application_channel": "email", "application_email": "apply@community.example",
+        }, format="json")
+        self.assertEqual(emailed.status_code, 201, emailed.data)
+        email_item = Opportunity.objects.get(public_id=emailed.data["public_id"])
+        self.assertEqual(email_item.application_channel, Opportunity.ApplicationChannel.EMAIL)
+        self.assertEqual(email_item.application_email, "apply@community.example")
+        self.assertEqual(email_item.application_url, "")
+
+        called = self.client.post("/api/my-opportunities/", {
+            **base, "title": "Phone Application Training", "application_channel": "phone", "application_phone": "+234 800 123 4567",
+        }, format="json")
+        self.assertEqual(called.status_code, 201, called.data)
+        self.assertEqual(called.data["application_phone"], "+234 800 123 4567")
+
+        invalid = self.client.post("/api/my-opportunities/", {
+            **base, "title": "Invalid Phone Training", "application_channel": "phone", "application_phone": "call-me-now",
+        }, format="json")
+        self.assertEqual(invalid.status_code, 400, invalid.data)
+        self.assertIn("application_phone", invalid.data)
+
     def test_thanks_and_corrections_create_honest_community_signals(self):
         thanked = self.client.post(f"/api/opportunities/{self.opportunity.public_id}/thank/", {}, format="json")
         self.assertEqual(thanked.status_code, 201, thanked.data)

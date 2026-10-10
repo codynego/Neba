@@ -257,6 +257,8 @@ a, button, input, select, textarea { -webkit-tap-highlight-color: transparent; }
 .opportunity-action-card .button-dark { background: var(--nb-lime); color: var(--primary-dark); font-weight: 750; }
 .opportunity-action-card .button-outline { border-color: #ffffff44; color: #fff; }
 .opportunity-action-card .button-outline:hover { background: #ffffff18; border-color: #fff; }
+.opportunity-action-card .track-application-button { border-color: #fff; background: #fff; color: #111; }
+.opportunity-action-card .track-application-button:hover { border-color: #fff; background: #f2f5f3; color: #111; }
 .opportunity-action-card .opportunity-tracked { color: var(--nb-lime) !important; }
 .opportunity-source-card { background: #f0f2e9; }
 .landing-footer { background: #f3f5ee; border-top: 1px solid var(--border); }

@@ -27,13 +27,21 @@ class Opportunity(models.Model):
         EXTERNAL = "external", "External application"
         INTERNAL = "internal", "Apply on Getneba"
 
+    class ApplicationChannel(models.TextChoices):
+        WEBSITE = "website", "Website"
+        EMAIL = "email", "Email"
+        PHONE = "phone", "Phone call"
+
     public_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False, db_index=True)
     title = models.CharField(max_length=220)
     provider = models.CharField(max_length=180)
     summary = models.TextField(max_length=1800)
     category = models.CharField(max_length=24, choices=Category.choices)
     application_mode = models.CharField(max_length=16, choices=ApplicationMode.choices, default=ApplicationMode.EXTERNAL)
+    application_channel = models.CharField(max_length=16, choices=ApplicationChannel.choices, default=ApplicationChannel.WEBSITE)
     application_url = models.URLField(max_length=500, blank=True)
+    application_email = models.EmailField(blank=True)
+    application_phone = models.CharField(max_length=32, blank=True)
     deadline = models.DateTimeField(null=True, blank=True, db_index=True)
     country = models.CharField(max_length=120, blank=True)
     location_label = models.CharField(max_length=140, blank=True)

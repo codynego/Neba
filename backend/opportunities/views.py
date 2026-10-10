@@ -122,7 +122,7 @@ class OpportunitySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Opportunity
-        fields = ("public_id", "title", "provider", "summary", "category", "application_mode", "application_url", "deadline", "country", "location_label", "is_remote", "requires_physical_presence", "requires_local_residency", "benefit", "eligibility_notes", "eligible_countries", "education_levels", "fields_of_study", "employment_statuses", "min_age", "max_age", "requires_business", "tracker_only", "source_url", "share_note", "view_count", "application_count", "created_at", "updated_at", "match", "saved_status", "application_status", "verification", "contributor", "thanks_count", "thanked_by_me")
+        fields = ("public_id", "title", "provider", "summary", "category", "application_mode", "application_channel", "application_url", "application_email", "application_phone", "deadline", "country", "location_label", "is_remote", "requires_physical_presence", "requires_local_residency", "benefit", "eligibility_notes", "eligible_countries", "education_levels", "fields_of_study", "employment_statuses", "min_age", "max_age", "requires_business", "tracker_only", "source_url", "share_note", "view_count", "application_count", "created_at", "updated_at", "match", "saved_status", "application_status", "verification", "contributor", "thanks_count", "thanked_by_me")
 
     def get_verification(self, opportunity):
         if opportunity.created_by_id and opportunity.created_by and opportunity.created_by.is_staff and not opportunity.organization_id:
@@ -518,9 +518,34 @@ class OpportunityApplicationViewSet(viewsets.ModelViewSet):
 class OrganizationOpportunitySerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         mode = attrs.get("application_mode", getattr(self.instance, "application_mode", Opportunity.ApplicationMode.EXTERNAL))
+        channel = attrs.get("application_channel", getattr(self.instance, "application_channel", Opportunity.ApplicationChannel.WEBSITE))
         url = attrs.get("application_url", getattr(self.instance, "application_url", ""))
-        if mode == Opportunity.ApplicationMode.EXTERNAL and not url:
-            raise serializers.ValidationError({"application_url": "Add an application URL for an external application."})
+        email = attrs.get("application_email", getattr(self.instance, "application_email", ""))
+        phone = attrs.get("application_phone", getattr(self.instance, "application_phone", ""))
+        if mode == Opportunity.ApplicationMode.EXTERNAL:
+            if channel == Opportunity.ApplicationChannel.WEBSITE and not url:
+                raise serializers.ValidationError({"application_url": "Add the official application website."})
+            if channel == Opportunity.ApplicationChannel.EMAIL and not email:
+                raise serializers.ValidationError({"application_email": "Add the application email address."})
+            if channel == Opportunity.ApplicationChannel.PHONE:
+                phone = str(phone).strip()
+                if not re.fullmatch(r"\+?[0-9()\-\s]{7,32}", phone):
+                    raise serializers.ValidationError({"application_phone": "Enter a valid application phone number."})
+                attrs["application_phone"] = phone
+            if channel == Opportunity.ApplicationChannel.WEBSITE:
+                attrs["application_email"] = ""
+                attrs["application_phone"] = ""
+            elif channel == Opportunity.ApplicationChannel.EMAIL:
+                attrs["application_url"] = ""
+                attrs["application_phone"] = ""
+            else:
+                attrs["application_url"] = ""
+                attrs["application_email"] = ""
+        else:
+            attrs["application_channel"] = Opportunity.ApplicationChannel.WEBSITE
+            attrs["application_url"] = ""
+            attrs["application_email"] = ""
+            attrs["application_phone"] = ""
         is_remote = attrs.get("is_remote", getattr(self.instance, "is_remote", False))
         requires_local_residency = attrs.get(
             "requires_local_residency", getattr(self.instance, "requires_local_residency", False)
@@ -534,7 +559,7 @@ class OrganizationOpportunitySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Opportunity
-        fields = ("public_id", "title", "provider", "summary", "category", "application_mode", "application_url", "deadline", "country", "location_label", "is_remote", "requires_physical_presence", "requires_local_residency", "benefit", "eligibility_notes", "eligible_countries", "education_levels", "fields_of_study", "employment_statuses", "min_age", "max_age", "requires_business", "source_url", "share_note", "review_status", "review_note", "is_published", "view_count", "created_at", "updated_at")
+        fields = ("public_id", "title", "provider", "summary", "category", "application_mode", "application_channel", "application_url", "application_email", "application_phone", "deadline", "country", "location_label", "is_remote", "requires_physical_presence", "requires_local_residency", "benefit", "eligibility_notes", "eligible_countries", "education_levels", "fields_of_study", "employment_statuses", "min_age", "max_age", "requires_business", "source_url", "share_note", "review_status", "review_note", "is_published", "view_count", "created_at", "updated_at")
         read_only_fields = ("public_id", "provider", "review_status", "review_note", "is_published", "created_at", "updated_at")
 
 
@@ -634,11 +659,9 @@ class OrganizationOpportunityViewSet(viewsets.ModelViewSet):
 class PersonalOpportunitySerializer(OrganizationOpportunitySerializer):
     def validate(self, attrs):
         attrs["application_mode"] = Opportunity.ApplicationMode.EXTERNAL
-        if not attrs.get("application_url", getattr(self.instance, "application_url", "")):
-            raise serializers.ValidationError({"application_url": "Add the provider's official application link."})
         if not attrs.get("provider", getattr(self.instance, "provider", "")):
             raise serializers.ValidationError({"provider": "Add the organisation offering this opportunity."})
-        return attrs
+        return super().validate(attrs)
 
     class Meta(OrganizationOpportunitySerializer.Meta):
         read_only_fields = ("public_id", "review_status", "review_note", "is_published", "created_at", "updated_at")
