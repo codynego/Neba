@@ -49,6 +49,7 @@ class Opportunity(models.Model):
     min_age = models.PositiveSmallIntegerField(null=True, blank=True)
     max_age = models.PositiveSmallIntegerField(null=True, blank=True)
     requires_business = models.BooleanField(default=False)
+    tracker_only = models.BooleanField(default=False, db_index=True)
     is_published = models.BooleanField(default=True, db_index=True)
     source_url = models.URLField(max_length=500, blank=True)
     share_note = models.CharField(max_length=500, blank=True)

@@ -9,7 +9,7 @@ from rest_framework.test import APITestCase
 
 from accounts.models import Organization, User
 from .matching import build_match_context, diverse_recommendations, rank_opportunities
-from .models import Opportunity, OpportunityCorrection, SavedOpportunity
+from .models import Opportunity, OpportunityApplication, OpportunityCorrection, SavedOpportunity
 from .views import match_for
 
 
@@ -28,6 +28,40 @@ class OpportunityApiTests(APITestCase):
         self.assertEqual(saved.status_code, 201, saved.data)
         application = self.client.post("/api/opportunity-applications/", {"opportunity_id": str(self.opportunity.public_id), "status": "preparing"}, format="json")
         self.assertEqual(application.status_code, 201, application.data)
+
+    def test_user_can_privately_track_an_application_found_elsewhere(self):
+        response = self.client.post("/api/opportunity-applications/", {
+            "title": "Research Assistant — Climate Lab",
+            "provider": "Outside University",
+            "application_url": "https://outside.example.test/climate-role",
+            "category": "job",
+            "deadline": (timezone.now() + timedelta(days=21)).isoformat(),
+            "location_label": "Remote",
+            "status": "applied",
+            "next_action": "Follow up with the hiring team",
+            "next_action_at": (timezone.now() + timedelta(days=7)).isoformat(),
+            "notes": "Applied through the university careers portal.",
+        }, format="json")
+
+        self.assertEqual(response.status_code, 201, response.data)
+        application = OpportunityApplication.objects.get(public_id=response.data["public_id"])
+        self.assertTrue(application.opportunity.tracker_only)
+        self.assertFalse(application.opportunity.is_published)
+        self.assertEqual(application.opportunity.created_by, self.user)
+        self.assertEqual(application.status, OpportunityApplication.Status.APPLIED)
+        self.assertEqual(application.next_action, "Follow up with the hiring team")
+        self.assertEqual(application.notes, "Applied through the university careers portal.")
+        self.assertFalse(SavedOpportunity.objects.filter(opportunity=application.opportunity).exists())
+
+        public_detail = self.client.get(f"/api/opportunities/{application.opportunity.public_id}/")
+        self.assertEqual(public_detail.status_code, 404)
+        contributions = self.client.get("/api/my-opportunities/")
+        self.assertEqual(contributions.status_code, 200, contributions.data)
+        self.assertEqual(contributions.data["count"], 0)
+
+        removed = self.client.delete(f"/api/opportunity-applications/{application.public_id}/")
+        self.assertEqual(removed.status_code, 204)
+        self.assertFalse(Opportunity.objects.filter(pk=application.opportunity_id).exists())
 
     def test_onboarding_intents_interest_areas_remote_and_state_feed_match(self):
         self.user.goals = ["build"]

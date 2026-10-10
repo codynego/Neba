@@ -7,6 +7,7 @@ from html.parser import HTMLParser
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
+from django.db import transaction
 from django.db.models import Count, F, Prefetch, Q
 from django.utils import timezone
 from rest_framework import permissions, serializers, viewsets
@@ -120,7 +121,7 @@ class OpportunitySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Opportunity
-        fields = ("public_id", "title", "provider", "summary", "category", "application_mode", "application_url", "deadline", "country", "location_label", "is_remote", "requires_physical_presence", "requires_local_residency", "benefit", "eligibility_notes", "eligible_countries", "education_levels", "fields_of_study", "employment_statuses", "min_age", "max_age", "requires_business", "source_url", "share_note", "view_count", "application_count", "created_at", "updated_at", "match", "saved_status", "application_status", "verification", "contributor", "thanks_count", "thanked_by_me")
+        fields = ("public_id", "title", "provider", "summary", "category", "application_mode", "application_url", "deadline", "country", "location_label", "is_remote", "requires_physical_presence", "requires_local_residency", "benefit", "eligibility_notes", "eligible_countries", "education_levels", "fields_of_study", "employment_statuses", "min_age", "max_age", "requires_business", "tracker_only", "source_url", "share_note", "view_count", "application_count", "created_at", "updated_at", "match", "saved_status", "application_status", "verification", "contributor", "thanks_count", "thanked_by_me")
 
     def get_verification(self, opportunity):
         if opportunity.created_by_id and opportunity.created_by and opportunity.created_by.is_staff and not opportunity.organization_id:
@@ -130,6 +131,8 @@ class OpportunitySerializer(serializers.ModelSerializer):
         return None
 
     def get_contributor(self, opportunity):
+        if opportunity.tracker_only:
+            return None
         contributor = opportunity.created_by
         if not contributor or contributor.is_staff or opportunity.organization_id:
             return None
@@ -348,22 +351,64 @@ class OpportunityApplicationViewSet(viewsets.ModelViewSet):
     serializer_class = OpportunityApplicationSerializer
     lookup_field = "public_id"
     def get_queryset(self): return OpportunityApplication.objects.filter(Q(user=self.request.user) | Q(opportunity__organization__owner=self.request.user)).select_related("opportunity", "user").prefetch_related("messages__sender").distinct()
+    @transaction.atomic
     def create(self, request, *args, **kwargs):
-        opportunity = Opportunity.objects.filter(public_id=request.data.get("opportunity_id"), review_status=Opportunity.ReviewStatus.APPROVED, is_published=True).first()
-        if not opportunity: raise serializers.ValidationError({"opportunity_id": "Choose a valid opportunity."})
+        opportunity_id = request.data.get("opportunity_id")
+        opportunity = Opportunity.objects.filter(public_id=opportunity_id, review_status=Opportunity.ReviewStatus.APPROVED, is_published=True).first() if opportunity_id else None
+        if opportunity_id and not opportunity:
+            raise serializers.ValidationError({"opportunity_id": "Choose a valid opportunity."})
         status = request.data.get("status", "preparing")
         if status not in dict(OpportunityApplication.Status.choices):
             raise serializers.ValidationError({"status": "Choose a valid application status."})
         submitted = status in ("applied", "shortlisted", "interview", "awarded")
         now = timezone.now()
+        next_action_at = serializers.DateTimeField(allow_null=True).run_validation(request.data.get("next_action_at") or None)
+        if not opportunity:
+            payload = serializers.Serializer(data=request.data)
+            payload.fields["title"] = serializers.CharField(max_length=220)
+            payload.fields["provider"] = serializers.CharField(max_length=180)
+            payload.fields["application_url"] = serializers.URLField(max_length=500, required=False, allow_blank=True)
+            payload.fields["category"] = serializers.ChoiceField(choices=Opportunity.Category.choices, default=Opportunity.Category.JOB)
+            payload.fields["deadline"] = serializers.DateTimeField(required=False, allow_null=True)
+            payload.fields["location_label"] = serializers.CharField(max_length=140, required=False, allow_blank=True)
+            payload.fields["next_action"] = serializers.CharField(max_length=240, required=False, allow_blank=True)
+            payload.fields["next_action_at"] = serializers.DateTimeField(required=False, allow_null=True)
+            payload.fields["notes"] = serializers.CharField(max_length=2000, required=False, allow_blank=True)
+            payload.is_valid(raise_exception=True)
+            external = payload.validated_data
+            opportunity = Opportunity.objects.create(
+                title=external["title"],
+                provider=external["provider"],
+                summary="Private opportunity added directly to the application tracker.",
+                category=external["category"],
+                application_mode=Opportunity.ApplicationMode.EXTERNAL,
+                application_url=external.get("application_url", ""),
+                source_url=external.get("application_url", ""),
+                deadline=external.get("deadline"),
+                location_label=external.get("location_label", ""),
+                tracker_only=True,
+                is_published=False,
+                review_status=Opportunity.ReviewStatus.DRAFT,
+                created_by=request.user,
+            )
         internal = opportunity.application_mode == Opportunity.ApplicationMode.INTERNAL
         if internal and not opportunity.organization_id:
             raise serializers.ValidationError("This listing is not connected to an authorised application recipient.")
         shared_fields = request.data.get("shared_fields", []) if internal else []
-        item, created = OpportunityApplication.objects.get_or_create(user=request.user, opportunity=opportunity, defaults={"status": status, "applied_at": now if submitted else None, "application_message": str(request.data.get("application_message", ""))[:2000] if internal else "", "additional_information": str(request.data.get("additional_information", ""))[:3000] if internal else "", "shared_fields": shared_fields, "shared_profile_snapshot": shared_profile_snapshot(request.user, shared_fields) if internal else {}, "status_updated_at": now, "applicant_updates_seen_at": now})
+        item, created = OpportunityApplication.objects.get_or_create(user=request.user, opportunity=opportunity, defaults={"status": status, "applied_at": now if submitted else None, "next_action": str(request.data.get("next_action", ""))[:240], "next_action_at": next_action_at, "notes": str(request.data.get("notes", ""))[:2000], "application_message": str(request.data.get("application_message", ""))[:2000] if internal else "", "additional_information": str(request.data.get("additional_information", ""))[:3000] if internal else "", "shared_fields": shared_fields, "shared_profile_snapshot": shared_profile_snapshot(request.user, shared_fields) if internal else {}, "status_updated_at": now, "applicant_updates_seen_at": now})
         if not created: raise serializers.ValidationError("This opportunity is already in your application tracker.")
-        SavedOpportunity.objects.update_or_create(user=request.user, opportunity=opportunity, defaults={"status": "applied" if submitted else "preparing"})
+        if not opportunity.tracker_only:
+            SavedOpportunity.objects.update_or_create(user=request.user, opportunity=opportunity, defaults={"status": "applied" if submitted else "preparing"})
         return Response(self.get_serializer(item).data, status=201)
+
+    def destroy(self, request, *args, **kwargs):
+        application = self.get_object()
+        if application.user_id != request.user.id:
+            raise permissions.PermissionDenied("Only the applicant can remove this tracker entry.")
+        if application.opportunity.tracker_only:
+            application.opportunity.delete()
+            return Response(status=204)
+        return super().destroy(request, *args, **kwargs)
 
     def update(self, request, *args, **kwargs):
         application = self.get_object()
@@ -548,7 +593,7 @@ class PersonalOpportunitySerializer(OrganizationOpportunitySerializer):
 class PersonalOpportunityViewSet(OrganizationOpportunityViewSet):
     serializer_class = PersonalOpportunitySerializer
     def get_queryset(self):
-        return Opportunity.objects.filter(created_by=self.request.user).order_by("-updated_at")
+        return Opportunity.objects.filter(created_by=self.request.user, tracker_only=False).order_by("-updated_at")
 
     def perform_create(self, serializer):
         serializer.save(
