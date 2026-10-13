@@ -9,8 +9,8 @@ from rest_framework.generics import get_object_or_404
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import School, SchoolClass, SchoolMembership, Student, Subject
-from .permissions import active_membership_or_403
+from .models import Assessment, AssessmentScore, Assignment, School, SchoolClass, SchoolMembership, Student, Subject
+from .permissions import active_membership_or_403, class_subject_access_or_403
 
 
 class SchoolSetupSerializer(serializers.Serializer):
@@ -276,6 +276,54 @@ class SchoolMemberDetailView(APIView):
     def get(self, request, public_id):
         member, _membership = self.get_member_and_membership(request, public_id)
         return Response(self.serialize_member(member))
+
+
+class TeachingWorkView(APIView):
+    """Class-centred assessment and assignment records, always constrained to class/subject access."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_context(self, request):
+        membership = active_workspace_membership(request)
+        if membership is None:
+            raise serializers.ValidationError({"detail": "Set up a school workspace first."})
+        school_class = get_object_or_404(SchoolClass, id=request.query_params.get("class_id"), school=membership.school)
+        subject = get_object_or_404(Subject, id=request.query_params.get("subject_id"), school=membership.school)
+        class_subject_access_or_403(request.user, membership.school, school_class, subject)
+        return membership, school_class, subject
+
+    def get(self, request):
+        _membership, school_class, subject = self.get_context(request)
+        assessments = Assessment.objects.filter(school_class=school_class, subject=subject)
+        assignments = Assignment.objects.filter(school_class=school_class, subject=subject).order_by("-created_at")
+        students = Student.objects.filter(school_class=school_class, is_active=True).values("id", "student_id", "first_name", "last_name")
+        return Response({"students": list(students), "assessments": [{"id": item.id, "title": item.title, "type": item.assessment_type, "maximum_score": item.maximum_score, "status": item.status, "entered_scores": item.scores.filter(status=AssessmentScore.EntryStatus.ENTERED).count()} for item in assessments], "assignments": [{"id": item.id, "title": item.title, "due_date": item.due_date, "status": item.status, "counts_toward_ca": item.counts_toward_ca} for item in assignments]})
+
+    def post(self, request):
+        membership, school_class, subject = self.get_context(request)
+        action = request.data.get("action")
+        if action == "assessment":
+            item = Assessment(school=membership.school, school_class=school_class, subject=subject, academic_session=str(request.data.get("academic_session", school_class.academic_session)), term=str(request.data.get("term", "First term")), title=str(request.data.get("title", "")).strip(), assessment_type=request.data.get("assessment_type", Assessment.Type.CA), maximum_score=request.data.get("maximum_score"), weight=request.data.get("weight") or None, topics=str(request.data.get("topics", "")).strip(), created_by=membership)
+            item.full_clean(); item.save()
+            return Response({"id": item.id, "title": item.title, "status": item.status}, status=201)
+        if action == "assignment":
+            item = Assignment.objects.create(school=membership.school, school_class=school_class, subject=subject, title=str(request.data.get("title", "")).strip(), instructions=str(request.data.get("instructions", "")).strip(), due_date=request.data.get("due_date") or None, maximum_score=request.data.get("maximum_score") or None, counts_toward_ca=bool(request.data.get("counts_toward_ca")), created_by=membership)
+            if not item.title:
+                raise serializers.ValidationError({"title": "Enter an assignment title."})
+            return Response({"id": item.id, "title": item.title, "status": item.status}, status=201)
+        if action == "scores":
+            assessment = get_object_or_404(Assessment, id=request.data.get("assessment_id"), school=membership.school, school_class=school_class, subject=subject, status=Assessment.Status.DRAFT)
+            rows = request.data.get("scores", [])
+            if not isinstance(rows, list):
+                raise serializers.ValidationError({"scores": "Provide a list of student scores."})
+            saved = 0
+            for row in rows:
+                student = get_object_or_404(Student, id=row.get("student_id"), school=membership.school, school_class=school_class, is_active=True)
+                status = row.get("status", AssessmentScore.EntryStatus.ENTERED)
+                score = row.get("score") if status == AssessmentScore.EntryStatus.ENTERED else None
+                record, _ = AssessmentScore.objects.update_or_create(assessment=assessment, student=student, defaults={"score": score, "status": status, "entered_by": membership})
+                record.full_clean(); record.save(); saved += 1
+            return Response({"saved": saved})
+        raise serializers.ValidationError({"action": "Choose assessment or assignment."})
 
     def patch(self, request, public_id):
         member, membership = self.get_member_and_membership(request, public_id)
