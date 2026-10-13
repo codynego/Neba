@@ -48,6 +48,7 @@
 .regional-price-row strong { font-size: 1.08rem; }
 .regional-price-row strong .regional-period { margin-left: .2rem; font-weight: 650; }
 .regional-mobile-label { display: none; }
+.regional-price-row .regional-usd { display: block; margin-top: .25rem; font-weight: 650; }
 .regional-saving { color: #17683d; font-weight: 800; }
 .regional-price-head { min-height: 2.8rem; color: #6b7e75; font-size: .68rem; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
 .regional-price-head > span:first-child { display: block; }

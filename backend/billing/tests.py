@@ -126,13 +126,45 @@ class BillingApiTests(APITestCase):
             },
         }
         first = self._webhook(payload)
-        second = self._webhook(payload)
+        second = self._webhook({**payload, "id": "evt_paid_duplicate"})
         self.assertEqual(first.status_code, 200)
         self.assertEqual(second.status_code, 200)
         self.assertEqual(balance_for(self.user), 300)
         self.assertEqual(Payment.objects.count(), 1)
-        self.assertEqual(WebhookEvent.objects.count(), 1)
+        self.assertEqual(WebhookEvent.objects.count(), 2)
         self.assertEqual(BillingProfile.objects.get(user=self.user).provider_customer_id, "cust_ada")
+        checkout.refresh_from_db()
+        self.assertIsNotNone(checkout.fulfilled_at)
+
+    def test_credit_purchase_rejects_wrong_amount_or_currency(self):
+        checkout = Checkout.objects.create(
+            user=self.user,
+            provider_checkout_id="chk_credit_mismatch",
+            reference="getneba_credit_mismatch",
+            kind=Checkout.Kind.CREDITS,
+            credits=300,
+            amount="2500.00",
+            currency="NGN",
+            status="open",
+        )
+        for event_id, amount, currency in (
+            ("evt_wrong_amount", "2499.00", "NGN"),
+            ("evt_wrong_currency", "2500.00", "USD"),
+        ):
+            response = self._webhook({
+                "id": event_id,
+                "type": "collection.succeeded",
+                "data": {
+                    "charge_id": f"ch_{event_id}",
+                    "checkout_id": checkout.provider_checkout_id,
+                    "amount": amount,
+                    "currency": currency,
+                },
+            })
+            self.assertEqual(response.status_code, 200)
+        self.assertEqual(balance_for(self.user), 0)
+        checkout.refresh_from_db()
+        self.assertIsNone(checkout.fulfilled_at)
 
     def test_subscription_webhook_grants_plus_and_bad_signature_is_rejected(self):
         payload = {
@@ -160,6 +192,21 @@ class BillingApiTests(APITestCase):
         body = json.dumps({**payload, "id": "evt_bad"}).encode()
         rejected = self.client.generic("POST", "/api/billing/webhook/", body, content_type="application/json", HTTP_X_BACHS_SIGNATURE_V2="t=1,v1=bad")
         self.assertEqual(rejected.status_code, 400)
+
+    def test_subscription_webhook_rejects_non_plus_product(self):
+        response = self._webhook({
+            "id": "evt_other_subscription",
+            "type": "customer.subscription.created",
+            "data": {
+                "subscription_id": "sub_other",
+                "product": {"id": "prod_not_plus"},
+                "status": "active",
+                "customer": {"email": self.user.email},
+                "metadata": {"getneba_user_id": str(self.user.pk)},
+            },
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Subscription.objects.filter(user=self.user).exists())
 
     def test_billing_status_exposes_plan_usage_and_history_without_secrets(self):
         Subscription.objects.create(user=self.user, provider_subscription_id="sub_status", status="active", plan="plus")

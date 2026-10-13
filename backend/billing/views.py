@@ -270,14 +270,21 @@ def _process_collection(data):
 
 
 def _process_subscription(event_type, data):
-    user = _event_user(data)
-    if not user:
-        return
-    _capture_customer(user, data)
     subscription_id = data.get("subscription_id") or data.get("id")
     if not subscription_id:
         return
+    existing = Subscription.objects.filter(provider_subscription_id=subscription_id).select_related("user").first()
     product_id = data.get("product_id") or (data.get("product") or {}).get("id") or ""
+    product_id = product_id or (existing.provider_product_id if existing else "")
+    plus_product_ids = {
+        value for value in (settings.BACHS_PLUS_MONTHLY_PRODUCT_ID, settings.BACHS_PLUS_YEARLY_PRODUCT_ID) if value
+    }
+    if product_id not in plus_product_ids:
+        return
+    user = existing.user if existing else _event_user(data)
+    if not user:
+        return
+    _capture_customer(user, data)
     interval = (data.get("billing_cycle") or {}).get("interval", "")
     status_value = "canceled" if event_type.endswith("deleted") else str(data.get("status", "active")).lower()
     defaults = {
