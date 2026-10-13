@@ -18,6 +18,8 @@ from .models import BillingProfile, Checkout, Payment, Subscription, WebhookEven
     BACHS_WEBHOOK_SECRET="whsec_test",
     BACHS_PLUS_MONTHLY_PRODUCT_ID="prod_monthly",
     BACHS_PLUS_YEARLY_PRODUCT_ID="prod_yearly",
+    BILLING_PLUS_MONTHLY_PRICE="2.99",
+    BILLING_PLUS_YEARLY_PRICE="29.99",
     FRONTEND_URL="https://getneba.app",
 )
 class BillingApiTests(APITestCase):
@@ -38,6 +40,10 @@ class BillingApiTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual([plan["code"] for plan in response.data["plans"]], ["free", "plus"])
         self.assertTrue(response.data["plans"][1]["prices"][0]["configured"])
+        self.assertEqual(response.data["plans"][1]["prices"], [
+            {"interval": "month", "amount": "2.99", "currency": "USD", "configured": True},
+            {"interval": "year", "amount": "29.99", "currency": "USD", "configured": True},
+        ])
 
     @patch("billing.provider.requests.request")
     def test_subscription_checkout_uses_server_side_product_and_reference(self, send):
@@ -54,11 +60,29 @@ class BillingApiTests(APITestCase):
         self.assertEqual(response.status_code, 201)
         checkout = Checkout.objects.get(user=self.user)
         self.assertEqual(checkout.product_id, "prod_monthly")
+        self.assertEqual(str(checkout.amount), "2.99")
         self.assertTrue(checkout.reference.startswith("getneba_"))
         payload = send.call_args.kwargs["json"]
         self.assertEqual(payload["product_cart"], [{"product_id": "prod_monthly", "quantity": 1}])
         self.assertEqual(payload["metadata"]["getneba_user_id"], str(self.user.pk))
         self.assertEqual(send.call_args.kwargs["headers"]["Authorization"], "Bearer sk_sandbox_test")
+
+    @patch("billing.provider.requests.request")
+    def test_yearly_subscription_checkout_uses_yearly_product(self, send):
+        provider_response = Mock(ok=True)
+        provider_response.json.return_value = {
+            "checkout_id": "chk_yearly",
+            "checkout_url": "https://sandbox-checkout.bachs.io/c/yearly",
+            "status": "open",
+            "expires_at": "2026-10-10T18:00:00Z",
+        }
+        send.return_value = provider_response
+        self.client.force_authenticate(self.user)
+        response = self.client.post("/api/billing/checkout/", {"kind": "subscription", "interval": "year"}, format="json")
+        self.assertEqual(response.status_code, 201)
+        checkout = Checkout.objects.get(user=self.user)
+        self.assertEqual(checkout.product_id, "prod_yearly")
+        self.assertEqual(str(checkout.amount), "29.99")
 
     @patch("billing.provider.requests.request")
     def test_credit_checkout_is_priced_on_the_server(self, send):
@@ -118,7 +142,7 @@ class BillingApiTests(APITestCase):
                 "subscription_id": "sub_ada",
                 "product_id": "prod_monthly",
                 "status": "active",
-                "amount": "5.00",
+                "amount": "2.99",
                 "currency": "USD",
                 "billing_cycle": {"interval": "month", "frequency": 1},
                 "current_period_start": "2026-10-10T12:00:00Z",

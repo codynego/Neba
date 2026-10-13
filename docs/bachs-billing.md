@@ -6,8 +6,9 @@ GetNeba keeps pricing and entitlement decisions on the backend. Bachs hosts chec
 
 1. Create a Bachs sandbox account and API key with checkout, customer, and product access.
 2. Create two recurring products in Bachs:
-   - GetNeba Plus Monthly — `USD 5.00`, recurring monthly
-   - GetNeba Plus Yearly — `USD 48.00`, recurring yearly
+   - GetNeba Plus Monthly — `USD 2.99`, recurring monthly
+   - GetNeba Plus Yearly — `USD 29.99`, recurring yearly
+   - Pin the local monthly prices to `NGN 1,500`, `GHS 15`, `UGX 5,000`, and `ZMW 50`; pin the yearly prices to `NGN 15,000`, `GHS 150`, `UGX 50,000`, and `ZMW 500`. Bachs selects the applicable price at hosted checkout.
 3. Register a webhook destination at `https://YOUR_API_HOST/api/billing/webhook/` and subscribe to `collection.succeeded`, `checkout.completed`, `checkout.expired`, `customer.subscription.created`, `customer.subscription.updated`, and `customer.subscription.deleted`.
 4. Copy the webhook signing secret and set these backend variables:
 
@@ -17,8 +18,8 @@ BACHS_WEBHOOK_SECRET=...
 BACHS_BASE_URL=https://sandbox-api.bachs.io
 BACHS_PLUS_MONTHLY_PRODUCT_ID=prod_...
 BACHS_PLUS_YEARLY_PRODUCT_ID=prod_...
-BILLING_PLUS_MONTHLY_PRICE=5.00
-BILLING_PLUS_YEARLY_PRICE=48.00
+BILLING_PLUS_MONTHLY_PRICE=2.99
+BILLING_PLUS_YEARLY_PRICE=29.99
 BILLING_PLUS_CURRENCY=USD
 ```
 
