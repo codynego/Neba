@@ -145,6 +145,17 @@ class SchoolRosterTests(APITestCase):
         self.assertEqual(response.status_code, 403)
         self.assertFalse(Student.objects.exists())
 
+    def test_student_receives_public_id_and_can_be_updated_only_in_own_school(self):
+        student = Student.objects.create(school=self.school, school_class=self.school_class, first_name="Ada", last_name="Okafor")
+        response = self.client.get(f"/api/schools/students/{student.public_id}/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["public_id"], str(student.public_id))
+
+        response = self.client.patch(f"/api/schools/students/{student.public_id}/", {"first_name": "Adanna"}, format="json")
+        self.assertEqual(response.status_code, 200)
+        student.refresh_from_db()
+        self.assertEqual(student.first_name, "Adanna")
+
     def test_admin_can_add_an_existing_neba_user_to_the_school(self):
         self.other.email = "teacher@example.com"
         self.other.save(update_fields=("email",))
@@ -153,3 +164,10 @@ class SchoolRosterTests(APITestCase):
         membership = SchoolMembership.objects.get(school=self.school, user=self.other)
         self.assertEqual(membership.role, SchoolMembership.Role.TEACHER)
         self.assertEqual(membership.status, SchoolMembership.Status.ACTIVE)
+
+    def test_admin_can_update_a_member_role_by_public_id(self):
+        membership = SchoolMembership.objects.create(school=self.school, user=self.other, role=SchoolMembership.Role.TEACHER, status=SchoolMembership.Status.ACTIVE)
+        response = self.client.patch(f"/api/schools/members/{membership.public_id}/", {"role": "academic_head"}, format="json")
+        self.assertEqual(response.status_code, 200)
+        membership.refresh_from_db()
+        self.assertEqual(membership.role, SchoolMembership.Role.ACADEMIC_HEAD)

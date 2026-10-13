@@ -2,6 +2,7 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
+import uuid
 
 
 class School(models.Model):
@@ -29,6 +30,7 @@ class SchoolMembership(models.Model):
         SUSPENDED = "suspended", "Suspended"
 
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="memberships")
+    public_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="school_memberships")
     role = models.CharField(max_length=24, choices=Role.choices)
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.INVITED)
@@ -79,6 +81,7 @@ class Student(models.Model):
     """A student record owned by exactly one school workspace."""
 
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="students")
+    public_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     school_class = models.ForeignKey(SchoolClass, on_delete=models.PROTECT, related_name="students")
     first_name = models.CharField(max_length=80)
     last_name = models.CharField(max_length=80)

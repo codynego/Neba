@@ -5,6 +5,7 @@ from django.utils import timezone
 from django.utils.text import slugify
 from rest_framework import permissions, serializers
 from rest_framework.exceptions import PermissionDenied
+from rest_framework.generics import get_object_or_404
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -105,7 +106,8 @@ class StudentSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Student
-        fields = ("id", "first_name", "last_name", "full_name", "admission_number", "school_class", "class_name", "is_active")
+        fields = ("id", "public_id", "first_name", "last_name", "full_name", "admission_number", "school_class", "class_name", "is_active")
+        read_only_fields = ("id", "public_id", "full_name", "class_name", "is_active")
 
 
 class SchoolClassInputSerializer(serializers.Serializer):
@@ -151,6 +153,7 @@ class SchoolRosterView(APIView):
             "students": StudentSerializer(students, many=True).data,
             "members": [{
                 "id": item.id,
+                "public_id": item.public_id,
                 "name": item.user.get_full_name() or item.user.display_name or item.user.username,
                 "email": item.user.email,
                 "role": item.role,
@@ -210,5 +213,77 @@ class SchoolRosterView(APIView):
                 user=user,
                 defaults={"role": role, "status": SchoolMembership.Status.ACTIVE, "expires_at": None},
             )
-            return Response({"id": school_member.id, "name": user.get_full_name() or user.display_name or user.username, "email": user.email, "role": school_member.role}, status=201 if created else 200)
+            return Response({"id": school_member.id, "public_id": school_member.public_id, "name": user.get_full_name() or user.display_name or user.username, "email": user.email, "role": school_member.role}, status=201 if created else 200)
         raise serializers.ValidationError({"action": "Choose class, subject, or student."})
+
+
+class StudentDetailView(APIView):
+    """Read and update one student only within the caller's selected school workspace."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_student_and_membership(self, request, public_id):
+        membership = active_workspace_membership(request)
+        if membership is None:
+            raise serializers.ValidationError({"detail": "Set up a school workspace first."})
+        students = Student.objects.select_related("school_class").filter(school=membership.school, public_id=public_id, is_active=True)
+        if membership.role == SchoolMembership.Role.TEACHER:
+            class_ids = membership.teaching_assignments.filter(is_active=True).values_list("school_class_id", flat=True)
+            students = students.filter(school_class_id__in=class_ids)
+        return get_object_or_404(students), membership
+
+    def get(self, request, public_id):
+        student, _membership = self.get_student_and_membership(request, public_id)
+        return Response(StudentSerializer(student).data)
+
+    def patch(self, request, public_id):
+        student, membership = self.get_student_and_membership(request, public_id)
+        if membership.role == SchoolMembership.Role.TEACHER:
+            raise PermissionDenied("Teachers cannot update student records.")
+        serializer = StudentSerializer(student, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        school_class = serializer.validated_data.get("school_class")
+        if school_class is not None and school_class.school_id != membership.school_id:
+            raise PermissionDenied("The selected class is outside this school.")
+        serializer.save()
+        return Response(StudentSerializer(student).data)
+
+
+class SchoolMemberDetailView(APIView):
+    """Read or change a school member's access, scoped to the active school."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_member_and_membership(self, request, public_id):
+        membership = active_workspace_membership(request)
+        if membership is None:
+            raise serializers.ValidationError({"detail": "Set up a school workspace first."})
+        if membership.role not in {SchoolMembership.Role.ADMIN, SchoolMembership.Role.ACADEMIC_HEAD}:
+            raise PermissionDenied("You cannot view school staff access.")
+        member = get_object_or_404(SchoolMembership.objects.select_related("user").filter(school=membership.school, public_id=public_id, status=SchoolMembership.Status.ACTIVE))
+        return member, membership
+
+    def serialize_member(self, member):
+        return {
+            "public_id": member.public_id,
+            "name": member.user.get_full_name() or member.user.display_name or member.user.username,
+            "email": member.user.email,
+            "role": member.role,
+            "status": member.status,
+            "created_at": member.created_at,
+        }
+
+    def get(self, request, public_id):
+        member, _membership = self.get_member_and_membership(request, public_id)
+        return Response(self.serialize_member(member))
+
+    def patch(self, request, public_id):
+        member, membership = self.get_member_and_membership(request, public_id)
+        if membership.role != SchoolMembership.Role.ADMIN:
+            raise PermissionDenied("Only school admins can change staff access.")
+        role = str(request.data.get("role", "")).strip()
+        if role not in {SchoolMembership.Role.ADMIN, SchoolMembership.Role.ACADEMIC_HEAD, SchoolMembership.Role.TEACHER}:
+            raise serializers.ValidationError({"role": "Choose a valid school role."})
+        member.role = role
+        member.save(update_fields=("role", "updated_at"))
+        return Response(self.serialize_member(member))
