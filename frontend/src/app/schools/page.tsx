@@ -38,7 +38,7 @@ export default function SchoolsPage() {
           <h1>Know what students missed.<br />Know what to <em>teach next.</em></h1>
           <p>Turn assessment results into learning insights, targeted teaching resources, and a clearer picture of student progress—so educators can make better academic decisions with confidence.</p>
           <div className="schools-actions">
-            <Link className="schools-button schools-button-primary" href="/schools/setup">Get started for your school <ArrowUpRight size={19} /></Link>
+            <Link className="schools-button schools-button-primary" href="/schools/get-started">Get started for your school <ArrowUpRight size={19} /></Link>
             <a className="schools-text-link" href="#how-it-works">See how it works <ArrowRight size={17} /></a>
           </div>
           <p className="schools-demo-note">Already exploring Neba? <a href="mailto:support@getneba.com?subject=Neba%20for%20Schools%20demo">Book a demo instead.</a></p>
@@ -99,7 +99,7 @@ export default function SchoolsPage() {
 
     <section className="schools-final schools-shell" id="setup">
       <div className="schools-final-copy"><span>FOR SCHOOL LEADERS</span><h2>Make every assessment more useful.</h2><p>Create a school workspace, begin with the results you already have, and give your team a clearer way to decide what happens next.</p></div>
-      <div className="schools-setup-card"><span>START ON YOUR TERMS</span><ol><li><b>1</b><div><strong>Create your school workspace</strong><small>Set up your school and become its first administrator.</small></div></li><li><b>2</b><div><strong>Explore the first workflow</strong><small>Add a class and subjects only when you are ready to use them.</small></div></li><li><b>3</b><div><strong>Bring in your team</strong><small>Invite teachers and give access based on their role.</small></div></li></ol><Link className="schools-button schools-button-light" href="/schools/setup">Get started for your school <ArrowRight size={18} /></Link><small>Want a tailored walkthrough? <a href="mailto:support@getneba.com?subject=Neba%20for%20Schools%20demo">Book a school demo.</a></small></div>
+      <div className="schools-setup-card"><span>START ON YOUR TERMS</span><ol><li><b>1</b><div><strong>Create your school workspace</strong><small>Set up your school and become its first administrator.</small></div></li><li><b>2</b><div><strong>Explore the first workflow</strong><small>Add a class and subjects only when you are ready to use them.</small></div></li><li><b>3</b><div><strong>Bring in your team</strong><small>Invite teachers and give access based on their role.</small></div></li></ol><Link className="schools-button schools-button-light" href="/schools/get-started">Get started for your school <ArrowRight size={18} /></Link><small>Want a tailored walkthrough? <a href="mailto:support@getneba.com?subject=Neba%20for%20Schools%20demo">Book a school demo.</a></small></div>
     </section>
 
     <footer className="schools-footer"><div className="schools-shell"><div><Brand /><span>Neba for Schools</span></div><nav aria-label="Neba for Schools footer links"><a href="#how-it-works">How it works</a><Link href="/schools/pricing">Pricing</Link><a href="#setup">Set up a school</a><Link href="/privacy">Privacy</Link><a href="mailto:support@getneba.com">Contact</a></nav><small>Early access by GetNeba. School leaders control workspace access and data setup.</small></div></footer>

@@ -6,15 +6,15 @@ export const metadata = publicPageMetadata("Pricing for schools", "Start with a 
 
 const plans = [
   {
-    name: "Free forever", eyebrow: "EXPLORE", price: "₦0", detail: "For schools exploring Neba.", action: "Get started for free", href: "/schools/setup", icon: GraduationCap,
+    name: "Free forever", eyebrow: "EXPLORE", price: "₦0", detail: "For schools exploring Neba.", action: "Get started for free", href: "/schools/get-started", icon: GraduationCap,
     features: ["Create a school workspace", "One school administrator", "Sample student and assessment data", "Guided product walkthrough", "Preview academic insights and learning-gap analysis", "Explore the dashboard and teaching assistant"],
   },
   {
-    name: "Pilot", eyebrow: "ONE ACADEMIC TERM", price: "₦10,000", suffix: "/ term", detail: "For schools testing Neba with real student results.", action: "Start a pilot", href: "/schools/setup?plan=pilot", icon: Sparkles, featured: true,
+    name: "Pilot", eyebrow: "ONE ACADEMIC TERM", price: "₦10,000", suffix: "/ term", detail: "For schools testing Neba with real student results.", action: "Start a pilot", href: "/schools/get-started", icon: Sparkles, featured: true,
     features: ["Up to 2 classes", "Up to 100 students", "Up to 5 staff accounts", "Import assessment results", "Identify learning gaps", "Generate targeted revision exercises and teaching resources", "Basic academic reports", "Guided self-service setup"],
   },
   {
-    name: "School", eyebrow: "SCHOOL-WIDE", price: "₦100", suffix: "/ active student / term", detail: "₦25,000 minimum per term. For schools ready to use Neba across their academic operations.", action: "Get started", href: "/schools/setup?plan=school", icon: School,
+    name: "School", eyebrow: "SCHOOL-WIDE", price: "₦100", suffix: "/ active student / term", detail: "₦25,000 minimum per term. For schools ready to use Neba across their academic operations.", action: "Get started", href: "/schools/get-started", icon: School,
     features: ["All classes and eligible active students", "Staff accounts for teachers and school leaders", "Assessment and results management", "School-wide academic intelligence", "Class, subject, and student performance analysis", "AI-assisted quizzes and revision resources", "Academic reports and comparisons", "Role-based access and teacher assignments", "Standard support"],
   },
   {
@@ -33,6 +33,7 @@ export default function SchoolsPricingPage() {
 
     <section className="schools-pricing-faq schools-pricing-shell"><div><span>PLAIN ANSWERS</span><h2>Before your school starts.</h2></div><div>{[["Can we use Free indefinitely?", "Yes. Free is for learning the product with sample data. It does not include using Neba with your school’s real student assessment data."], ["When do we need Pilot?", "Choose Pilot when you are ready to import real assessment results and run the first academic-intelligence workflow with your school."], ["How does School pricing work?", "School is billed per active student, per academic term, with a ₦25,000 minimum for the term."], ["Can we talk to someone first?", "Yes. Schools that want help choosing a plan, migrating data, or rolling out across multiple campuses can request a tailored walkthrough."]].map(([question, answer]) => <article key={question}><CircleHelp size={18} /><div><h3>{question}</h3><p>{answer}</p></div></article>)}</div></section>
 
-    <section className="schools-pricing-final"><div className="schools-pricing-shell"><div><span>READY WHEN YOU ARE</span><h2>Give your next assessment<br />a clearer purpose.</h2></div><div><p>Create a workspace in minutes. Start with a class, then let the evidence determine what your school needs next.</p><Link href="/schools/setup" className="schools-pricing-action lime">Get started for your school <ArrowRight size={17} /></Link><a href="mailto:support@getneba.com?subject=Neba%20for%20Schools%20demo">Need a walkthrough? Book a demo.</a></div></div></section>
+    <section className="schools-pricing-final"><div className="schools-pricing-shell"><div><span>READY WHEN YOU ARE</span><h2>Give your next assessment<br />a clearer purpose.</h2></div><div><p>Create a workspace in minutes. Start with a class, then let the evidence determine what your school needs next.</p><Link href="/schools/get-started" className="schools-pricing-action lime">Get started for your school <ArrowRight size={17} /></Link><a href="mailto:support@getneba.com?subject=Neba%20for%20Schools%20demo">Need a walkthrough? Book a demo.</a></div></div></section>
   </main>;
 }
+

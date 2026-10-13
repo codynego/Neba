@@ -82,6 +82,7 @@ class Student(models.Model):
 
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="students")
     public_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    student_id = models.CharField(max_length=6, editable=False)
     school_class = models.ForeignKey(SchoolClass, on_delete=models.PROTECT, related_name="students")
     first_name = models.CharField(max_length=80)
     last_name = models.CharField(max_length=80)
@@ -99,6 +100,7 @@ class Student(models.Model):
     class Meta:
         ordering = ("last_name", "first_name")
         constraints = [
+            models.UniqueConstraint(fields=("school", "student_id"), name="unique_school_student_id"),
             models.UniqueConstraint(
                 fields=("school", "admission_number"),
                 condition=~models.Q(admission_number=""),
@@ -111,6 +113,9 @@ class Student(models.Model):
             raise ValidationError({"school_class": "The class must belong to this school."})
 
     def save(self, *args, **kwargs):
+        if not self.student_id and self.school_id:
+            previous_id = Student.objects.filter(school_id=self.school_id).order_by("-student_id").values_list("student_id", flat=True).first()
+            self.student_id = f"{(int(previous_id or '000000') + 1):06d}"
         self.full_clean()
         return super().save(*args, **kwargs)
 
@@ -120,6 +125,54 @@ class Student(models.Model):
 
     def __str__(self):
         return self.full_name
+
+
+class StudentEnrollment(models.Model):
+    """A student's class placement for one academic session; never overwrites history."""
+    class Status(models.TextChoices):
+        ACTIVE = "active", "Active"
+        COMPLETED = "completed", "Completed"
+        TRANSFERRED = "transferred", "Transferred"
+        WITHDRAWN = "withdrawn", "Withdrawn"
+
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name="enrollments")
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="student_enrollments")
+    school_class = models.ForeignKey(SchoolClass, on_delete=models.PROTECT, related_name="enrollments")
+    academic_session = models.CharField(max_length=40)
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.ACTIVE)
+    starts_at = models.DateField(default=timezone.localdate)
+    ends_at = models.DateField(null=True, blank=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=("student", "academic_session"), name="unique_student_session_enrollment")]
+
+    def clean(self):
+        if self.student_id and self.school_id and self.student.school_id != self.school_id:
+            raise ValidationError({"school": "Enrollment must belong to the student's school."})
+        if self.school_class_id and self.school_id and self.school_class.school_id != self.school_id:
+            raise ValidationError({"school_class": "The class must belong to this school."})
+
+
+class StudentProgression(models.Model):
+    class Decision(models.TextChoices):
+        PROMOTED = "promoted", "Promoted"
+        REPEATING = "repeating", "Repeating"
+        GRADUATED = "graduated", "Graduated"
+        TRANSFERRED = "transferred", "Transferred out"
+        WITHDRAWN = "withdrawn", "Withdrawn"
+        PENDING = "pending", "Pending"
+
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name="progressions")
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="student_progressions")
+    from_enrollment = models.ForeignKey(StudentEnrollment, on_delete=models.PROTECT, related_name="progressed_from")
+    to_enrollment = models.ForeignKey(StudentEnrollment, null=True, blank=True, on_delete=models.PROTECT, related_name="progressed_to")
+    decision = models.CharField(max_length=16, choices=Decision.choices, default=Decision.PENDING)
+    effective_date = models.DateField(default=timezone.localdate)
+    approved_by = models.ForeignKey(SchoolMembership, null=True, blank=True, on_delete=models.SET_NULL, related_name="approved_progressions")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=("student", "from_enrollment"), name="unique_student_progression_source")]
 
 
 class TeachingAssignment(models.Model):
