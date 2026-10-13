@@ -8,6 +8,7 @@ import {
   BarChart3,
   Bot,
   ChevronRight,
+  ChevronDown,
   ClipboardCheck,
   FileSpreadsheet,
   FileText,
@@ -30,6 +31,7 @@ type Subject = { id: number; name: string; code: string };
 type Student = { id: number; first_name: string; last_name: string; full_name: string; admission_number: string; school_class: number; class_name: string };
 type Member = { id: number; name: string; email: string; role: string };
 type Roster = { classes: SchoolClass[]; subjects: Subject[]; students: Student[]; members: Member[] };
+type WorkspaceResponse = { workspace: SchoolWorkspace | null; workspaces: SchoolWorkspace[] };
 
 const navigation: Array<{ id: Page; label: string; icon: typeof LayoutDashboard; group: "core" | "setup" }> = [
   { id: "overview", label: "Overview", icon: LayoutDashboard, group: "core" },
@@ -55,14 +57,26 @@ export function SchoolsDashboard() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [notice, setNotice] = useState("");
   const [workspace, setWorkspace] = useState<SchoolWorkspace | null | undefined>(undefined);
+  const [workspaces, setWorkspaces] = useState<SchoolWorkspace[]>([]);
   const [roster, setRoster] = useState<Roster | undefined>(undefined);
   const [loadError, setLoadError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [switchOpen, setSwitchOpen] = useState(false);
+
+  const workspacePath = (schoolId?: number) => `/schools/workspace/${schoolId ? `?school_id=${schoolId}` : ""}`;
+  const rosterPath = (schoolId?: number) => `/schools/roster/${schoolId ? `?school_id=${schoolId}` : ""}`;
+  const loadWorkspace = async (schoolId?: number) => {
+    const [workspaceResult, rosterResult] = await Promise.all([api<WorkspaceResponse>(workspacePath(schoolId)), api<Roster>(rosterPath(schoolId))]);
+    setWorkspace(workspaceResult.workspace);
+    setWorkspaces(workspaceResult.workspaces);
+    setRoster(rosterResult);
+  };
 
   useEffect(() => {
     let active = true;
-    Promise.all([api<{ workspace: SchoolWorkspace | null }>("/schools/workspace/"), api<Roster>("/schools/roster/")])
-      .then(([workspaceResult, rosterResult]) => { if (active) { setWorkspace(workspaceResult.workspace); setRoster(rosterResult); } })
+    const savedSchoolId = Number(window.localStorage.getItem("neba_school_workspace")) || undefined;
+    Promise.all([api<WorkspaceResponse>(workspacePath(savedSchoolId)), api<Roster>(rosterPath(savedSchoolId))])
+      .then(([workspaceResult, rosterResult]) => { if (active) { setWorkspace(workspaceResult.workspace); setWorkspaces(workspaceResult.workspaces); setRoster(rosterResult); } })
       .catch(() => { if (active) setLoadError("We could not load your school workspace. Refresh the page to try again."); });
     return () => { active = false; };
   }, []);
@@ -71,13 +85,24 @@ export function SchoolsDashboard() {
   const pageName = navigation.find((item) => item.id === page)?.label || "Overview";
   const startImport = () => { selectPage("assessments"); setNotice("Assessment import is being prepared for your workspace. You can set up classes and subjects while it becomes available."); };
 
+  const switchWorkspace = async (schoolId: number) => {
+    setSwitchOpen(false);
+    setRoster(undefined);
+    try {
+      await loadWorkspace(schoolId);
+      window.localStorage.setItem("neba_school_workspace", String(schoolId));
+      setPage("overview");
+      setNotice("School workspace switched.");
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "We could not switch school workspaces.");
+    }
+  };
+
   const createRecord = async (payload: Record<string, string | number>) => {
     setSaving(true);
     try {
-      await api("/schools/roster/", { method: "POST", body: JSON.stringify(payload) });
-      const [workspaceResult, rosterResult] = await Promise.all([api<{ workspace: SchoolWorkspace | null }>("/schools/workspace/"), api<Roster>("/schools/roster/")]);
-      setWorkspace(workspaceResult.workspace);
-      setRoster(rosterResult);
+      await api(workspace ? rosterPath(workspace.id) : "/schools/roster/", { method: "POST", body: JSON.stringify(payload) });
+      await loadWorkspace(workspace.id);
       setNotice(payload.action === "student" ? "Student added to your school workspace." : `${payload.action === "class" ? "Class" : "Subject"} saved to your school workspace.`);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "That record could not be saved.");
@@ -91,7 +116,7 @@ export function SchoolsDashboard() {
   return <div className="school-app school-app-empty-workspace">
     <aside className={`school-app-sidebar${mobileOpen ? " open" : ""}`}>
       <div className="school-app-brand"><Link href="/schools" aria-label="Neba for Schools home"><GraduationCap size={24} /><span>neba</span></Link><b>FOR SCHOOLS</b><button type="button" onClick={() => setMobileOpen(false)} aria-label="Close navigation"><X size={19} /></button></div>
-      <div className="school-app-school-switch"><span>SCHOOL WORKSPACE</span><strong>{workspace.name}</strong><ChevronRight size={15} /></div>
+      <div className="school-app-school-switch"><button type="button" onClick={() => setSwitchOpen((open) => !open)} aria-expanded={switchOpen}><span>SCHOOL WORKSPACE</span><strong>{workspace.name}</strong><ChevronDown size={15} /></button>{switchOpen && <div className="school-app-workspace-menu"><span>YOUR SCHOOLS</span>{workspaces.map((item) => <button type="button" key={item.id} className={item.id === workspace.id ? "active" : ""} onClick={() => void switchWorkspace(item.id)}><strong>{item.name}</strong><small>{item.role.replace("_", " ")}</small></button>)}<Link href="/schools/setup">Add another school <ArrowRight size={14} /></Link></div>}</div>
       <nav aria-label="Schools workspace navigation">
         <span className="school-app-nav-label">ACADEMIC WORKSPACE</span>
         {navigation.filter((item) => item.group === "core").map(({ id, label, icon: Icon }) => <button type="button" key={id} className={page === id ? "active" : ""} onClick={() => selectPage(id)}><Icon size={18} /><span>{label}</span></button>)}
@@ -117,7 +142,7 @@ export function SchoolsDashboard() {
       <section className="school-app-first-steps"><header><div><span>YOUR FIRST WORKFLOW</span><h3>From result sheet to a better next lesson.</h3></div><FileSpreadsheet size={20} /></header><div><SetupStep number="01" icon={FolderCog} title="Review your school setup" copy="Your classes and subjects are private to this workspace. Add to them as your academic workflow grows." action="Open settings" onAction={() => selectPage("settings")} /><SetupStep number="02" icon={Upload} title="Prepare an assessment import" copy="Bring a current CSV or Excel result sheet for a class your academic team wants to review." action="Prepare import" onAction={startImport} /><SetupStep number="03" icon={BarChart3} title="Review the evidence" copy="Map scores to topics, let teachers check the signals, and plan a measured intervention." action="Explore intelligence" onAction={() => selectPage("intelligence")} /></div></section>
     </>;
     if (page === "intelligence") return <section className="school-app-page"><div className="school-app-page-heading"><div><span>ACADEMIC INTELLIGENCE</span><h2>Find the signal inside your own results.</h2><p>Learning gaps appear only after your school imports and reviews assessment data.</p></div></div><EmptyPanel icon={BarChart3} eyebrow="NO ASSESSMENT DATA" title="There are no learning gaps to review yet." copy="Import an assessment, map questions to topics, and confirm the results before Neba surfaces evidence for teachers to review." action="Import assessment results" onAction={startImport} /></section>;
-    if (page === "assessments") return <section className="school-app-page"><div className="school-app-page-heading"><div><span>ASSESSMENTS & RESULTS</span><h2>Start with the result sheets you already use.</h2><p>Import, review, and map assessment results before they inform any teaching decision.</p></div></div><article className="school-app-panel school-app-import"><FileSpreadsheet size={26} /><h3>Prepare an assessment import</h3><p>Connect a school workspace first. Then you will be able to upload a CSV or Excel file, review missing marks, and map questions to learning topics.</p><button type="button" className="school-app-button primary" onClick={() => setNotice("School setup is required before an assessment file can be imported.")}>Set up school first <ArrowRight size={16} /></button><small>Assessment files are not uploaded from this screen yet.</small></article></section>;
+    if (page === "assessments") return <section className="school-app-page"><div className="school-app-page-heading"><div><span>ASSESSMENTS & RESULTS</span><h2>Start with the result sheets you already use.</h2><p>Import, review, and map assessment results before they inform any teaching decision.</p></div></div><article className="school-app-panel school-app-import"><FileSpreadsheet size={26} /><h3>{school.name} is ready for results.</h3><p>Your school workspace is set up. Assessment file upload and question-to-topic mapping are the next academic workflow being introduced.</p><button type="button" className="school-app-button quiet" onClick={() => selectPage("settings")}>Review classes and subjects <ArrowRight size={16} /></button><small>Assessment files are not uploaded from this screen yet.</small></article></section>;
     if (page === "assistant") return <section className="school-app-page"><div className="school-app-page-heading"><div><span>TEACHING ASSISTANT</span><h2>Prepare resources from reviewed learning evidence.</h2><p>Teaching materials will be created from a teacher&apos;s topic, class, and learning goal, then reviewed before classroom use.</p></div></div><EmptyPanel icon={Bot} eyebrow="NO REVIEWED LEARNING GAP" title="Choose an assessment topic first." copy="Once a teacher has reviewed a learning gap, they can create a targeted revision exercise, quiz, or lesson draft from that context." action="Go to assessments" onAction={() => selectPage("assessments")} /></section>;
     if (page === "students") return <section className="school-app-page"><div className="school-app-page-heading"><div><span>STUDENTS & CLASSES</span><h2>Keep each student&apos;s academic context together.</h2><p>Add student records to a class. These records stay within {school.name}.</p></div></div><section className="school-app-record-grid"><article className="school-app-panel school-app-record-form"><span>ADD A STUDENT</span><h3>Create a student record</h3>{roster.classes.length ? <form onSubmit={(event) => { event.preventDefault(); const data = new FormData(event.currentTarget); void createRecord({ action: "student", first_name: String(data.get("first_name") || ""), last_name: String(data.get("last_name") || ""), admission_number: String(data.get("admission_number") || ""), school_class: Number(data.get("school_class")) }); event.currentTarget.reset(); }}><label>First name<input name="first_name" required /></label><label>Last name<input name="last_name" required /></label><label>Admission number <small>Optional</small><input name="admission_number" /></label><label>Class<select name="school_class" required>{roster.classes.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.academic_session}</option>)}</select></label><button className="school-app-button primary" disabled={saving}>{saving ? "Saving…" : "Add student"}<ArrowRight size={15} /></button></form> : <p>Add a class in School settings before creating students.</p>}</article><article className="school-app-panel school-app-record-list"><header><div><span>STUDENT RECORDS</span><h3>{roster.students.length} active student{roster.students.length === 1 ? "" : "s"}</h3></div></header>{roster.students.length ? <div className="school-app-table student-table"><div className="table-head"><span>STUDENT</span><span>CLASS</span><span>ADMISSION NO.</span><span /></div>{roster.students.map((student) => <div className="school-app-table-row" key={student.id}><strong>{student.full_name}</strong><span>{student.class_name}</span><span>{student.admission_number || "—"}</span></div>)}</div> : <div className="school-app-empty"><UsersRound size={28} /><p>No student records yet. Add the first student using the form.</p></div>}</article></section></section>;
     if (page === "reports") return <section className="school-app-page"><div className="school-app-page-heading"><div><span>REPORTS</span><h2>Review the story behind a term&apos;s results.</h2><p>Report cards and class summaries will only be available after your team reviews the underlying assessment records.</p></div></div><EmptyPanel icon={FileText} eyebrow="NO REPORTS READY" title="Reports will appear after results are reviewed." copy="Neba will keep formal reporting separate from learning recommendations, so school leaders can review both before anything is published." action="Review assessments" onAction={() => selectPage("assessments")} /></section>;

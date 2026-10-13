@@ -100,6 +100,20 @@ class SchoolSetupTests(APITestCase):
         self.assertEqual(response.data["workspace"]["name"], "Owner School")
         self.assertNotEqual(response.data["workspace"]["id"], other_school.id)
 
+    def test_member_can_select_one_of_their_school_workspaces(self):
+        owner = get_user_model().objects.create_user(username="multi-owner", password="password", display_name="Owner")
+        first_school = School.objects.create(name="First Academy", slug="first-academy")
+        second_school = School.objects.create(name="Second Academy", slug="second-academy")
+        SchoolMembership.objects.create(school=first_school, user=owner, role=SchoolMembership.Role.ADMIN, status=SchoolMembership.Status.ACTIVE)
+        SchoolMembership.objects.create(school=second_school, user=owner, role=SchoolMembership.Role.ADMIN, status=SchoolMembership.Status.ACTIVE)
+        self.client.force_authenticate(owner)
+
+        response = self.client.get(f"/api/schools/workspace/?school_id={second_school.id}")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["workspace"]["id"], second_school.id)
+        self.assertEqual(len(response.data["workspaces"]), 2)
+
 
 class SchoolRosterTests(APITestCase):
     def setUp(self):

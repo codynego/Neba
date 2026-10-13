@@ -4,6 +4,7 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 from django.utils.text import slugify
 from rest_framework import permissions, serializers
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -39,6 +40,34 @@ def unique_school_slug(name):
     return slug
 
 
+def active_workspace_membership(request):
+    """Resolve a requested workspace, always constrained to the signed-in member."""
+    memberships = SchoolMembership.objects.select_related("school").filter(
+        user=request.user,
+        status=SchoolMembership.Status.ACTIVE,
+    ).filter(Q(expires_at__isnull=True) | Q(expires_at__gt=timezone.now())).order_by("created_at")
+    requested_id = request.query_params.get("school_id") or request.data.get("school_id")
+    if requested_id:
+        membership = memberships.filter(school_id=requested_id).first()
+        if membership is None:
+            raise PermissionDenied("You do not have access to this school.")
+        return membership
+    return memberships.first()
+
+
+def workspace_payload(membership):
+    school = membership.school
+    return {
+        "id": school.id,
+        "name": school.name,
+        "slug": school.slug,
+        "role": membership.role,
+        "classes_count": school.classes.filter(is_active=True).count(),
+        "subjects_count": school.subjects.filter(is_active=True).count(),
+        "students_count": school.students.filter(is_active=True).count(),
+    }
+
+
 class SchoolSetupView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     throttle_scope = "school_setup"
@@ -61,23 +90,13 @@ class SchoolWorkspaceView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        membership = SchoolMembership.objects.select_related("school").filter(
-            user=request.user,
-            status=SchoolMembership.Status.ACTIVE,
-        ).filter(Q(expires_at__isnull=True) | Q(expires_at__gt=timezone.now())).order_by("created_at").first()
+        membership = active_workspace_membership(request)
         if membership is None:
-            return Response({"workspace": None})
-
-        school = membership.school
-        return Response({"workspace": {
-            "id": school.id,
-            "name": school.name,
-            "slug": school.slug,
-            "role": membership.role,
-            "classes_count": school.classes.filter(is_active=True).count(),
-            "subjects_count": school.subjects.filter(is_active=True).count(),
-            "students_count": school.students.filter(is_active=True).count(),
-        }})
+            return Response({"workspace": None, "workspaces": []})
+        memberships = SchoolMembership.objects.select_related("school").filter(
+            user=request.user, status=SchoolMembership.Status.ACTIVE,
+        ).filter(Q(expires_at__isnull=True) | Q(expires_at__gt=timezone.now())).order_by("created_at")
+        return Response({"workspace": workspace_payload(membership), "workspaces": [workspace_payload(item) for item in memberships]})
 
 
 class StudentSerializer(serializers.ModelSerializer):
@@ -109,10 +128,7 @@ class SchoolRosterView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_school_and_membership(self, request):
-        membership = SchoolMembership.objects.select_related("school").filter(
-            user=request.user,
-            status=SchoolMembership.Status.ACTIVE,
-        ).filter(Q(expires_at__isnull=True) | Q(expires_at__gt=timezone.now())).order_by("created_at").first()
+        membership = active_workspace_membership(request)
         if membership is None:
             raise serializers.ValidationError({"detail": "Set up a school workspace first."})
         return membership.school, membership
