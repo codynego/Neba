@@ -1,14 +1,15 @@
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import models, transaction
 from django.utils import timezone
 import uuid
-import secrets
 
 
 class School(models.Model):
     name = models.CharField(max_length=180)
     slug = models.SlugField(unique=True)
+    student_id_prefix = models.CharField(max_length=12, default="NBS")
+    next_student_number = models.PositiveIntegerField(default=1)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -83,7 +84,8 @@ class Student(models.Model):
 
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="students")
     public_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
-    student_id = models.CharField(max_length=6, editable=False)
+    student_id = models.CharField(max_length=32, editable=False)
+    admission_year = models.PositiveIntegerField(default=timezone.now().year)
     school_class = models.ForeignKey(SchoolClass, on_delete=models.PROTECT, related_name="students")
     first_name = models.CharField(max_length=80)
     last_name = models.CharField(max_length=80)
@@ -115,13 +117,11 @@ class Student(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.student_id and self.school_id:
-            for _attempt in range(20):
-                candidate = f"{secrets.randbelow(900000) + 100000:06d}"
-                if not Student.objects.filter(school_id=self.school_id, student_id=candidate).exists():
-                    self.student_id = candidate
-                    break
-            if not self.student_id:
-                raise ValidationError({"student_id": "Could not allocate a student ID. Please try again."})
+            with transaction.atomic():
+                school = School.objects.select_for_update().get(pk=self.school_id)
+                self.student_id = f"{school.student_id_prefix.upper()}-{self.admission_year}-{school.next_student_number:04d}"
+                school.next_student_number += 1
+                school.save(update_fields=("next_student_number", "updated_at"))
         self.full_clean()
         return super().save(*args, **kwargs)
 
