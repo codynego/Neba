@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { SchoolsDashboard } from "@/components/schools-dashboard";
 
 export const metadata: Metadata = {
-  title: "Pilot workspace | Neba for Schools",
-  description: "Empty school workspace for Neba for Schools pilot onboarding.",
+  title: "School workspace | Neba for Schools",
+  description: "Private academic workspace for a Neba for Schools member.",
   robots: { index: false, follow: false },
 };
 

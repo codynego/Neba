@@ -1,4 +1,6 @@
 from django.db import transaction
+from django.db.models import Q
+from django.utils import timezone
 from django.utils.text import slugify
 from rest_framework import permissions, serializers
 from rest_framework.response import Response
@@ -49,3 +51,27 @@ class SchoolSetupView(APIView):
         SchoolClass.objects.bulk_create([SchoolClass(school=school, name=name, academic_session=data["academic_session"]) for name in data["classes"]])
         Subject.objects.bulk_create([Subject(school=school, name=name) for name in data["subjects"]])
         return Response({"id": school.id, "name": school.name, "slug": school.slug}, status=201)
+
+
+class SchoolWorkspaceView(APIView):
+    """Return only the caller's first active school workspace, never another school's data."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        membership = SchoolMembership.objects.select_related("school").filter(
+            user=request.user,
+            status=SchoolMembership.Status.ACTIVE,
+        ).filter(Q(expires_at__isnull=True) | Q(expires_at__gt=timezone.now())).order_by("created_at").first()
+        if membership is None:
+            return Response({"workspace": None})
+
+        school = membership.school
+        return Response({"workspace": {
+            "id": school.id,
+            "name": school.name,
+            "slug": school.slug,
+            "role": membership.role,
+            "classes_count": school.classes.filter(is_active=True).count(),
+            "subjects_count": school.subjects.filter(is_active=True).count(),
+        }})

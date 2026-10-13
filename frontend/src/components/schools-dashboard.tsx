@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -21,8 +21,10 @@ import {
   UsersRound,
   X,
 } from "lucide-react";
+import { api } from "@/lib/api";
 
 type Page = "overview" | "intelligence" | "assessments" | "assistant" | "students" | "reports" | "staff" | "settings";
+type SchoolWorkspace = { id: number; name: string; slug: string; role: string; classes_count: number; subjects_count: number };
 
 const navigation: Array<{ id: Page; label: string; icon: typeof LayoutDashboard; group: "core" | "setup" }> = [
   { id: "overview", label: "Overview", icon: LayoutDashboard, group: "core" },
@@ -47,37 +49,51 @@ export function SchoolsDashboard() {
   const [page, setPage] = useState<Page>("overview");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [notice, setNotice] = useState("");
+  const [workspace, setWorkspace] = useState<SchoolWorkspace | null | undefined>(undefined);
+  const [loadError, setLoadError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    api<{ workspace: SchoolWorkspace | null }>("/schools/workspace/")
+      .then((result) => { if (active) setWorkspace(result.workspace); })
+      .catch(() => { if (active) setLoadError("We could not load your school workspace. Refresh the page to try again."); });
+    return () => { active = false; };
+  }, []);
 
   const selectPage = (next: Page) => { setPage(next); setMobileOpen(false); setNotice(""); };
   const pageName = navigation.find((item) => item.id === page)?.label || "Overview";
-  const startImport = () => { selectPage("assessments"); setNotice("Connect a school workspace before importing an assessment spreadsheet."); };
+  const startImport = () => { selectPage("assessments"); setNotice("Assessment import is being prepared for your workspace. You can set up classes and subjects while it becomes available."); };
+
+  if (workspace === undefined) return <main className="school-app school-app-loading" aria-live="polite"><p>Loading your school workspace…</p></main>;
+  if (loadError) return <main className="school-app school-app-loading"><div><h1>Your workspace could not be loaded.</h1><p>{loadError}</p><button className="school-app-button primary" type="button" onClick={() => window.location.reload()}>Try again</button></div></main>;
+  if (workspace === null) return <main className="school-app school-app-loading"><div><span>NO SCHOOL WORKSPACE</span><h1>Set up your school to continue.</h1><p>Your Neba account is protected, but it is not connected to a school workspace yet.</p><Link className="school-app-button primary" href="/schools/setup">Set up your school <ArrowRight size={16} /></Link></div></main>;
 
   return <div className="school-app school-app-empty-workspace">
     <aside className={`school-app-sidebar${mobileOpen ? " open" : ""}`}>
       <div className="school-app-brand"><Link href="/schools" aria-label="Neba for Schools home"><GraduationCap size={24} /><span>neba</span></Link><b>FOR SCHOOLS</b><button type="button" onClick={() => setMobileOpen(false)} aria-label="Close navigation"><X size={19} /></button></div>
-      <div className="school-app-school-switch"><span>SCHOOL WORKSPACE</span><strong>Set up a school to begin</strong><ChevronRight size={15} /></div>
+      <div className="school-app-school-switch"><span>SCHOOL WORKSPACE</span><strong>{workspace.name}</strong><ChevronRight size={15} /></div>
       <nav aria-label="Schools workspace navigation">
-        <span className="school-app-nav-label">PILOT WORKSPACE</span>
+        <span className="school-app-nav-label">ACADEMIC WORKSPACE</span>
         {navigation.filter((item) => item.group === "core").map(({ id, label, icon: Icon }) => <button type="button" key={id} className={page === id ? "active" : ""} onClick={() => selectPage(id)}><Icon size={18} /><span>{label}</span></button>)}
         <span className="school-app-nav-label setup">SETUP</span>
         {navigation.filter((item) => item.group === "setup").map(({ id, label, icon: Icon }) => <button type="button" key={id} className={page === id ? "active" : ""} onClick={() => selectPage(id)}><Icon size={18} /><span>{label}</span></button>)}
       </nav>
-      <div className="school-app-sidebar-bottom"><div><span>EARLY ACCESS</span><p>Set up your school before inviting staff.</p></div><Link href="/schools">About Neba for Schools <ArrowUpRight size={14} /></Link></div>
+      <div className="school-app-sidebar-bottom"><div><span>{workspace.role.replace("_", " ").toUpperCase()}</span><p>Your school workspace is private to approved members.</p></div><Link href="/schools">About Neba for Schools <ArrowUpRight size={14} /></Link></div>
     </aside>
 
     <section className="school-app-main">
-      <header className="school-app-topbar"><button className="school-app-menu" type="button" onClick={() => setMobileOpen(true)} aria-label="Open navigation"><Menu size={21} /></button><div><span>SCHOOL WORKSPACE <ChevronRight size={13} /> {pageName.toUpperCase()}</span><h1>{page === "overview" ? "Set up your academic workspace." : pageName}</h1></div><div className="school-app-top-actions"><Link href="/schools" className="school-app-top-link">Neba for Schools <ArrowUpRight size={14} /></Link></div></header>
-      <div className="school-app-context"><span><i /> NO SCHOOL DATA YET</span><p>Nothing is shown until your school connects its own records.</p></div>
-      <main className="school-app-content">{notice && <div className="school-app-notice" role="status">{notice}<button type="button" onClick={() => setNotice("")} aria-label="Dismiss"><X size={15} /></button></div>}{renderPage()}</main>
+      <header className="school-app-topbar"><button className="school-app-menu" type="button" onClick={() => setMobileOpen(true)} aria-label="Open navigation"><Menu size={21} /></button><div><span>{workspace.name.toUpperCase()} <ChevronRight size={13} /> {pageName.toUpperCase()}</span><h1>{page === "overview" ? "Your academic workspace." : pageName}</h1></div><div className="school-app-top-actions"><Link href="/schools" className="school-app-top-link">Neba for Schools <ArrowUpRight size={14} /></Link></div></header>
+      <div className="school-app-context"><span><i /> PRIVATE SCHOOL WORKSPACE</span><p>Only approved members of {workspace.name} can access this workspace.</p></div>
+      <main className="school-app-content">{notice && <div className="school-app-notice" role="status">{notice}<button type="button" onClick={() => setNotice("")} aria-label="Dismiss"><X size={15} /></button></div>}{renderPage(workspace)}</main>
     </section>
     {mobileOpen && <button className="school-app-backdrop" type="button" onClick={() => setMobileOpen(false)} aria-label="Close navigation" />}
   </div>;
 
-  function renderPage() {
+  function renderPage(school: SchoolWorkspace) {
     if (page === "overview") return <>
-      <section className="school-app-page-heading"><div><span>GET STARTED</span><h2>Connect your school&apos;s academic workflow.</h2><p>Start with one assessment spreadsheet. Neba will only show evidence drawn from your school&apos;s imported results.</p></div><button type="button" className="school-app-button primary" onClick={startImport}><Upload size={16} /> Import results</button></section>
-      <section className="school-app-empty-stats" aria-label="School data summary unavailable until setup"><article><span>STUDENTS</span><strong>-</strong><small>Import a class list to begin</small></article><article><span>ASSESSED CLASSES</span><strong>-</strong><small>Add or import an assessment</small></article><article><span>TERM AVERAGE</span><strong>-</strong><small>Calculated from approved results</small></article><article><span>LEARNING GAPS</span><strong>-</strong><small>Shown after topic mapping</small></article></section>
-      <section className="school-app-first-steps"><header><div><span>YOUR FIRST WORKFLOW</span><h3>From result sheet to a better next lesson.</h3></div><FileSpreadsheet size={20} /></header><div><SetupStep number="01" icon={FolderCog} title="Set up your school" copy="Add the academic session, term, classes, and grading conventions your team uses." action="Open settings" onAction={() => selectPage("settings")} /><SetupStep number="02" icon={Upload} title="Import one assessment" copy="Bring a current CSV or Excel result sheet for a class your academic team wants to review." action="Prepare import" onAction={startImport} /><SetupStep number="03" icon={BarChart3} title="Review the evidence" copy="Map scores to topics, let teachers check the signals, and plan a measured intervention." action="Explore intelligence" onAction={() => selectPage("intelligence")} /></div></section>
+      <section className="school-app-page-heading"><div><span>GET STARTED</span><h2>Start your school&apos;s academic workflow.</h2><p>{school.name} is ready. Begin with one assessment spreadsheet when your academic team is ready to review it.</p></div><button type="button" className="school-app-button primary" onClick={startImport}><Upload size={16} /> Prepare import</button></section>
+      <section className="school-app-empty-stats" aria-label="School workspace setup summary"><article><span>CLASSES</span><strong>{school.classes_count}</strong><small>Add more classes from school settings</small></article><article><span>SUBJECTS</span><strong>{school.subjects_count}</strong><small>Used to organise assessment results</small></article><article><span>TERM AVERAGE</span><strong>-</strong><small>Calculated from approved results</small></article><article><span>LEARNING GAPS</span><strong>-</strong><small>Shown after topic mapping</small></article></section>
+      <section className="school-app-first-steps"><header><div><span>YOUR FIRST WORKFLOW</span><h3>From result sheet to a better next lesson.</h3></div><FileSpreadsheet size={20} /></header><div><SetupStep number="01" icon={FolderCog} title="Review your school setup" copy="Your classes and subjects are private to this workspace. Add to them as your academic workflow grows." action="Open settings" onAction={() => selectPage("settings")} /><SetupStep number="02" icon={Upload} title="Prepare an assessment import" copy="Bring a current CSV or Excel result sheet for a class your academic team wants to review." action="Prepare import" onAction={startImport} /><SetupStep number="03" icon={BarChart3} title="Review the evidence" copy="Map scores to topics, let teachers check the signals, and plan a measured intervention." action="Explore intelligence" onAction={() => selectPage("intelligence")} /></div></section>
     </>;
     if (page === "intelligence") return <section className="school-app-page"><div className="school-app-page-heading"><div><span>ACADEMIC INTELLIGENCE</span><h2>Find the signal inside your own results.</h2><p>Learning gaps appear only after your school imports and reviews assessment data.</p></div></div><EmptyPanel icon={BarChart3} eyebrow="NO ASSESSMENT DATA" title="There are no learning gaps to review yet." copy="Import an assessment, map questions to topics, and confirm the results before Neba surfaces evidence for teachers to review." action="Import assessment results" onAction={startImport} /></section>;
     if (page === "assessments") return <section className="school-app-page"><div className="school-app-page-heading"><div><span>ASSESSMENTS & RESULTS</span><h2>Start with the result sheets you already use.</h2><p>Import, review, and map assessment results before they inform any teaching decision.</p></div></div><article className="school-app-panel school-app-import"><FileSpreadsheet size={26} /><h3>Prepare an assessment import</h3><p>Connect a school workspace first. Then you will be able to upload a CSV or Excel file, review missing marks, and map questions to learning topics.</p><button type="button" className="school-app-button primary" onClick={() => setNotice("School setup is required before an assessment file can be imported.")}>Set up school first <ArrowRight size={16} /></button><small>Assessment files are not uploaded from this screen yet.</small></article></section>;

@@ -59,6 +59,10 @@ class SchoolAccessTests(TestCase):
 
 
 class SchoolSetupTests(APITestCase):
+    def test_school_setup_requires_authentication(self):
+        response = self.client.post("/api/schools/setup/", {"name": "Private School", "academic_session": "2026/2027"}, format="json")
+        self.assertEqual(response.status_code, 401)
+
     def test_signed_in_user_can_create_a_school_workspace(self):
         user = get_user_model().objects.create_user(username="owner", password="password", display_name="Owner")
         self.client.force_authenticate(user)
@@ -76,3 +80,22 @@ class SchoolSetupTests(APITestCase):
         self.assertTrue(school.memberships.get(user=user).is_active)
         self.assertEqual(school.classes.count(), 2)
         self.assertEqual(school.subjects.count(), 2)
+
+    def test_workspace_requires_authentication(self):
+        response = self.client.get("/api/schools/workspace/")
+        self.assertEqual(response.status_code, 401)
+
+    def test_workspace_returns_only_the_callers_active_school(self):
+        owner = get_user_model().objects.create_user(username="owner", password="password", display_name="Owner")
+        other_user = get_user_model().objects.create_user(username="other", password="password", display_name="Other")
+        owner_school = School.objects.create(name="Owner School", slug="owner-school")
+        other_school = School.objects.create(name="Other School", slug="other-school")
+        SchoolMembership.objects.create(school=owner_school, user=owner, role=SchoolMembership.Role.ADMIN, status=SchoolMembership.Status.ACTIVE)
+        SchoolMembership.objects.create(school=other_school, user=other_user, role=SchoolMembership.Role.ADMIN, status=SchoolMembership.Status.ACTIVE)
+        self.client.force_authenticate(owner)
+
+        response = self.client.get("/api/schools/workspace/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["workspace"]["name"], "Owner School")
+        self.assertNotEqual(response.data["workspace"]["id"], other_school.id)
