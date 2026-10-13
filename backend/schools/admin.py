@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import School, SchoolClass, SchoolMembership, Subject, TeachingAssignment
+from .models import School, SchoolClass, SchoolMembership, Student, Subject, TeachingAssignment
 
 
 @admin.register(School)
@@ -26,6 +26,13 @@ class SchoolClassAdmin(admin.ModelAdmin):
 class SubjectAdmin(admin.ModelAdmin):
     list_display = ("name", "code", "school", "is_active")
     list_filter = ("school", "is_active")
+
+
+@admin.register(Student)
+class StudentAdmin(admin.ModelAdmin):
+    list_display = ("last_name", "first_name", "school", "school_class", "admission_number", "is_active")
+    list_filter = ("school", "school_class", "is_active")
+    search_fields = ("first_name", "last_name", "admission_number")
 
 
 @admin.register(TeachingAssignment)

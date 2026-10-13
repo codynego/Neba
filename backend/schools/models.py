@@ -75,6 +75,44 @@ class Subject(models.Model):
         return self.name
 
 
+class Student(models.Model):
+    """A student record owned by exactly one school workspace."""
+
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="students")
+    school_class = models.ForeignKey(SchoolClass, on_delete=models.PROTECT, related_name="students")
+    first_name = models.CharField(max_length=80)
+    last_name = models.CharField(max_length=80)
+    admission_number = models.CharField(max_length=64, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("last_name", "first_name")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("school", "admission_number"),
+                condition=~models.Q(admission_number=""),
+                name="unique_school_admission_number",
+            ),
+        ]
+
+    def clean(self):
+        if self.school_class_id and self.school_id and self.school_class.school_id != self.school_id:
+            raise ValidationError({"school_class": "The class must belong to this school."})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    @property
+    def full_name(self):
+        return f"{self.first_name} {self.last_name}".strip()
+
+    def __str__(self):
+        return self.full_name
+
+
 class TeachingAssignment(models.Model):
     membership = models.ForeignKey(SchoolMembership, on_delete=models.CASCADE, related_name="teaching_assignments")
     school_class = models.ForeignKey(SchoolClass, on_delete=models.CASCADE, related_name="teaching_assignments")
