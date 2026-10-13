@@ -17,14 +17,14 @@ import {
 import { Brand } from "@/components/brand";
 import { jsonLd, publicPageMetadata, siteUrl } from "@/lib/seo";
 
-const description = "Turn assessment results into clear learning-gap evidence, targeted teaching plans, and measurable progress with Neba for Schools.";
+const description = "Academic intelligence for schools: turn assessment results into learning insights, targeted teaching resources, and measurable student progress.";
 export const metadata = publicPageMetadata("Academic intelligence for schools", description, "/schools");
 
 const steps = [
-  { number: "01", icon: FileSpreadsheet, title: "Bring the results you already have", copy: "The pilot starts with the class spreadsheet your team already uses, without replacing your school system." },
-  { number: "02", icon: Target, title: "See where learning broke down", copy: "Scores are connected to topics so your team can review patterns across a class or student." },
-  { number: "03", icon: Sparkles, title: "Plan a focused response", copy: "Reviewed evidence becomes a practical revision priority, with targeted activities and practice questions." },
-  { number: "04", icon: BarChart3, title: "Measure what changed", copy: "A follow-up assessment helps your team compare progress and decide the next teaching move." },
+  { number: "01", icon: FileSpreadsheet, title: "Bring in assessment results", copy: "Start with the spreadsheets your school already uses. Neba works alongside your existing academic process." },
+  { number: "02", icon: Target, title: "Identify learning gaps", copy: "Connect performance to the topics, learners, and classes that deserve closer attention." },
+  { number: "03", icon: Sparkles, title: "Turn insights into teaching plans", copy: "Teachers review the evidence, then use targeted revision activities and practice to respond." },
+  { number: "04", icon: BarChart3, title: "Measure progress", copy: "Compare follow-up assessments to understand what improved and what needs another response." },
 ];
 
 export default function SchoolsPage() {
@@ -34,14 +34,15 @@ export default function SchoolsPage() {
     <section className="schools-hero">
       <div className="schools-shell schools-hero-grid">
         <div className="schools-hero-copy">
-          <span className="schools-product"><School size={17} /> NEBA FOR SCHOOLS <b>EARLY ACCESS</b></span>
+          <span className="schools-product"><School size={17} /> ACADEMIC INTELLIGENCE FOR SCHOOLS <b>NEBA FOR SCHOOLS</b></span>
           <h1>Know what students missed.<br />Know what to <em>teach next.</em></h1>
-          <p>Turn your school&apos;s assessment results into clear learning gaps, targeted revision plans, and evidence of student progress, without replacing your existing school system.</p>
+          <p>Turn assessment results into learning insights, targeted teaching resources, and a clearer picture of student progress—so educators can make better academic decisions with confidence.</p>
           <div className="schools-actions">
-            <Link className="schools-button schools-button-primary" href="/schools/setup">Set up your school <ArrowUpRight size={19} /></Link>
+            <Link className="schools-button schools-button-primary" href="/schools/setup">Get started for your school <ArrowUpRight size={19} /></Link>
             <a className="schools-text-link" href="#how-it-works">See how it works <ArrowRight size={17} /></a>
           </div>
-          <small className="schools-hero-note"><Check size={15} /> For secondary schools. Start with an existing assessment spreadsheet.</small>
+          <p className="schools-demo-note">Already exploring Neba? <a href="mailto:support@getneba.com?subject=Neba%20for%20Schools%20demo">Book a demo instead.</a></p>
+          <small className="schools-hero-note"><Check size={15} /> Built for school leaders and teachers. Start with results you already collect.</small>
         </div>
 
         <div className="schools-evidence-wrap"><span className="schools-example-label">ILLUSTRATIVE EXAMPLE - NOT PILOT RESULTS</span><div className="schools-evidence-board" aria-label="Illustrative class learning-gap analysis">
@@ -70,7 +71,7 @@ export default function SchoolsPage() {
       </div>
     </section>
 
-    <section className="schools-proof-line"><div className="schools-shell"><span>A PILOT FOR THE PEOPLE RESPONSIBLE FOR PROGRESS</span><div><strong>Proprietors</strong><i /> <strong>Principals</strong><i /> <strong>Heads of academics</strong></div></div></section>
+    <section className="schools-proof-line"><div className="schools-shell"><span>BUILT FOR THE PEOPLE RESPONSIBLE FOR PROGRESS</span><div><strong>Proprietors</strong><i /> <strong>Principals</strong><i /> <strong>Heads of academics</strong></div></div></section>
 
     <section className="schools-problem schools-shell">
       <div className="schools-section-heading"><span>RESULTS SHOULD LEAD SOMEWHERE</span><h2>A score tells you what happened.<br /><em>Neba helps you decide what happens next.</em></h2></div>
@@ -78,7 +79,7 @@ export default function SchoolsPage() {
     </section>
 
     <section className="schools-process" id="how-it-works"><div className="schools-shell">
-      <div className="schools-section-heading"><span>THE PLANNED PILOT WORKFLOW</span><h2>From result sheet<br />to better next lesson.</h2></div>
+      <div className="schools-section-heading"><span>FROM ASSESSMENT TO ACTION</span><h2>From result sheet<br />to better next lesson.</h2></div>
       <div className="schools-steps">{steps.map(({ number, icon: Icon, title, copy }) => <article key={number}><div><span>{number}</span><Icon size={23} /></div><h3>{title}</h3><p>{copy}</p></article>)}</div>
     </div></section>
 
@@ -92,13 +93,13 @@ export default function SchoolsPage() {
     </section>
 
     <section className="schools-trust"><div className="schools-shell schools-trust-grid">
-      <div><span className="schools-trust-icon"><LockKeyhole size={25} /></span><span className="schools-section-label">PILOT DESIGN PRINCIPLES</span><h2>Student data deserves careful boundaries.</h2></div>
-      <div className="schools-trust-points"><p><ShieldCheck size={18} /><span><strong>Access designed around school roles</strong>The pilot will limit information according to each participant&apos;s responsibility.</span></p><p><ShieldCheck size={18} /><span><strong>Evidence before automation</strong>Teachers will review learning-gap evidence and remain responsible for every intervention.</span></p><p><ShieldCheck size={18} /><span><strong>A deliberate start</strong>We will begin with a small academic team, validate the workflow, and expand only when it proves useful.</span></p></div>
+      <div><span className="schools-trust-icon"><LockKeyhole size={25} /></span><span className="schools-section-label">DESIGNED FOR RESPONSIBLE USE</span><h2>Student data deserves careful boundaries.</h2></div>
+      <div className="schools-trust-points"><p><ShieldCheck size={18} /><span><strong>Access designed around school roles</strong>Teachers and school leaders see only the records they are authorised to use.</span></p><p><ShieldCheck size={18} /><span><strong>Evidence before automation</strong>Teachers review learning-gap evidence and remain responsible for every intervention.</span></p><p><ShieldCheck size={18} /><span><strong>Start without replacing everything</strong>Use assessment data you already collect, then grow the workspace as it becomes useful.</span></p></div>
     </div></section>
 
     <section className="schools-final schools-shell" id="setup">
-      <div className="schools-final-copy"><span>START YOUR WORKSPACE</span><h2>Set up your school.<br />Start with one class.</h2><p>Create your school workspace, add the academic session and your first classes, then invite the people who need to work with the results.</p></div>
-      <div className="schools-setup-card"><span>YOUR FIRST 5 MINUTES</span><ol><li><b>1</b><div><strong>Name your school</strong><small>Create the secure workspace your team will use.</small></div></li><li><b>2</b><div><strong>Add your first class</strong><small>Start small with the class whose results you want to review.</small></div></li><li><b>3</b><div><strong>Invite your academic team</strong><small>Give colleagues access only after the school exists.</small></div></li></ol><Link className="schools-button schools-button-light" href="/schools/setup">Set up your school <ArrowRight size={18} /></Link><small>Free to create. You stay in control of who gets access.</small></div>
+      <div className="schools-final-copy"><span>FOR SCHOOL LEADERS</span><h2>Make every assessment more useful.</h2><p>Create a school workspace, begin with the results you already have, and give your team a clearer way to decide what happens next.</p></div>
+      <div className="schools-setup-card"><span>START ON YOUR TERMS</span><ol><li><b>1</b><div><strong>Create your school workspace</strong><small>Set up your school and become its first administrator.</small></div></li><li><b>2</b><div><strong>Explore the first workflow</strong><small>Add a class and subjects only when you are ready to use them.</small></div></li><li><b>3</b><div><strong>Bring in your team</strong><small>Invite teachers and give access based on their role.</small></div></li></ol><Link className="schools-button schools-button-light" href="/schools/setup">Get started for your school <ArrowRight size={18} /></Link><small>Want a tailored walkthrough? <a href="mailto:support@getneba.com?subject=Neba%20for%20Schools%20demo">Book a school demo.</a></small></div>
     </section>
 
     <footer className="schools-footer"><div className="schools-shell"><div><Brand /><span>Neba for Schools</span></div><nav aria-label="Neba for Schools footer links"><a href="#how-it-works">How it works</a><a href="#setup">Set up a school</a><Link href="/privacy">Privacy</Link><a href="mailto:support@getneba.com">Contact</a></nav><small>Early access by GetNeba. School leaders control workspace access and data setup.</small></div></footer>
