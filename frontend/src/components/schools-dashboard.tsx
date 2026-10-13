@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -53,7 +54,9 @@ function SetupStep({ number, icon: Icon, title, copy, action, onAction }: { numb
 }
 
 export function SchoolsDashboard() {
-  const [page, setPage] = useState<Page>("overview");
+  const searchParams = useSearchParams();
+  const pageFromSearch = (value: string | null): Page => navigation.some((item) => item.id === value) ? value as Page : "overview";
+  const [page, setPage] = useState<Page>(() => pageFromSearch(searchParams.get("section")));
   const [mobileOpen, setMobileOpen] = useState(false);
   const [notice, setNotice] = useState("");
   const [workspace, setWorkspace] = useState<SchoolWorkspace | null | undefined>(undefined);
@@ -82,6 +85,8 @@ export function SchoolsDashboard() {
       .catch(() => { if (active) setLoadError("We could not load your school workspace. Refresh the page to try again."); });
     return () => { active = false; };
   }, []);
+
+  useEffect(() => { setPage(pageFromSearch(searchParams.get("section"))); }, [searchParams]);
 
   const selectPage = (next: Page) => { setPage(next); setMobileOpen(false); setNotice(""); };
   const pageName = navigation.find((item) => item.id === page)?.label || "Overview";

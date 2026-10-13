@@ -151,10 +151,11 @@ class SchoolRosterTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["public_id"], str(student.public_id))
 
-        response = self.client.patch(f"/api/schools/students/{student.public_id}/", {"first_name": "Adanna"}, format="json")
+        response = self.client.patch(f"/api/schools/students/{student.public_id}/", {"first_name": "Adanna", "guardian_name": "Mrs Okafor", "guardian_phone": "+2348012345678"}, format="json")
         self.assertEqual(response.status_code, 200)
         student.refresh_from_db()
         self.assertEqual(student.first_name, "Adanna")
+        self.assertEqual(student.guardian_name, "Mrs Okafor")
 
     def test_admin_can_add_an_existing_neba_user_to_the_school(self):
         self.other.email = "teacher@example.com"
