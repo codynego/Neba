@@ -15,7 +15,6 @@ import {
   UsersRound,
 } from "lucide-react";
 import { Brand } from "@/components/brand";
-import { SchoolsPilotForm } from "@/components/schools-pilot-form";
 import { jsonLd, publicPageMetadata, siteUrl } from "@/lib/seo";
 
 const description = "Turn assessment results into clear learning-gap evidence, targeted teaching plans, and measurable progress with Neba for Schools.";
@@ -39,7 +38,7 @@ export default function SchoolsPage() {
           <h1>Know what students missed.<br />Know what to <em>teach next.</em></h1>
           <p>Turn your school&apos;s assessment results into clear learning gaps, targeted revision plans, and evidence of student progress, without replacing your existing school system.</p>
           <div className="schools-actions">
-            <a className="schools-button schools-button-primary" href="#pilot">Request a pilot <ArrowUpRight size={19} /></a>
+            <Link className="schools-button schools-button-primary" href="/schools/setup">Set up your school <ArrowUpRight size={19} /></Link>
             <a className="schools-text-link" href="#how-it-works">See how it works <ArrowRight size={17} /></a>
           </div>
           <small className="schools-hero-note"><Check size={15} /> For secondary schools. Start with an existing assessment spreadsheet.</small>
@@ -97,11 +96,11 @@ export default function SchoolsPage() {
       <div className="schools-trust-points"><p><ShieldCheck size={18} /><span><strong>Access designed around school roles</strong>The pilot will limit information according to each participant&apos;s responsibility.</span></p><p><ShieldCheck size={18} /><span><strong>Evidence before automation</strong>Teachers will review learning-gap evidence and remain responsible for every intervention.</span></p><p><ShieldCheck size={18} /><span><strong>A deliberate start</strong>We will begin with a small academic team, validate the workflow, and expand only when it proves useful.</span></p></div>
     </div></section>
 
-    <section className="schools-final schools-shell" id="pilot">
-      <div className="schools-final-copy"><span>REQUEST A PILOT</span><h2>Bring one result sheet.<br />Find the next teaching move.</h2><p>We are inviting a small group of secondary schools to test the workflow with us. Proprietors, principals, and heads of academics can register their interest below.</p></div>
-      <SchoolsPilotForm />
+    <section className="schools-final schools-shell" id="setup">
+      <div className="schools-final-copy"><span>START YOUR WORKSPACE</span><h2>Set up your school.<br />Start with one class.</h2><p>Create your school workspace, add the academic session and your first classes, then invite the people who need to work with the results.</p></div>
+      <div className="schools-setup-card"><span>YOUR FIRST 5 MINUTES</span><ol><li><b>1</b><div><strong>Name your school</strong><small>Create the secure workspace your team will use.</small></div></li><li><b>2</b><div><strong>Add your first class</strong><small>Start small with the class whose results you want to review.</small></div></li><li><b>3</b><div><strong>Invite your academic team</strong><small>Give colleagues access only after the school exists.</small></div></li></ol><Link className="schools-button schools-button-light" href="/schools/setup">Set up your school <ArrowRight size={18} /></Link><small>Free to create. You stay in control of who gets access.</small></div>
     </section>
 
-    <footer className="schools-footer"><div className="schools-shell"><div><Brand /><span>Neba for Schools</span></div><nav aria-label="Neba for Schools footer links"><a href="#how-it-works">How the pilot works</a><a href="#pilot">Request a pilot</a><Link href="/privacy">Privacy</Link><a href="mailto:support@getneba.com">Contact</a></nav><small>Early access by GetNeba. Features shown are planned for pilot validation.</small></div></footer>
+    <footer className="schools-footer"><div className="schools-shell"><div><Brand /><span>Neba for Schools</span></div><nav aria-label="Neba for Schools footer links"><a href="#how-it-works">How it works</a><a href="#setup">Set up a school</a><Link href="/privacy">Privacy</Link><a href="mailto:support@getneba.com">Contact</a></nav><small>Early access by GetNeba. School leaders control workspace access and data setup.</small></div></footer>
   </main>;
 }

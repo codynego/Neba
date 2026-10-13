@@ -92,6 +92,7 @@ REST_FRAMEWORK = {
         "register": "5/hour", "login": "10/hour", "password_reset": "5/hour",
         "email_verification": "5/hour",
         "school_pilot": "10/hour",
+        "school_setup": "5/hour",
     },
 }
 CORS_ALLOWED_ORIGINS = env_list("CORS_ALLOWED_ORIGINS", "http://localhost:3000")

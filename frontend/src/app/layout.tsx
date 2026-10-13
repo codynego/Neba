@@ -15,6 +15,7 @@ import "./homepage-network.css";
 import "./schools.css";
 import "./schools-dashboard.css";
 import "./schools-dashboard-empty.css";
+import "./schools-setup.css";
 import "./post-opportunity.css";
 import "./post-opportunity-enhancements.css";
 import "./dashboard-command.css";

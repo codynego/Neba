@@ -5,6 +5,7 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied
+from rest_framework.test import APITestCase
 
 from .models import School, SchoolClass, SchoolMembership, Subject, TeachingAssignment
 from .permissions import class_subject_access_or_403
@@ -55,3 +56,23 @@ class SchoolAccessTests(TestCase):
                 school_class=self.school_class,
                 subject=other_subject,
             )
+
+
+class SchoolSetupTests(APITestCase):
+    def test_signed_in_user_can_create_a_school_workspace(self):
+        user = get_user_model().objects.create_user(username="owner", password="password", display_name="Owner")
+        self.client.force_authenticate(user)
+
+        response = self.client.post("/api/schools/setup/", {
+            "name": "Bright Future College",
+            "academic_session": "2026/2027",
+            "classes": ["JSS 1", "JSS 2"],
+            "subjects": ["Mathematics", "English"],
+        }, format="json")
+
+        self.assertEqual(response.status_code, 201)
+        school = School.objects.get(name="Bright Future College")
+        self.assertEqual(school.memberships.get(user=user).role, SchoolMembership.Role.ADMIN)
+        self.assertTrue(school.memberships.get(user=user).is_active)
+        self.assertEqual(school.classes.count(), 2)
+        self.assertEqual(school.subjects.count(), 2)
