@@ -133,6 +133,31 @@ class Organization(models.Model):
     def __str__(self):
         return self.name
 
+
+class SchoolPilotInterest(models.Model):
+    class StudentCount(models.TextChoices):
+        UNDER_100 = "under_100", "Under 100"
+        FROM_100_TO_299 = "100_299", "100-299"
+        FROM_300_TO_599 = "300_599", "300-599"
+        FROM_600_TO_999 = "600_999", "600-999"
+        OVER_1000 = "1000_plus", "1,000+"
+
+    school_name = models.CharField(max_length=180)
+    contact_name = models.CharField(max_length=120)
+    role = models.CharField(max_length=80)
+    email = models.EmailField(blank=True)
+    phone = models.CharField(max_length=32, blank=True)
+    student_count = models.CharField(max_length=16, choices=StudentCount.choices)
+    can_provide_sample = models.BooleanField(default=False)
+    consent_version = models.CharField(max_length=20, default="schools-pilot-v1")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+
+    def __str__(self):
+        return f"{self.school_name} - {self.contact_name}"
+
 class PhoneChallenge(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     phone = models.CharField(max_length=16)

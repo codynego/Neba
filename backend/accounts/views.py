@@ -19,7 +19,7 @@ from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 from django.conf import settings
-from .models import Organization, ProfileDocument, User
+from .models import Organization, ProfileDocument, SchoolPilotInterest, User
 from . import r2
 from .trust import normalize_phone
 from .emailing import EmailUnavailable, safely, send_password_reset_email, send_verification_email
@@ -188,6 +188,33 @@ class OrganizationView(generics.RetrieveUpdateAPIView):
         if organization.status == Organization.Status.DRAFT and organization.name and organization.contact_email:
             organization.status = Organization.Status.PENDING
             organization.save(update_fields=("status", "updated_at"))
+
+
+class SchoolPilotInterestSerializer(serializers.ModelSerializer):
+    consent_to_contact = serializers.BooleanField(write_only=True)
+
+    class Meta:
+        model = SchoolPilotInterest
+        fields = ("school_name", "contact_name", "role", "email", "phone", "student_count", "can_provide_sample", "consent_to_contact")
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        attrs["school_name"] = attrs["school_name"].strip()
+        attrs["contact_name"] = attrs["contact_name"].strip()
+        attrs["role"] = attrs["role"].strip()
+        attrs["email"] = attrs.get("email", "").strip().lower()
+        attrs["phone"] = attrs.get("phone", "").strip()
+        if not attrs["email"] and not attrs["phone"]:
+            raise serializers.ValidationError("Enter an email address or phone number so we can contact you.")
+        if not attrs.pop("consent_to_contact"):
+            raise serializers.ValidationError("Confirm that Neba may contact you about the schools pilot.")
+        return attrs
+
+
+class SchoolPilotInterestView(generics.CreateAPIView):
+    serializer_class = SchoolPilotInterestSerializer
+    permission_classes = [permissions.AllowAny]
+    throttle_scope = "school_pilot"
 
 class LogoutView(APIView):
     permission_classes = [permissions.IsAuthenticated]

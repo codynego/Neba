@@ -3,7 +3,7 @@ from django.contrib.auth.admin import UserAdmin
 from django.utils.html import format_html
 from rest_framework.authtoken.models import Token
 from rest_framework.exceptions import APIException
-from .models import User, IdentityVerification, SafetyReport, TrustAudit, PushSubscription
+from .models import User, IdentityVerification, SafetyReport, SchoolPilotInterest, TrustAudit, PushSubscription
 from .trust import review_identity
 
 @admin.register(User)
@@ -95,3 +95,16 @@ class PushSubscriptionAdmin(admin.ModelAdmin):
     def has_change_permission(self, request, obj=None):
         return False
 
+
+@admin.register(SchoolPilotInterest)
+class SchoolPilotInterestAdmin(admin.ModelAdmin):
+    list_display = ("school_name", "contact_name", "role", "student_count", "can_provide_sample", "created_at")
+    list_filter = ("student_count", "can_provide_sample", "created_at")
+    search_fields = ("school_name", "contact_name", "email", "phone")
+    readonly_fields = ("school_name", "contact_name", "role", "email", "phone", "student_count", "can_provide_sample", "consent_version", "created_at")
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False

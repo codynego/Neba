@@ -17,6 +17,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const publicRoute = isPublicPath(path);
   const authenticatedOpportunity = signedIn && (path === "/opportunities" || path.startsWith("/opportunities/"));
   const authRoute = path === "/login" || path === "/register" || path === "/forgot-password" || path === "/reset-password" || path === "/verify-email";
+  const schoolsDashboard = path.startsWith("/schools/dashboard");
   const appRoute = !publicRoute || authenticatedOpportunity;
-  return <div className={appRoute ? "app-content" : "public-content"} id="main-content">{publicRoute ? children : <RequireAuth key={path}>{children}</RequireAuth>}{!appRoute && !authRoute && <Footer />}</div>;
+  return <div className={appRoute || schoolsDashboard ? "app-content" : "public-content"} id="main-content">{publicRoute ? children : <RequireAuth key={path}>{children}</RequireAuth>}{!appRoute && !authRoute && !path.startsWith("/schools") && <Footer />}</div>;
 }

@@ -37,7 +37,7 @@ INSTALLED_APPS = [
     "django.contrib.admin", "django.contrib.auth", "django.contrib.contenttypes",
     "django.contrib.sessions", "django.contrib.messages", "django.contrib.staticfiles",
     "rest_framework", "rest_framework.authtoken", "rest_framework_simplejwt.token_blacklist", "corsheaders",
-    "accounts.apps.AccountsConfig", "billing.apps.BillingConfig", "locations", "tasks", "offers", "bookings", "opportunities.apps.OpportunitiesConfig",
+    "accounts.apps.AccountsConfig", "billing.apps.BillingConfig", "schools.apps.SchoolsConfig", "locations", "tasks", "offers", "bookings", "opportunities.apps.OpportunitiesConfig",
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -91,6 +91,7 @@ REST_FRAMEWORK = {
         "opportunity_check": "10/hour",
         "register": "5/hour", "login": "10/hour", "password_reset": "5/hour",
         "email_verification": "5/hour",
+        "school_pilot": "10/hour",
     },
 }
 CORS_ALLOWED_ORIGINS = env_list("CORS_ALLOWED_ORIGINS", "http://localhost:3000")
