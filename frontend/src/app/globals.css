@@ -506,7 +506,7 @@ h1,h2,h3,h4{font-weight:600;letter-spacing:-.035em;line-height:1.25}
 .completed-review summary { cursor: pointer; color: #087f5b; margin-bottom: 14px; }
 .completed-review .stack-form { min-width: 180px; }
 @media (max-width: 600px) { .verify-section { padding: 20px 16px; } .verification-notice, .verification-privacy { padding: 14px; } .camera-panel { padding: 16px; } }
-.landing-footer>.footer-grid{display:grid;grid-template-columns:1.4fr repeat(3,1fr);align-items:start;gap:40px;padding-top:8px;padding-bottom:40px}
+.landing-footer>.footer-grid{display:grid;grid-template-columns:1.4fr repeat(4,1fr);align-items:start;gap:40px;padding-top:8px;padding-bottom:40px}
 .landing-footer .footer-grid nav{display:flex;flex-direction:column;align-items:flex-start;gap:14px;font-size:12px}
 .footer-grid nav h2{font-size:12px;color:var(--text);font-weight:600;margin:0 0 6px}
 .footer-grid nav a:hover{color:var(--primary)}
