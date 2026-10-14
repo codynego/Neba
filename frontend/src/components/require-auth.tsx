@@ -32,7 +32,7 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
   }, [router, retry]);
   if (!ready) return error
     ? <main className="listing-page container"><div className="load-error" role="alert"><p>{error}</p><button className="button button-outline" onClick={() => setRetry((value) => value + 1)}>Try again</button></div></main>
-    : showLaunch ? <main className="app-launch" role="status" aria-label="Opening GetNeba">
+    : showLaunch ? <main className="app-launch" role="status" aria-label="Opening Neba">
         <div className="app-launch-orbit" aria-hidden="true">
           <span className="app-launch-ring app-launch-ring-outer" />
           <span className="app-launch-ring app-launch-ring-inner" />
@@ -40,8 +40,8 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
           <span className="app-launch-dot app-launch-dot-two" />
           <span className="app-launch-mark"><Image src="/brand/getneba-mark.svg" alt="" width={132} height={132} priority unoptimized /></span>
         </div>
-        <Image className="app-launch-wordmark" src="/brand/getneba-wordmark.svg" alt="GetNeba" width={190} height={44} priority unoptimized />
-        <p>Opportunities worth your next step.</p>
+        <Image className="app-launch-wordmark" src="/brand/getneba-wordmark.svg" alt="Neba" width={190} height={44} priority unoptimized />
+        <p>Intelligence for education.</p>
         <span className="app-launch-progress" aria-hidden="true"><i /></span>
       </main>
     : <main className="listing-page container"><div className="account-check" role="status" aria-label="Checking your account"><span aria-hidden="true"><LoaderCircle size={24} strokeWidth={1.75} /></span></div></main>;

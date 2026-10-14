@@ -10,7 +10,7 @@ import type { User } from "@/lib/types";
 
 const yourProducts = [
   { id: "schools", name: "Neba for Schools", description: "School operations, records, and academic progress", href: "/schools/dashboard", icon: GraduationCap, tone: "schools", note: "Your school workspace" },
-  { id: "opportunities", name: "Neba Opportunities", description: "Scholarships, grants, and academic pathways", context: "Personal workspace", href: "/dashboard", icon: BriefcaseBusiness, tone: "opportunities", note: "Your opportunity radar" },
+  { id: "opportunities", name: "Neba Opportunities", description: "Scholarships, grants, and academic pathways", context: "Personal workspace", href: "/dashboard", icon: BriefcaseBusiness, tone: "opportunities", note: "Your opportunity workspace" },
 ];
 
 const catalogProducts = [

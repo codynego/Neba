@@ -150,7 +150,10 @@ class SchoolRosterTests(APITestCase):
         response = self.client.get(f"/api/schools/students/{student.public_id}/")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["public_id"], str(student.public_id))
-        self.assertEqual(response.data["student_id"], "000001")
+        self.assertEqual(
+            response.data["student_id"],
+            f"{self.school.student_id_prefix}-{student.admission_year}-0001",
+        )
 
         response = self.client.patch(f"/api/schools/students/{student.public_id}/", {"first_name": "Adanna", "guardian_name": "Mrs Okafor", "guardian_phone": "+2348012345678"}, format="json")
         self.assertEqual(response.status_code, 200)

@@ -1,28 +1,72 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { publicPageMetadata } from "@/lib/seo";
+import type { Metadata } from "next";
+import { ArrowUpRight, BookOpenCheck, Building2, ShieldCheck } from "lucide-react";
 import { LegalPage } from "@/components/legal-page";
-import { ArrowRight, ArrowUpRight, CalendarClock, Check, Compass, GraduationCap, ShieldCheck, Sparkles, Target } from "lucide-react";
+import { publicPageMetadata } from "@/lib/seo";
 
 const pages = {
-  about: { title: "A clearer path to what’s next.", label: "WHY GETNEBA", intro: "GetNeba helps you find opportunities that fit your goals, not just opportunities that happen to be popular." },
-  help: { title: "Your opportunity search, made simpler.", label: "OPPORTUNITY GUIDE", intro: "GetNeba helps you discover relevant opportunities, understand your fit, and stay ahead of important deadlines.", sections: [["What can I find on GetNeba?", "Scholarships, grants, jobs, internships, fellowships, competitions, training programs, funding opportunities, and other ways to learn, earn, build, and grow."], ["How does matching work?", "You tell GetNeba about your education, skills, interests, experience, and goals. We use that context to surface opportunities worth your attention and explain why they may fit."], ["Do I need to apply through GetNeba?", "Not always. GetNeba is your discovery and decision layer. When an opportunity is hosted elsewhere, we send you to the official source so you can review the details and apply there."], ["How do deadlines help?", "Save opportunities you care about and keep important dates in one place. GetNeba helps turn a promising find into a timely next step."]] },
-  "community-guidelines": { title: "Keep the opportunity ecosystem useful.", label: "COMMUNITY GUIDELINES", intro: "GetNeba is built around useful information, honest profiles, and respectful participation.", sections: [["Be accurate", "Use your own identity and keep your profile, experience, and interests truthful. Do not submit misleading opportunities or make promises on behalf of an organization."], ["Use official sources", "Always review eligibility, deadlines, fees, and requirements on the opportunity provider’s official page before applying."], ["Respect people and organizations", "Do not harass, discriminate, impersonate, spam, scrape, or use GetNeba to misrepresent another person or organization."], ["Report issues", "If you find an opportunity that looks fraudulent, misleading, or unsafe, report it so the team can review it."]] },
-  privacy: { title: "Your information, explained clearly.", label: "PRIVACY NOTICE", intro: "What GetNeba collects, why it is used, who can see it, and the choices and rights available to you." },
-  terms: { title: "Clear terms for finding opportunities.", label: "TERMS OF SERVICE", intro: "The rules that apply when you use GetNeba to discover, save, and act on opportunities." },
-};
+  about: {
+    title: "Education works better when everything works together.",
+    label: "ABOUT NEBA",
+    intro: "Neba connects school operations, classroom evidence, and learner opportunity into one education ecosystem.",
+    sections: [
+      ["Start with the school", "Neba for Schools gives administrators and teachers a focused place to manage classes, student records, assessment work, and the academic evidence behind each next step."],
+      ["Keep intelligence explainable", "Academic Intelligence surfaces patterns from recorded assessment evidence. It shows the topic, the scores behind the signal, and leaves the teaching decision with the school team."],
+      ["Grow with the learner", "Neba Opportunities connects learners to scholarships, grants, academic programmes, and other pathways when they are ready to explore beyond the classroom."],
+    ],
+  },
+  help: {
+    title: "Help for your Neba workspace.",
+    label: "HELP AND SUPPORT",
+    intro: "Start with a school workspace, invite the right people, and use assessment evidence to guide the next conversation.",
+    sections: [
+      ["Set up a school", "Create the school workspace, add your current classes and subjects, then invite colleagues with the access they need."],
+      ["Record assessment evidence", "Create an assessment, enter or import scores, and map questions to topics when you want more specific academic signals."],
+      ["Use Academic Intelligence", "Review the evidence and coverage behind each topic signal before creating an intervention. Neba supports a teacher-led decision; it does not grade students or make outcomes decisions automatically."],
+    ],
+  },
+  "community-guidelines": {
+    title: "A trustworthy education ecosystem.",
+    label: "COMMUNITY GUIDELINES",
+    intro: "Schools and education partners share responsibility for accurate information, appropriate access, and respect for every learner.",
+    sections: [
+      ["Protect student information", "Add only the information your school is authorized to use. Do not share student records outside the appropriate school workspace or use another person’s account."],
+      ["Keep records accurate", "Enter assessment and school information carefully. Review source evidence before acting on a topic signal or sharing an opportunity with learners."],
+      ["Use appropriate access", "School administrators should give staff the minimum access needed for their work and remove access when a staff member’s role changes."],
+    ],
+  },
+} as const;
 
-export const dynamicParams = false;
-export function generateStaticParams() { return Object.keys(pages).map((info) => ({ info })); }
-export async function generateMetadata({ params }: { params: Promise<{ info: string }> }) { const { info } = await params; if (!Object.hasOwn(pages, info)) notFound(); const page = pages[info as keyof typeof pages]; return publicPageMetadata(`${page.title} | GetNeba`, page.intro, `/${info}`); }
+type PublicInfo = keyof typeof pages;
 
-function AboutPage() {
-  const principles = [
-    { icon: Compass, title: "A wider view", text: "Good opportunities are scattered across the internet. GetNeba brings the categories that matter to your future into one place." },
-    { icon: Target, title: "A better fit", text: "Your goals, skills, education, and experience help us make discovery more relevant than a generic search." },
-    { icon: CalendarClock, title: "A timely nudge", text: "A great opportunity only helps if you find it in time. Keep deadlines visible and your next step clear." },
-  ];
-  return <main className="about-page radar-about"><section className="about-hero landing-container"><div className="about-hero-copy"><span className="landing-eyebrow"><Sparkles size={15} /> WHY GETNEBA</span><h1>Opportunity should feel less like <em>luck.</em></h1><p>There are scholarships, jobs, grants, fellowships, and programs built for people like you. The hard part is finding the right ones before the window closes.</p><div className="about-actions"><Link className="button button-dark" href="/register">Build my radar <ArrowRight size={18} /></Link><Link className="button button-outline" href="/#how-it-works">See how it works <ArrowUpRight size={18} /></Link></div></div><div className="about-hero-visual radar-about-visual"><div className="about-radar-mark"><Compass size={46} /><span>YOUR<br />RADAR</span></div><span className="about-floating about-floating-one"><GraduationCap size={18} /> Scholarship</span><span className="about-floating about-floating-two"><Target size={18} /> Fellowship</span><span className="about-floating about-floating-three"><Sparkles size={18} /> New match</span></div></section><section className="about-thesis"><div className="landing-container"><span className="about-thesis-mark">“</span><div><span className="landing-eyebrow">THE IDEA</span><h2>Less searching.<br /><em>More becoming.</em></h2></div><div className="about-thesis-copy"><p>GetNeba is a personal layer between you and the noisy opportunity internet.</p><p>We help you discover what fits, make sense of why it matters, and keep moving while the opportunity is still open.</p></div></div></section><section className="about-principles landing-container"><div className="about-section-heading"><div><span className="landing-eyebrow">WHAT WE BELIEVE</span><h2>Your ambition deserves better tools.</h2></div><p>GetNeba is designed for the person with a goal, a question, or a next step they are ready to take.</p></div><div className="about-principle-grid">{principles.map(({ icon: Icon, title, text }) => <article key={title}><div className="about-principle-top"><span><Icon size={23} /></span><small>GETNEBA PRINCIPLE</small></div><h3>{title}</h3><p>{text}</p></article>)}</div></section><section className="about-honesty landing-container"><div className="about-honesty-intro"><span className="landing-eyebrow">A NOTE ON TRUST</span><h2>Always check the source.</h2><p>GetNeba helps you discover and organize possibilities. The official provider remains the source of truth for eligibility, terms, application requirements, and final decisions.</p></div><div className="about-honesty-list"><div><strong>We explain the match</strong><p>See why an opportunity may be relevant to your profile.</p></div><div><strong>We keep you oriented</strong><p>Save, revisit, and prioritize what deserves your time.</p></div><div><strong>You stay in control</strong><p>Your profile and shortlist are yours to shape.</p></div></div></section><section className="about-final landing-container"><div><span className="landing-eyebrow">START WHERE YOU ARE</span><h2>Your next opportunity<br /><em>starts with context.</em></h2><p>Tell GetNeba what you are working toward and let the radar do the looking.</p></div><div className="about-final-actions"><Link className="button button-dark" href="/register">Create my radar <ArrowRight size={18} /></Link><Link href="/privacy">Read our privacy notice <ArrowUpRight size={16} /></Link></div></section></main>;
+export async function generateMetadata({ params }: { params: Promise<{ info: string }> }): Promise<Metadata> {
+  const { info } = await params;
+  if (info === "privacy" || info === "terms") {
+    const title = info === "privacy" ? "Privacy notice" : "Terms of service";
+    return publicPageMetadata(title, "Neba’s public service information.", `/${info}`);
+  }
+  if (!Object.hasOwn(pages, info)) return {};
+  const page = pages[info as PublicInfo];
+  return publicPageMetadata(page.title, page.intro, `/${info}`);
 }
 
-export default async function InfoPage({ params }: { params: Promise<{ info: string }> }) { const { info } = await params; if (!Object.hasOwn(pages, info)) notFound(); if (info === "about") return <AboutPage />; if (info === "privacy" || info === "terms") return <LegalPage kind={info} />; const page = pages[info as keyof typeof pages]; return <main className="public-info landing-container"><span className="landing-eyebrow">{page.label}</span><h1>{page.title}</h1><p className="public-info-intro">{page.intro}</p>{"sections" in page && page.sections.map(([title, text]) => <section key={title}><h2>{title}</h2><p>{text}</p></section>)}<div className="public-info-links"><Link href="/#how-it-works">How GetNeba works</Link><Link href="/about">Why GetNeba</Link><Link href="/privacy">Privacy information</Link><Link href="/community-guidelines">Community guidelines</Link></div></main>; }
+export default async function InfoPage({ params }: { params: Promise<{ info: string }> }) {
+  const { info } = await params;
+  if (info === "privacy" || info === "terms") return <LegalPage kind={info} />;
+  if (!Object.hasOwn(pages, info)) notFound();
+  const page = pages[info as PublicInfo];
+  const Icon = info === "about" ? Building2 : info === "help" ? BookOpenCheck : ShieldCheck;
+
+  return <main className="public-info landing-container">
+    <span className="landing-eyebrow"><Icon size={15} /> {page.label}</span>
+    <h1>{page.title}</h1>
+    <p className="public-info-intro">{page.intro}</p>
+    {page.sections.map(([title, text]) => <section key={title}><h2>{title}</h2><p>{text}</p></section>)}
+    <div className="public-info-links">
+      <Link href="/schools">Explore Neba for Schools <ArrowUpRight size={15} /></Link>
+      <Link href="/schools/get-started">Set up a school workspace <ArrowUpRight size={15} /></Link>
+      <Link href="/privacy">Privacy information</Link>
+    </div>
+  </main>;
+}

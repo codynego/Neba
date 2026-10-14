@@ -179,3 +179,22 @@ BILLING_PLUS_YEARLY_PRICE = os.getenv("BILLING_PLUS_YEARLY_PRICE", "29.99")
 BILLING_PLUS_CURRENCY = os.getenv("BILLING_PLUS_CURRENCY", "USD").upper()
 DATA_UPLOAD_MAX_MEMORY_SIZE = 12 * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 3 * 1024 * 1024
+
+# A deployment must name its actual public origins and credentials. Falling
+# back to local defaults on Vercel makes login cookies, CORS, and transactional
+# links unreliable, so fail before accepting traffic instead.
+if IS_VERCEL:
+    required_production_environment = (
+        "DJANGO_SECRET_KEY",
+        "DATABASE_URL",
+        "DJANGO_ALLOWED_HOSTS",
+        "CORS_ALLOWED_ORIGINS",
+        "CSRF_TRUSTED_ORIGINS",
+        "FRONTEND_URL",
+    )
+    missing_production_environment = [name for name in required_production_environment if not os.getenv(name)]
+    if missing_production_environment:
+        raise ImproperlyConfigured(
+            "Set the production environment variables before deploying: "
+            + ", ".join(missing_production_environment)
+        )

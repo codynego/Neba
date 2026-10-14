@@ -1,36 +1,24 @@
-# Nearwork
+# Neba
 
-A multi-city local task marketplace MVP built with Django REST Framework and Next.js. People can post paid tasks, offer services, apply to tasks, and manage work in a dashboard.
+Neba is an education ecosystem. The first live product, **Neba for Schools**, gives school teams a private workspace for records, teaching work, assessment evidence, and explainable academic signals. Neba Opportunities remains an ecosystem product for scholarships, grants, and academic pathways.
 
 ## Project layout
 
-- `backend/config/`: Django settings and API routing
-- `backend/accounts/`: accounts and token authentication
-- `backend/locations/`: location directory model and API
-- `backend/tasks/`: task posts and completion state
-- `backend/offers/`: service offers
-- `backend/bookings/`: applications and requester selection
-- `frontend/src/app/`: page routes
-- `frontend/src/components/`: shared UI
-- `frontend/src/lib/`: API client and types
-
-Locations are freeform city and state fields, so the pilot can run in any city.
+- `frontend/` — Next.js application and the public Neba site
+- `backend/` — Django REST API, school data model, and administrative tools
+- `backend/schools/` — school setup, role-based access, roster, assessment, and academic-intelligence APIs
+- `docs/launch-checklist.md` — the release owner’s pre-launch checklist
 
 ## Run locally
 
 Use two terminals.
 
-**Backend**
-
 ```powershell
 cd backend
 python -m pip install -r requirements.txt
-$env:DJANGO_DEBUG = "true"
 python manage.py migrate
 python manage.py runserver
 ```
-
-**Frontend**
 
 ```powershell
 cd frontend
@@ -38,60 +26,34 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000. The frontend defaults to http://localhost:8000/api. Set `NEXT_PUBLIC_API_URL` to change that. Django uses SQLite locally; set `DATABASE_URL` for PostgreSQL. See `backend/.env.example` for supported environment values. Environment values must be set in your shell or deployment service; Django does not automatically load the example file.
+Open `http://localhost:3000`. The frontend defaults to `http://localhost:8000/api`; set `NEXT_PUBLIC_API_URL` when the API uses another origin.
 
-## Deploy the backend to Vercel
+Copy the documented environment-variable names from `frontend/.env.example` and `backend/.env.example`. Never commit a populated `.env` file.
 
-Create a separate Vercel project for the Django API and select `backend` as its Root Directory. Vercel detects `manage.py` and the configured WSGI application automatically.
-
-Provision pooled PostgreSQL and Redis integrations, then configure these Production and Preview environment variables:
-
-- `DJANGO_SECRET_KEY`: a long random value that stays unchanged
-- `DJANGO_DEBUG`: `false`
-- `DATABASE_URL`: the pooled PostgreSQL connection URL
-- `REDIS_URL`: the Redis connection URL used for shared API throttling and caching
-- `DJANGO_ALLOWED_HOSTS`: the custom API domain, if one is configured
-- `CORS_ALLOWED_ORIGINS`: `https://getneba.app,https://www.getneba.app`
-- `CSRF_TRUSTED_ORIGINS`: `https://getneba.app,https://www.getneba.app`
-- the Cloudflare R2 values documented in `backend/.env.example`
-- `WEB_PUSH_VAPID_PUBLIC_KEY`, `WEB_PUSH_VAPID_PRIVATE_KEY`, and `WEB_PUSH_VAPID_SUBJECT`: one VAPID key pair and a contact URI such as `mailto:support@getneba.app`
-- `BACHS_API_KEY`, `BACHS_WEBHOOK_SECRET`, `BACHS_PLUS_MONTHLY_PRODUCT_ID`, `BACHS_PLUS_YEARLY_PRODUCT_ID`, and the `BILLING_PLUS_*` values documented in [Bachs billing setup](docs/bachs-billing.md)
-
-Web push is opt-in: after a member signs in, GetNeba presents a one-time browser permission prompt. The backend stores a separate subscription for each browser or device and sends the existing in-app notifications there after their database transaction completes. Generate and retain one VAPID key pair for the API deployment; do not expose the private key. A notification click opens its saved in-app path, including the exact message when applicable.
-
-Profile photos use a private Cloudflare R2 bucket. Create an R2 API token with object read/write access to that bucket and set `R2_ENDPOINT_URL`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, and `R2_BUCKET_NAME`. Browser uploads use short-lived signed `PUT` URLs, so add this CORS policy to the bucket:
-
-```json
-[
-  {
-    "AllowedOrigins": ["https://getneba.app", "https://www.getneba.app", "http://localhost:3000"],
-    "AllowedMethods": ["PUT"],
-    "AllowedHeaders": ["Content-Type"],
-    "ExposeHeaders": ["ETag"],
-    "MaxAgeSeconds": 3600
-  }
-]
-```
-
-Run migrations against the production database before sending traffic to a new schema. From the repository root, link the Vercel project and run:
+## Verification
 
 ```powershell
-vercel link --project neba
-cmd.exe /d /s /c "vercel env run -e production -- python backend/manage.py migrate --noinput"
+cd frontend
+npm run typecheck
+npm run build
+
+cd ..\backend
+python manage.py makemigrations --check --dry-run
+python manage.py test
 ```
 
-Deploy with the Vercel Git integration or run `vercel deploy --prod` from the repository root. Verify the deployment at `/api/health/`, then set the frontend's `NEXT_PUBLIC_API_URL` to the deployed backend URL plus `/api`.
+When local development is connected to a shared PostgreSQL database, use a separate disposable database for tests. Do not let Django delete a shared test database.
 
-## API
+## Production release
 
-- `/api/auth/register/`, `login/`, `logout/`, `me/`
-- `/api/tasks/` — browse, post, filter by city/category/search; `/{id}/complete/` and `/{id}/cancel/`
-- `/api/offers/` — browse and publish service offers
-- `/api/applications/` — apply, shortlist, use candidate chat, send/respond to booking offers, and view sent/received applications
-- `/api/cities/` — optional city directory
+Deploy the frontend and Django API as separate Vercel projects, with `frontend` and `backend` respectively as their root directories.
 
-Run `python manage.py test tasks` to verify the core task flow.
+Before routing public traffic:
 
-## Pilot boundaries
+1. Configure the production secrets and public origins listed in the example environment files.
+2. Set a stable `DJANGO_SECRET_KEY`, production `DATABASE_URL`, `REDIS_URL`, `DJANGO_ALLOWED_HOSTS`, `CORS_ALLOWED_ORIGINS`, `CSRF_TRUSTED_ORIGINS`, `FRONTEND_URL`, and `NEXT_PUBLIC_API_URL`.
+3. Set Neba’s legal operator name, address, and privacy contact in the frontend environment variables.
+4. Run `python backend/manage.py migrate --noinput` against the production database.
+5. Confirm `https://API_DOMAIN/api/health/`, the school setup journey, staff access controls, score entry, and academic intelligence with production-like accounts.
 
-Rewards are arranged directly between participants. Neba records the agreed reward but does not hold money or goods, enforce exchanges, or insure work. The Django admin is available for manual operations. Add stronger moderation, dispute handling, and secure payment support before an open public launch.
+Use [the launch checklist](docs/launch-checklist.md) as the release sign-off record.

@@ -3,10 +3,10 @@ import type { MetadataRoute } from "next";
 export default function manifest(): MetadataRoute.Manifest {
   return {
     id: "/",
-    name: "GetNeba",
-    short_name: "GetNeba",
-    description: "Find local help, offer your skills, and coordinate neighborhood tasks.",
-    start_url: "/dashboard",
+    name: "Neba",
+    short_name: "Neba",
+    description: "Intelligence for education: connected tools for schools, educators, and learners.",
+    start_url: "/workspace",
     scope: "/",
     display: "standalone",
     background_color: "#edf8f2",
