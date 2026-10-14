@@ -8,7 +8,7 @@ from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.test import APITestCase
 
-from .models import AcademicIntervention, Assessment, AssessmentQuestion, AssessmentQuestionScore, AssessmentScore, School, SchoolClass, SchoolMembership, Student, StudentIntervention, Subject, TeachingAssignment
+from .models import AcademicIntervention, Assessment, AssessmentQuestion, AssessmentQuestionScore, AssessmentScore, ClassTeacherAssignment, School, SchoolClass, SchoolMembership, Student, StudentIntervention, Subject, TeachingAssignment
 from .permissions import class_subject_access_or_403
 
 
@@ -177,6 +177,37 @@ class SchoolRosterTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         membership.refresh_from_db()
         self.assertEqual(membership.role, SchoolMembership.Role.ACADEMIC_HEAD)
+
+    def test_admin_can_assign_class_and_subject_responsibilities(self):
+        membership = SchoolMembership.objects.create(school=self.school, user=self.other, role=SchoolMembership.Role.TEACHER, status=SchoolMembership.Status.ACTIVE)
+        subject = Subject.objects.create(school=self.school, name="Mathematics")
+
+        response = self.client.patch(
+            f"/api/schools/members/{membership.public_id}/",
+            {"action": "add_assignment", "type": "class_teacher", "class_id": self.school_class.id},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(ClassTeacherAssignment.objects.filter(membership=membership, school_class=self.school_class, is_active=True).exists())
+
+        response = self.client.patch(
+            f"/api/schools/members/{membership.public_id}/",
+            {"action": "add_assignment", "type": "subject_teacher", "class_id": self.school_class.id, "subject_id": subject.id},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual({item["type"] for item in response.data["assignments"]}, {"class_teacher", "subject_teacher"})
+        self.assertTrue(TeachingAssignment.objects.filter(membership=membership, school_class=self.school_class, subject=subject, is_active=True).exists())
+
+    def test_changing_teacher_role_revokes_active_assignments(self):
+        membership = SchoolMembership.objects.create(school=self.school, user=self.other, role=SchoolMembership.Role.TEACHER, status=SchoolMembership.Status.ACTIVE)
+        assignment = ClassTeacherAssignment.objects.create(membership=membership, school_class=self.school_class)
+
+        response = self.client.patch(f"/api/schools/members/{membership.public_id}/", {"action": "update_role", "role": "academic_head"}, format="json")
+
+        self.assertEqual(response.status_code, 200)
+        assignment.refresh_from_db()
+        self.assertFalse(assignment.is_active)
 
 
 class AcademicIntelligenceTests(APITestCase):

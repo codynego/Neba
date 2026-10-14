@@ -2,7 +2,7 @@
 
 import { FormEvent, ReactNode, useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, BarChart3, Bot, Check, CheckCircle2, ClipboardCheck, Edit3, FileText, FileUp, LayoutDashboard, Settings, Sparkles, Target, TrendingDown, TrendingUp, Users, UsersRound } from "lucide-react";
+import { ArrowLeft, ArrowRight, BarChart3, Bot, Check, CheckCircle2, ClipboardCheck, Edit3, FileText, LayoutDashboard, Settings, Sparkles, Target, TrendingDown, TrendingUp, Users, UsersRound } from "lucide-react";
 import { api } from "@/lib/api";
 
 type Workspace = { id: number; name: string; role: string };
@@ -24,7 +24,7 @@ const shortId = (id?: string) => id?.slice(0, 8).toUpperCase() || "PREPARING";
 
 function WorkspaceSidebar({ workspace, active }: { workspace: Workspace; active: "students" | "staff" }) {
   const navigation = [
-    ["Overview", "/schools/dashboard", LayoutDashboard, false], ["Academic intelligence", "/schools/dashboard?section=intelligence", BarChart3, false], ["Assessments", "/schools/dashboard?section=assessments", FileUp, false], ["Teaching assistant", "/schools/dashboard?section=assistant", Bot, false], ["Students & classes", "/schools/dashboard?section=students", Users, active === "students"], ["Reports", "/schools/dashboard?section=reports", FileText, false], ["Staff & access", "/schools/dashboard?section=staff", UsersRound, active === "staff"], ["School settings", "/schools/dashboard?section=settings", Settings, false],
+    ["Overview", "/schools/dashboard", LayoutDashboard, false], ["Academic intelligence", "/schools/dashboard?section=intelligence", BarChart3, false], ["My classes", "/schools/dashboard?section=assistant", Bot, false], ["Students & classes", "/schools/dashboard?section=students", Users, active === "students"], ["Reports", "/schools/dashboard?section=reports", FileText, false], ["Staff & access", "/schools/dashboard?section=staff", UsersRound, active === "staff"], ["School settings", "/schools/dashboard?section=settings", Settings, false],
   ] as const;
   return <aside className="school-detail-sidebar">
     <Link className="school-detail-brand" href="/schools/dashboard"><span>N</span><strong>neba</strong></Link>

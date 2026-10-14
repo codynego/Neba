@@ -15,7 +15,7 @@ from rest_framework.generics import get_object_or_404
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import AcademicIntervention, Assessment, AssessmentQuestion, AssessmentQuestionScore, AssessmentScore, Assignment, School, SchoolClass, SchoolMembership, Student, StudentIntervention, Subject, TeachingAssignment
+from .models import AcademicIntervention, Assessment, AssessmentQuestion, AssessmentQuestionScore, AssessmentScore, Assignment, ClassTeacherAssignment, School, SchoolClass, SchoolMembership, Student, StudentIntervention, Subject, TeachingAssignment
 from .permissions import active_membership_or_403, class_subject_access_or_403
 
 
@@ -147,9 +147,13 @@ class SchoolRosterView(APIView):
         subjects = school.subjects.filter(is_active=True).values("id", "name", "code")
         students = school.students.select_related("school_class").filter(is_active=True)
         if membership.role == SchoolMembership.Role.TEACHER:
-            assigned_class_ids = membership.teaching_assignments.filter(is_active=True).values_list("school_class_id", flat=True)
+            subject_class_ids = membership.teaching_assignments.filter(is_active=True).values_list("school_class_id", flat=True)
+            class_teacher_ids = membership.class_teacher_assignments.filter(is_active=True).values_list("school_class_id", flat=True)
+            assigned_class_ids = set(subject_class_ids).union(class_teacher_ids)
+            assigned_subject_ids = membership.teaching_assignments.filter(is_active=True).values_list("subject_id", flat=True)
             students = students.filter(school_class_id__in=assigned_class_ids)
             classes = classes.filter(id__in=assigned_class_ids)
+            subjects = subjects.filter(id__in=assigned_subject_ids)
         members = school.memberships.none()
         if membership.role in {SchoolMembership.Role.ADMIN, SchoolMembership.Role.ACADEMIC_HEAD}:
             members = school.memberships.select_related("user").filter(status=SchoolMembership.Status.ACTIVE).order_by("user__first_name", "user__username")
@@ -163,6 +167,7 @@ class SchoolRosterView(APIView):
                 "name": item.user.get_full_name() or item.user.display_name or item.user.username,
                 "email": item.user.email,
                 "role": item.role,
+                "assignment_count": item.teaching_assignments.filter(is_active=True).count() + item.class_teacher_assignments.filter(is_active=True).count(),
             } for item in members],
         })
 
@@ -234,7 +239,9 @@ class StudentDetailView(APIView):
             raise serializers.ValidationError({"detail": "Set up a school workspace first."})
         students = Student.objects.select_related("school_class").filter(school=membership.school, public_id=public_id, is_active=True)
         if membership.role == SchoolMembership.Role.TEACHER:
-            class_ids = membership.teaching_assignments.filter(is_active=True).values_list("school_class_id", flat=True)
+            subject_class_ids = membership.teaching_assignments.filter(is_active=True).values_list("school_class_id", flat=True)
+            class_teacher_ids = membership.class_teacher_assignments.filter(is_active=True).values_list("school_class_id", flat=True)
+            class_ids = set(subject_class_ids).union(class_teacher_ids)
             students = students.filter(school_class_id__in=class_ids)
         return get_object_or_404(students), membership
 
@@ -584,6 +591,8 @@ class SchoolMemberDetailView(APIView):
         return member, membership
 
     def serialize_member(self, member):
+        subject_assignments = member.teaching_assignments.select_related("school_class", "subject").filter(is_active=True)
+        class_assignments = member.class_teacher_assignments.select_related("school_class").filter(is_active=True)
         return {
             "public_id": member.public_id,
             "name": member.user.get_full_name() or member.user.display_name or member.user.username,
@@ -591,6 +600,29 @@ class SchoolMemberDetailView(APIView):
             "role": member.role,
             "status": member.status,
             "created_at": member.created_at,
+            "assignments": [
+                {
+                    "id": item.id,
+                    "type": "class_teacher",
+                    "class_id": item.school_class_id,
+                    "class_name": item.school_class.name,
+                    "academic_session": item.school_class.academic_session,
+                    "subject_id": None,
+                    "subject_name": None,
+                }
+                for item in class_assignments
+            ] + [
+                {
+                    "id": item.id,
+                    "type": "subject_teacher",
+                    "class_id": item.school_class_id,
+                    "class_name": item.school_class.name,
+                    "academic_session": item.school_class.academic_session,
+                    "subject_id": item.subject_id,
+                    "subject_name": item.subject.name,
+                }
+                for item in subject_assignments
+            ],
         }
 
     def get(self, request, public_id):
@@ -601,11 +633,50 @@ class SchoolMemberDetailView(APIView):
         member, membership = self.get_member_and_membership(request, public_id)
         if membership.role != SchoolMembership.Role.ADMIN:
             raise PermissionDenied("Only school admins can change staff access.")
+        action = str(request.data.get("action", "update_role")).strip()
+        if action == "add_assignment":
+            if member.role != SchoolMembership.Role.TEACHER:
+                raise serializers.ValidationError({"role": "Change this staff member's school role to Teacher before assigning classes."})
+            assignment_type = str(request.data.get("type", "")).strip()
+            school_class = get_object_or_404(SchoolClass, id=request.data.get("class_id"), school=membership.school, is_active=True)
+            if assignment_type == "class_teacher":
+                item, _created = ClassTeacherAssignment.objects.update_or_create(
+                    membership=member,
+                    school_class=school_class,
+                    defaults={"is_active": True, "ends_at": None},
+                )
+            elif assignment_type == "subject_teacher":
+                subject = get_object_or_404(Subject, id=request.data.get("subject_id"), school=membership.school, is_active=True)
+                item, _created = TeachingAssignment.objects.update_or_create(
+                    membership=member,
+                    school_class=school_class,
+                    subject=subject,
+                    defaults={"is_active": True, "ends_at": None},
+                )
+            else:
+                raise serializers.ValidationError({"type": "Choose class teacher or subject teacher."})
+            item.full_clean()
+            return Response(self.serialize_member(member))
+        if action == "remove_assignment":
+            assignment_type = str(request.data.get("type", "")).strip()
+            model = ClassTeacherAssignment if assignment_type == "class_teacher" else TeachingAssignment if assignment_type == "subject_teacher" else None
+            if model is None:
+                raise serializers.ValidationError({"type": "Choose a valid assignment type."})
+            item = get_object_or_404(model, id=request.data.get("assignment_id"), membership=member, is_active=True)
+            item.is_active = False
+            item.ends_at = max(timezone.localdate(), item.starts_at)
+            item.save(update_fields=("is_active", "ends_at", "updated_at"))
+            return Response(self.serialize_member(member))
+        if action != "update_role":
+            raise serializers.ValidationError({"action": "Choose a valid staff access action."})
         role = str(request.data.get("role", "")).strip()
         if role not in {SchoolMembership.Role.ADMIN, SchoolMembership.Role.ACADEMIC_HEAD, SchoolMembership.Role.TEACHER}:
             raise serializers.ValidationError({"role": "Choose a valid school role."})
         member.role = role
         member.save(update_fields=("role", "updated_at"))
+        if role != SchoolMembership.Role.TEACHER:
+            member.teaching_assignments.filter(is_active=True).update(is_active=False, ends_at=timezone.localdate())
+            member.class_teacher_assignments.filter(is_active=True).update(is_active=False, ends_at=timezone.localdate())
         return Response(self.serialize_member(member))
 
 

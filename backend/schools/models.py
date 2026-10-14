@@ -220,6 +220,44 @@ class TeachingAssignment(models.Model):
         return f"{self.membership}: {self.school_class} - {self.subject}"
 
 
+class ClassTeacherAssignment(models.Model):
+    """A class-level pastoral/administrative responsibility, separate from subject access."""
+
+    membership = models.ForeignKey(SchoolMembership, on_delete=models.CASCADE, related_name="class_teacher_assignments")
+    school_class = models.ForeignKey(SchoolClass, on_delete=models.CASCADE, related_name="class_teacher_assignments")
+    starts_at = models.DateField(default=timezone.localdate)
+    ends_at = models.DateField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=("membership", "school_class"), name="unique_class_teacher_assignment")]
+
+    def clean(self):
+        errors = {}
+        if self.membership_id and self.membership.role != SchoolMembership.Role.TEACHER:
+            errors["membership"] = "Only teacher memberships can receive class teacher assignments."
+        if self.membership_id and self.school_class_id and self.membership.school_id != self.school_class.school_id:
+            errors["school_class"] = "The class must belong to the membership's school."
+        if self.ends_at and self.starts_at and self.ends_at < self.starts_at:
+            errors["ends_at"] = "The end date cannot be before the start date."
+        if errors:
+            raise ValidationError(errors)
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    @property
+    def is_current(self):
+        today = timezone.localdate()
+        return self.is_active and self.starts_at <= today and (self.ends_at is None or self.ends_at >= today)
+
+    def __str__(self):
+        return f"{self.membership}: class teacher for {self.school_class}"
+
+
 class Assessment(models.Model):
     class Type(models.TextChoices):
         CA = "ca", "Continuous assessment"
