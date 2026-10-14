@@ -380,3 +380,44 @@ class AcademicIntervention(models.Model):
             raise ValidationError({"school_class": "The class must belong to this school."})
         if self.subject_id and self.school_id and self.subject.school_id != self.school_id:
             raise ValidationError({"subject": "The subject must belong to this school."})
+
+
+class StudentIntervention(models.Model):
+    """A teacher-owned support plan for one learner, grounded in recorded evidence."""
+
+    class Status(models.TextChoices):
+        DRAFT = "draft", "Draft"
+        ACTIVE = "active", "Active"
+        COMPLETE = "complete", "Complete"
+
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="student_interventions")
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name="interventions")
+    school_class = models.ForeignKey(SchoolClass, on_delete=models.PROTECT, related_name="student_interventions")
+    subject = models.ForeignKey(Subject, on_delete=models.PROTECT, related_name="student_interventions")
+    topic = models.CharField(max_length=160)
+    title = models.CharField(max_length=180)
+    rationale = models.TextField(blank=True)
+    baseline_average = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    follow_up_average = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.DRAFT)
+    created_by = models.ForeignKey(SchoolMembership, null=True, on_delete=models.SET_NULL, related_name="created_student_interventions")
+    completed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+        indexes = [models.Index(fields=("student", "status"), name="student_plan_status_idx")]
+
+    def clean(self):
+        errors = {}
+        if self.student_id and self.school_id and self.student.school_id != self.school_id:
+            errors["student"] = "The student must belong to this school."
+        if self.school_class_id and self.school_id and self.school_class.school_id != self.school_id:
+            errors["school_class"] = "The class must belong to this school."
+        if self.subject_id and self.school_id and self.subject.school_id != self.school_id:
+            errors["subject"] = "The subject must belong to this school."
+        if self.student_id and self.school_class_id and self.student.school_class_id != self.school_class_id:
+            errors["school_class"] = "The plan's class must match the student's current class."
+        if errors:
+            raise ValidationError(errors)

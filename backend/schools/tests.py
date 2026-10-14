@@ -1,13 +1,14 @@
 from datetime import timedelta
 
 from django.contrib.auth import get_user_model
+from django.test import override_settings
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.test import APITestCase
 
-from .models import AcademicIntervention, Assessment, AssessmentQuestion, AssessmentQuestionScore, AssessmentScore, School, SchoolClass, SchoolMembership, Student, Subject, TeachingAssignment
+from .models import AcademicIntervention, Assessment, AssessmentQuestion, AssessmentQuestionScore, AssessmentScore, School, SchoolClass, SchoolMembership, Student, StudentIntervention, Subject, TeachingAssignment
 from .permissions import class_subject_access_or_403
 
 
@@ -224,3 +225,54 @@ class AcademicIntelligenceTests(APITestCase):
         self.assertEqual(response.data["topic_signals"][0]["topic"], "Equivalent fractions")
         self.assertEqual(response.data["topic_signals"][0]["average"], 40.0)
         self.assertIn("question-level scores", response.data["topic_signals"][0]["evidence"])
+
+    @override_settings(OPENAI_API_KEY="")
+    def test_teaching_assistant_returns_an_evidence_grounded_review_draft_without_ai_configuration(self):
+        response = self.client.post(
+            f"/api/schools/teaching-assistant/?school_id={self.school.id}",
+            {"class_id": self.school_class.id, "subject_id": self.subject.id, "topic": "Fractions", "kind": "revision"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["source"], "structured_fallback")
+        self.assertEqual(response.data["evidence"]["average"], 45.0)
+        self.assertIn("teacher-review", response.data["teacher_note"])
+
+
+class StudentIntelligenceTests(APITestCase):
+    def setUp(self):
+        self.admin = get_user_model().objects.create_user(username="learner-insight-admin", password="password")
+        self.school = School.objects.create(name="Learner Insight School", slug="learner-insight-school")
+        self.membership = SchoolMembership.objects.create(school=self.school, user=self.admin, role=SchoolMembership.Role.ADMIN, status=SchoolMembership.Status.ACTIVE)
+        self.school_class = SchoolClass.objects.create(school=self.school, name="JSS 3", academic_session="2026/2027")
+        self.subject = Subject.objects.create(school=self.school, name="Mathematics")
+        self.student = Student.objects.create(school=self.school, school_class=self.school_class, first_name="Ada", last_name="Okafor")
+        for index, score in enumerate((8, 12), start=1):
+            assessment = Assessment.objects.create(school=self.school, school_class=self.school_class, subject=self.subject, academic_session="2026/2027", term="First term", title=f"CA {index}", assessment_type=Assessment.Type.CA, maximum_score=20, topics="Fractions", created_by=self.membership)
+            AssessmentScore.objects.create(assessment=assessment, student=self.student, score=score, status=AssessmentScore.EntryStatus.ENTERED, entered_by=self.membership)
+            question = AssessmentQuestion.objects.create(assessment=assessment, number=1, topic="Equivalent fractions", maximum_score=20)
+            AssessmentQuestionScore.objects.create(question=question, student=self.student, score=score, status=AssessmentQuestionScore.EntryStatus.ENTERED, entered_by=self.membership)
+        self.client.force_authenticate(self.admin)
+
+    def test_student_profile_returns_explainable_topic_signal_and_history(self):
+        response = self.client.get(f"/api/schools/students/{self.student.public_id}/intelligence/?school_id={self.school.id}")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["summary"]["overall_average"], 50.0)
+        self.assertEqual(response.data["summary"]["assessments_recorded"], 2)
+        self.assertEqual(response.data["topic_signals"][0]["topic"], "Equivalent fractions")
+        self.assertEqual(response.data["topic_signals"][0]["confidence"], "sufficient")
+        self.assertEqual(response.data["topic_signals"][0]["status"], "needs_support")
+        self.assertEqual(len(response.data["assessment_history"]), 2)
+
+    def test_member_can_create_and_complete_a_student_support_plan(self):
+        url = f"/api/schools/students/{self.student.public_id}/intelligence/?school_id={self.school.id}"
+        response = self.client.post(url, {"subject_id": self.subject.id, "topic": "Equivalent fractions", "baseline_average": 50}, format="json")
+        self.assertEqual(response.status_code, 201)
+        plan = StudentIntervention.objects.get()
+        self.assertEqual(plan.status, StudentIntervention.Status.DRAFT)
+
+        response = self.client.patch(url, {"intervention_id": plan.id, "status": "complete"}, format="json")
+        self.assertEqual(response.status_code, 200)
+        plan.refresh_from_db()
+        self.assertEqual(plan.status, StudentIntervention.Status.COMPLETE)
+        self.assertEqual(float(plan.follow_up_average), 50.0)

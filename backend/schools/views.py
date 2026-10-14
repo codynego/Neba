@@ -1,15 +1,21 @@
+import json
+import re
+
+import requests
+
+from django.conf import settings
 from django.db import transaction
 from django.db.models import Q
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 from django.utils.text import slugify
-from rest_framework import permissions, serializers
+from rest_framework import permissions, serializers, status
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.generics import get_object_or_404
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import AcademicIntervention, Assessment, AssessmentQuestion, AssessmentQuestionScore, AssessmentScore, Assignment, School, SchoolClass, SchoolMembership, Student, Subject, TeachingAssignment
+from .models import AcademicIntervention, Assessment, AssessmentQuestion, AssessmentQuestionScore, AssessmentScore, Assignment, School, SchoolClass, SchoolMembership, Student, StudentIntervention, Subject, TeachingAssignment
 from .permissions import active_membership_or_403, class_subject_access_or_403
 
 
@@ -247,6 +253,320 @@ class StudentDetailView(APIView):
             raise PermissionDenied("The selected class is outside this school.")
         serializer.save()
         return Response(StudentSerializer(student).data)
+
+
+def _student_intelligence_payload(student, membership):
+    """Return transparent learner signals from entered assessment scores only."""
+    subject_ids = None
+    if membership.role == SchoolMembership.Role.TEACHER:
+        subject_ids = set(
+            TeachingAssignment.objects.filter(
+                membership=membership,
+                school_class=student.school_class,
+                is_active=True,
+                starts_at__lte=timezone.localdate(),
+            ).filter(Q(ends_at__isnull=True) | Q(ends_at__gte=timezone.localdate())).values_list("subject_id", flat=True)
+        )
+
+    score_queryset = AssessmentScore.objects.filter(
+        student=student,
+        status=AssessmentScore.EntryStatus.ENTERED,
+        score__isnull=False,
+    ).select_related("assessment__subject")
+    question_queryset = AssessmentQuestionScore.objects.filter(
+        student=student,
+        status=AssessmentQuestionScore.EntryStatus.ENTERED,
+        score__isnull=False,
+    ).select_related("question__assessment__subject")
+    if subject_ids is not None:
+        score_queryset = score_queryset.filter(assessment__subject_id__in=subject_ids)
+        question_queryset = question_queryset.filter(question__assessment__subject_id__in=subject_ids)
+
+    topic_data = {}
+    question_assessment_ids = set()
+    assessment_history = []
+    all_percentages = []
+    for score in score_queryset:
+        assessment = score.assessment
+        if not assessment.maximum_score:
+            continue
+        percentage = round(float(score.score) / float(assessment.maximum_score) * 100, 1)
+        all_percentages.append(percentage)
+        assessment_history.append({
+            "id": assessment.id,
+            "title": assessment.title,
+            "subject": assessment.subject.name,
+            "assessment_type": assessment.assessment_type,
+            "date": assessment.assessment_date,
+            "percentage": percentage,
+            "score": float(score.score),
+            "maximum_score": float(assessment.maximum_score),
+        })
+
+    def add_topic_score(*, subject, topic, percentage, assessment, evidence_type):
+        key = (subject.id, topic.casefold())
+        item = topic_data.setdefault(key, {
+            "topic": topic,
+            "subject": subject.name,
+            "subject_id": subject.id,
+            "percentages": [],
+            "assessment_ids": set(),
+            "dates": [],
+            "question_level": evidence_type == "question-level",
+        })
+        item["percentages"].append(percentage)
+        item["assessment_ids"].add(assessment.id)
+        item["dates"].append((assessment.assessment_date, percentage))
+        item["question_level"] = item["question_level"] or evidence_type == "question-level"
+
+    for question_score in question_queryset:
+        question = question_score.question
+        assessment = question.assessment
+        if not question.maximum_score:
+            continue
+        question_assessment_ids.add(assessment.id)
+        add_topic_score(
+            subject=assessment.subject,
+            topic=question.topic,
+            percentage=round(float(question_score.score) / float(question.maximum_score) * 100, 1),
+            assessment=assessment,
+            evidence_type="question-level",
+        )
+
+    for score in score_queryset:
+        assessment = score.assessment
+        if assessment.id in question_assessment_ids or not assessment.maximum_score:
+            continue
+        percentage = round(float(score.score) / float(assessment.maximum_score) * 100, 1)
+        for topic in _topic_labels(assessment.topics):
+            add_topic_score(subject=assessment.subject, topic=topic, percentage=percentage, assessment=assessment, evidence_type="topic-tagged")
+
+    signals = []
+    for item in topic_data.values():
+        average = round(sum(item["percentages"]) / len(item["percentages"]), 1)
+        dated_scores = sorted(item["dates"], key=lambda entry: entry[0])
+        change = round(dated_scores[-1][1] - dated_scores[0][1], 1) if len(dated_scores) >= 2 else None
+        coverage = len(item["percentages"])
+        assessment_count = len(item["assessment_ids"])
+        signals.append({
+            "topic": item["topic"],
+            "subject": item["subject"],
+            "subject_id": item["subject_id"],
+            "average": average,
+            "coverage": coverage,
+            "assessments": assessment_count,
+            "confidence": "sufficient" if coverage >= 2 and assessment_count >= 2 else "early",
+            "status": "needs_support" if average < 60 else "developing" if average < 75 else "strength",
+            "change": change,
+            "evidence": f"{coverage} recorded {'question-level' if item['question_level'] else 'topic-tagged'} score{'s' if coverage != 1 else ''} across {assessment_count} assessment{'s' if assessment_count != 1 else ''}.",
+        })
+    signals.sort(key=lambda item: (item["average"], item["topic"]))
+
+    intervention_queryset = StudentIntervention.objects.filter(school=student.school, student=student).select_related("subject")
+    if subject_ids is not None:
+        intervention_queryset = intervention_queryset.filter(subject_id__in=subject_ids)
+    interventions = [{
+        "id": item.id,
+        "title": item.title,
+        "topic": item.topic,
+        "subject": item.subject.name,
+        "status": item.status,
+        "baseline_average": float(item.baseline_average) if item.baseline_average is not None else None,
+        "follow_up_average": float(item.follow_up_average) if item.follow_up_average is not None else None,
+        "created_at": item.created_at,
+        "completed_at": item.completed_at,
+    } for item in intervention_queryset]
+    return {
+        "summary": {
+            "overall_average": round(sum(all_percentages) / len(all_percentages), 1) if all_percentages else None,
+            "assessments_recorded": len(assessment_history),
+            "topics_needing_support": sum(item["status"] == "needs_support" for item in signals),
+            "active_interventions": sum(item["status"] in {StudentIntervention.Status.DRAFT, StudentIntervention.Status.ACTIVE} for item in interventions),
+        },
+        "topic_signals": signals,
+        "assessment_history": sorted(assessment_history, key=lambda item: item["date"], reverse=True),
+        "interventions": interventions,
+    }
+
+
+class StudentIntelligenceView(APIView):
+    """Private learner profile: evidence first, teacher decisions second."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_student_and_membership(self, request, public_id):
+        membership = active_workspace_membership(request)
+        if membership is None:
+            raise serializers.ValidationError({"detail": "Set up a school workspace first."})
+        students = Student.objects.select_related("school_class").filter(school=membership.school, public_id=public_id, is_active=True)
+        if membership.role == SchoolMembership.Role.TEACHER:
+            class_ids = membership.teaching_assignments.filter(is_active=True).values_list("school_class_id", flat=True)
+            students = students.filter(school_class_id__in=class_ids)
+        return get_object_or_404(students), membership
+
+    def get(self, request, public_id):
+        student, membership = self.get_student_and_membership(request, public_id)
+        return Response(_student_intelligence_payload(student, membership))
+
+    def post(self, request, public_id):
+        student, membership = self.get_student_and_membership(request, public_id)
+        subject = get_object_or_404(Subject, id=request.data.get("subject_id"), school=membership.school)
+        class_subject_access_or_403(request.user, membership.school, student.school_class, subject)
+        topic = str(request.data.get("topic", "")).strip()
+        if not topic:
+            raise serializers.ValidationError({"topic": "Choose a topic before creating a support plan."})
+        baseline = request.data.get("baseline_average")
+        intervention = StudentIntervention(
+            school=membership.school,
+            student=student,
+            school_class=student.school_class,
+            subject=subject,
+            topic=topic[:160],
+            title=str(request.data.get("title") or f"Focused {topic} support").strip()[:180],
+            rationale=str(request.data.get("rationale") or "Teacher review requested from recorded assessment evidence.").strip(),
+            baseline_average=baseline or None,
+            created_by=membership,
+        )
+        intervention.full_clean()
+        intervention.save()
+        return Response({"id": intervention.id, "title": intervention.title, "status": intervention.status}, status=201)
+
+    def patch(self, request, public_id):
+        student, membership = self.get_student_and_membership(request, public_id)
+        intervention = get_object_or_404(StudentIntervention, id=request.data.get("intervention_id"), school=membership.school, student=student)
+        class_subject_access_or_403(request.user, membership.school, student.school_class, intervention.subject)
+        status = str(request.data.get("status", "")).strip()
+        if status not in StudentIntervention.Status.values:
+            raise serializers.ValidationError({"status": "Choose draft, active, or complete."})
+        intervention.status = status
+        if status == StudentIntervention.Status.COMPLETE:
+            intervention.completed_at = timezone.now()
+            matching_signals = [item for item in _student_intelligence_payload(student, membership)["topic_signals"] if item["subject_id"] == intervention.subject_id and item["topic"].casefold() == intervention.topic.casefold()]
+            if matching_signals:
+                intervention.follow_up_average = matching_signals[0]["average"]
+        else:
+            intervention.completed_at = None
+        intervention.full_clean()
+        intervention.save()
+        return Response({"id": intervention.id, "status": intervention.status, "follow_up_average": float(intervention.follow_up_average) if intervention.follow_up_average is not None else None})
+
+
+def _teaching_evidence(school_class, subject, topic):
+    """Aggregate only recorded scores relevant to one requested teaching topic."""
+    normalized_topic = topic.casefold()
+    assessments = Assessment.objects.filter(school=school_class.school, school_class=school_class, subject=subject).prefetch_related("scores", "questions__scores")
+    percentages, assessment_ids, student_ids = [], set(), set()
+    for assessment in assessments:
+        has_question_evidence = False
+        for question in assessment.questions.all():
+            if question.topic.casefold() != normalized_topic or not question.maximum_score:
+                continue
+            question_scores = [score for score in question.scores.all() if score.status == AssessmentQuestionScore.EntryStatus.ENTERED and score.score is not None]
+            for score in question_scores:
+                percentages.append(float(score.score) / float(question.maximum_score) * 100)
+                student_ids.add(score.student_id)
+            if question_scores:
+                assessment_ids.add(assessment.id)
+                has_question_evidence = True
+        if has_question_evidence or normalized_topic not in {item.casefold() for item in _topic_labels(assessment.topics)} or not assessment.maximum_score:
+            continue
+        entered = [score for score in assessment.scores.all() if score.status == AssessmentScore.EntryStatus.ENTERED and score.score is not None]
+        percentages.extend(float(score.score) / float(assessment.maximum_score) * 100 for score in entered)
+        student_ids.update(score.student_id for score in entered)
+        if entered:
+            assessment_ids.add(assessment.id)
+    return {
+        "topic": topic,
+        "average": round(sum(percentages) / len(percentages), 1) if percentages else None,
+        "coverage": len(percentages),
+        "assessments": len(assessment_ids),
+        "students": len(student_ids),
+        "confidence": "sufficient" if len(percentages) >= 10 and len(assessment_ids) >= 2 else "early",
+    }
+
+
+def _teaching_draft(kind, evidence, school_class, subject):
+    average = evidence["average"]
+    evidence_line = f"{evidence['coverage']} recorded score{'s' if evidence['coverage'] != 1 else ''} from {evidence['assessments']} assessment{'s' if evidence['assessments'] != 1 else ''}."
+    common = {
+        "revision": (f"{evidence['topic']} retrieval and practice", ["Start with two worked examples and ask learners to explain each step.", "Use four short practice questions, moving from guided to independent work.", "End with one exit question mapped to the same topic."], ["Check that every learner can explain the method, not only state an answer.", "Record the exit-question result before deciding the next response."]),
+        "lesson": (f"Reteach {evidence['topic']}", ["Open with one misconception-revealing question from the prior assessment.", "Model the concept using a clear worked example and think aloud.", "Use paired practice, then a short individual check before closing."], ["Keep the reteach focused on the stated topic.", "Use a comparable follow-up question rather than reusing the same item."]),
+        "practice": (f"Differentiated practice: {evidence['topic']}", ["Support group: one guided example with prompts at each step.", "Core group: three independent questions using the same method.", "Stretch group: one application problem that requires explanation."], ["Place learners using current evidence, not a fixed label.", "Allow movement between groups during the activity."]),
+        "summary": (f"Progress summary: {evidence['topic']}", ["State what the recorded scores show in plain language.", "Name the teaching response the class will receive next.", "Set a follow-up check and a date for teacher review."], ["Do not describe the signal as a diagnosis.", "Share only the level of detail appropriate for the intended audience."]),
+        "explain": (f"Teacher evidence note: {evidence['topic']}", ["The signal is based on recorded scores linked to this topic.", "Review the assessment items and learner work before deciding the cause.", "Choose reteaching, practice, or a diagnostic check based on that review."], ["Avoid assigning a cause from scores alone.", "Collect another comparable piece of evidence after the response."]),
+    }
+    title, steps, checks = common[kind]
+    return {
+        "title": title,
+        "teacher_note": f"{school_class.name} {subject.name}: {evidence_line} The current topic average is {average if average is not None else 'not yet available'}%. This is a teacher-review draft, not an automatic recommendation.",
+        "evidence": evidence,
+        "sections": [{"heading": "Suggested teaching sequence", "items": steps}],
+        "review_checks": checks,
+        "source": "structured_fallback",
+    }
+
+
+class TeachingAssistantView(APIView):
+    """Generate teacher-review resources from a selected, explainable topic signal."""
+
+    permission_classes = [permissions.IsAuthenticated]
+    allowed_kinds = {"revision", "lesson", "practice", "summary", "explain"}
+
+    def post(self, request):
+        membership = active_workspace_membership(request)
+        if membership is None:
+            raise serializers.ValidationError({"detail": "Set up a school workspace first."})
+        school_class = get_object_or_404(SchoolClass, id=request.data.get("class_id"), school=membership.school)
+        subject = get_object_or_404(Subject, id=request.data.get("subject_id"), school=membership.school)
+        class_subject_access_or_403(request.user, membership.school, school_class, subject)
+        topic = str(request.data.get("topic", "")).strip()[:160]
+        kind = str(request.data.get("kind", "revision")).strip()
+        if not topic:
+            raise serializers.ValidationError({"topic": "Choose the topic you want to work on."})
+        if kind not in self.allowed_kinds:
+            raise serializers.ValidationError({"kind": "Choose revision, lesson, practice, summary, or explain."})
+        evidence = _teaching_evidence(school_class, subject, topic)
+        fallback = _teaching_draft(kind, evidence, school_class, subject)
+        if not settings.OPENAI_API_KEY:
+            return Response(fallback)
+
+        instructions = (
+            "You are Neba for Schools' teaching assistant. Create a concise teacher-review draft from the supplied assessment evidence. "
+            "Do not diagnose a learner, infer personal circumstances, fabricate curriculum facts, or claim the draft has been approved. "
+            "Do not use student names or identifiers. Keep activities practical for a Nigerian secondary-school classroom. "
+            "Return valid JSON only with this exact shape: "
+            '{"title": string, "teacher_note": string, "sections": [{"heading": string, "items": [string]}], "review_checks": [string]}. '
+            "Use 1 to 3 sections, 2 to 4 items per section, and two review checks."
+        )
+        prompt = json.dumps({
+            "request": kind,
+            "class": school_class.name,
+            "subject": subject.name,
+            "topic": topic,
+            "evidence": evidence,
+            "teacher_review_boundary": "Use these scores as evidence to guide a teacher, not as a diagnosis or an automatic student decision.",
+        })
+        try:
+            response = requests.post(
+                "https://api.openai.com/v1/responses",
+                headers={"Authorization": f"Bearer {settings.OPENAI_API_KEY}", "Content-Type": "application/json"},
+                json={"model": getattr(settings, "SCHOOLS_AI_MODEL", settings.OPENAI_TEXT_MODEL), "instructions": instructions, "input": prompt},
+                timeout=25,
+            )
+            if not response.ok:
+                return Response(fallback)
+            payload = response.json()
+            output = str(payload.get("output_text", "")).strip()
+            if not output:
+                output = " ".join(item.get("text", "") for entry in payload.get("output", []) for item in entry.get("content", []) if item.get("type") == "output_text").strip()
+            generated = json.loads(re.sub(r"^```(?:json)?\s*|\s*```$", "", output, flags=re.IGNORECASE))
+            if not isinstance(generated.get("title"), str) or not isinstance(generated.get("sections"), list):
+                return Response(fallback)
+            generated["evidence"] = evidence
+            generated["source"] = "ai_draft"
+            return Response(generated)
+        except (requests.RequestException, TypeError, ValueError, json.JSONDecodeError):
+            return Response(fallback, status=status.HTTP_200_OK)
 
 
 class SchoolMemberDetailView(APIView):
