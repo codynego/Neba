@@ -33,6 +33,8 @@ This checklist is for a controlled Neba for Schools launch. It is intentionally 
 - [ ] An uptime check monitors the public site and `/api/health/`.
 - [ ] A rollback owner and rollback procedure are written down before releasing.
 - [ ] Search indexing is enabled only after the final domain, metadata, and legal pages are ready.
+- [ ] `NEXT_PUBLIC_SITE_URL` names the canonical HTTPS domain and `SEO_INDEXABLE=true` is set only in the production frontend environment.
+- [ ] The final sitemap at `/sitemap.xml` has been submitted in Google Search Console and Bing Webmaster Tools after deployment.
 
 ## Pilot decision
 

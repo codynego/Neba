@@ -3,8 +3,8 @@ import { ArrowRight, ArrowUpRight, BookOpenText, BriefcaseBusiness, Check, Clock
 import { publicPageMetadata } from "@/lib/seo";
 
 export const metadata = publicPageMetadata(
-  "GetNeba stories: people finding opportunities that fit",
-  "Illustrative stories of people using GetNeba to discover scholarships, grants, jobs, training, and procurement opportunities that fit their goals.",
+  "Neba stories: people finding opportunities that fit",
+  "Illustrative stories of people using Neba to discover scholarships, grants, jobs, training, and procurement opportunities that fit their goals.",
   "/stories",
 );
 

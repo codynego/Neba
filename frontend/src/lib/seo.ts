@@ -5,20 +5,31 @@ export const siteUrl = new URL(configuredUrl);
 if (siteUrl.protocol !== "https:" || siteUrl.username || siteUrl.password || siteUrl.pathname !== "/" || siteUrl.search || siteUrl.hash) {
   throw new Error("NEXT_PUBLIC_SITE_URL must be an HTTPS origin, for example https://getneba.app.");
 }
-export const legalLaunchDetailsReady = Boolean(
-  process.env.NEXT_PUBLIC_LEGAL_OPERATOR_NAME?.trim()
-  && process.env.NEXT_PUBLIC_LEGAL_OPERATOR_ADDRESS?.trim()
-  && process.env.NEXT_PUBLIC_LEGAL_CONTACT_EMAIL?.trim(),
-);
-
-// Keep production pages out of search until the real operator and contact
-// details have been supplied. This protects a pilot from accidentally being
-// presented as a completed public service.
 export const indexPublicPages = process.env.NODE_ENV === "production"
   && process.env.SEO_INDEXABLE !== "false"
-  && legalLaunchDetailsReady
   && (!process.env.VERCEL_ENV || process.env.VERCEL_ENV === "production");
-export const publicSearchPaths = ["/", "/opportunities", "/schools", "/schools/pricing", "/install", "/about", "/stories", "/help", "/community-guidelines", "/privacy", "/terms"];
+export const publicSearchPaths = [
+  "/",
+  "/schools",
+  "/schools/pricing",
+  "/learn",
+  "/opportunities",
+  "/opportunities/explore",
+  "/opportunities/jobs",
+  "/opportunities/scholarships",
+  "/opportunities/grants",
+  "/opportunities/internships",
+  "/opportunities/fellowships",
+  "/opportunities/startup",
+  "/pricing",
+  "/install",
+  "/about",
+  "/stories",
+  "/help",
+  "/community-guidelines",
+  "/privacy",
+  "/terms",
+];
 export const siteDescription = "Neba is an intelligence ecosystem for education—helping schools operate better, educators teach with clarity, and learners move forward with confidence.";
 
 export function publicPageMetadata(title: string, description: string, path: string): Metadata {

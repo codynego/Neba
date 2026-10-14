@@ -14,7 +14,7 @@ const yourProducts = [
 ];
 
 const catalogProducts = [
-  { name: "Neba Learn", description: "Study support, practice, and clearer next steps for learners.", availability: "Coming soon", href: "/#ecosystem", icon: BookOpenCheck },
+  { name: "Neba Learn", description: "Study support, practice, and clearer next steps for learners.", availability: "Coming soon", href: "/learn", icon: BookOpenCheck },
 ];
 
 type SchoolWorkspace = { id: number; name: string; slug: string };

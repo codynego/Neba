@@ -7,7 +7,7 @@ export const metadata = publicPageMetadata("Intelligence for education", homeDes
 
 const products = [
   { name: "Neba for Schools", label: "Available now · The school workspace", title: "A clearer view of every learner.", copy: "Bring school operations, student records, assessments, and academic performance into one connected place for better everyday decisions.", audience: "For school owners, administrators, and teachers.", href: "/schools/get-started", icon: GraduationCap, className: "schools" },
-  { name: "Neba Learn", label: "Coming soon · Learner support", title: "A more confident way to learn.", copy: "Study support, practice, preparation, and progress signals designed to help each learner understand what to focus on next.", audience: "For learners preparing for what is next.", icon: BookOpenCheck, className: "learn" },
+  { name: "Neba Learn", label: "Coming soon · Learner support", title: "A more confident way to learn.", copy: "Study support, practice, preparation, and progress signals designed to help each learner understand what to focus on next.", audience: "For learners preparing for what is next.", href: "/learn", icon: BookOpenCheck, className: "learn" },
   { name: "Neba Opportunities", label: "Academic pathways", title: "Find the next door worth opening.", copy: "Discover scholarships, grants, academic programmes, and pathways that can help ambitious learners move further.", audience: "For learners pursuing their next opportunity.", href: "/opportunities", icon: Sparkles, className: "opportunities" },
 ];
 
@@ -20,7 +20,10 @@ const principles = [
 
 export default function HomePage() {
   return <main className="nc-home">
-    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd({ "@context": "https://schema.org", "@type": "Organization", name: "Neba", url: siteUrl, description: homeDescription }) }} />
+    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd({ "@context": "https://schema.org", "@graph": [
+      { "@type": "Organization", "@id": new URL("/#organization", siteUrl).toString(), name: "Neba", url: siteUrl.toString(), description: homeDescription },
+      { "@type": "WebSite", "@id": new URL("/#website", siteUrl).toString(), name: "Neba", url: siteUrl.toString(), description: homeDescription, publisher: { "@id": new URL("/#organization", siteUrl).toString() } },
+    ] }) }} />
     <section className="nc-hero"><div className="nb-wrap nc-hero-grid">
       <div className="nc-hero-copy"><span className="nb-kicker"><span /> THE FUTURE OF EDUCATION</span><h1>Education works better when <em>everything works together.</em></h1><p>From school operations to classroom teaching and student progress, Neba brings the tools and intelligence educators need to make better decisions and help every learner move forward.</p><div className="nc-actions"><Link href="/schools/get-started" className="nb-button nb-button-lime">Explore Neba for Schools <ArrowUpRight size={19} /></Link><Link href="#ecosystem" className="nc-inline-link">See the ecosystem <ArrowRight size={18} /></Link></div><small>One connected ecosystem for school operations, learning, and opportunity.</small></div>
       <div className="nc-intelligence-map" aria-label="Neba connects school information to learner progress"><div className="nc-map-top"><span>NEBA FOR EDUCATION</span><span className="nc-live"><i /> INSIGHT ACTIVE</span></div><div className="nc-map-source"><span><BarChart3 size={18} /></span><div><small>YOUR SCHOOL</small><strong>Records, results &amp; teaching context</strong></div></div><div className="nc-map-line" aria-hidden="true" /><div className="nc-map-stages">{[["01", "Connect"], ["02", "Understand"], ["03", "Support"], ["04", "Progress"]].map(([number, label]) => <div key={label}><small>{number}</small><strong>{label}</strong><Check size={14} /></div>)}</div><div className="nc-map-output"><span>ONE CONNECTED PICTURE</span><div><b>School operations</b><b>Classroom clarity</b><b>Learner progress</b></div></div></div>

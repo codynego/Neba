@@ -3,8 +3,8 @@ import { InstallAppControl } from "@/components/install-app-control";
 import { publicPageMetadata } from "@/lib/seo";
 
 export const metadata = publicPageMetadata(
-  "Install the GetNeba app",
-  "Install GetNeba on your phone or computer for quick access to local tasks, helpers, activity and messages.",
+  "Install the Neba app",
+  "Install Neba on your phone or computer for quicker access to your school workspace and opportunities.",
   "/install",
 );
 
