@@ -9,7 +9,7 @@ from rest_framework.generics import get_object_or_404
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Assessment, AssessmentScore, Assignment, School, SchoolClass, SchoolMembership, Student, Subject
+from .models import AcademicIntervention, Assessment, AssessmentQuestion, AssessmentQuestionScore, AssessmentScore, Assignment, School, SchoolClass, SchoolMembership, Student, Subject, TeachingAssignment
 from .permissions import active_membership_or_403, class_subject_access_or_403
 
 
@@ -277,6 +277,17 @@ class SchoolMemberDetailView(APIView):
         member, _membership = self.get_member_and_membership(request, public_id)
         return Response(self.serialize_member(member))
 
+    def patch(self, request, public_id):
+        member, membership = self.get_member_and_membership(request, public_id)
+        if membership.role != SchoolMembership.Role.ADMIN:
+            raise PermissionDenied("Only school admins can change staff access.")
+        role = str(request.data.get("role", "")).strip()
+        if role not in {SchoolMembership.Role.ADMIN, SchoolMembership.Role.ACADEMIC_HEAD, SchoolMembership.Role.TEACHER}:
+            raise serializers.ValidationError({"role": "Choose a valid school role."})
+        member.role = role
+        member.save(update_fields=("role", "updated_at"))
+        return Response(self.serialize_member(member))
+
 
 class TeachingWorkView(APIView):
     """Class-centred assessment and assignment records, always constrained to class/subject access."""
@@ -293,10 +304,10 @@ class TeachingWorkView(APIView):
 
     def get(self, request):
         _membership, school_class, subject = self.get_context(request)
-        assessments = Assessment.objects.filter(school_class=school_class, subject=subject)
+        assessments = Assessment.objects.filter(school_class=school_class, subject=subject).prefetch_related("questions__scores")
         assignments = Assignment.objects.filter(school_class=school_class, subject=subject).order_by("-created_at")
         students = Student.objects.filter(school_class=school_class, is_active=True).values("id", "student_id", "first_name", "last_name")
-        return Response({"students": list(students), "assessments": [{"id": item.id, "title": item.title, "type": item.assessment_type, "maximum_score": item.maximum_score, "status": item.status, "entered_scores": item.scores.filter(status=AssessmentScore.EntryStatus.ENTERED).count()} for item in assessments], "assignments": [{"id": item.id, "title": item.title, "due_date": item.due_date, "status": item.status, "counts_toward_ca": item.counts_toward_ca} for item in assignments]})
+        return Response({"students": list(students), "assessments": [{"id": item.id, "title": item.title, "type": item.assessment_type, "maximum_score": item.maximum_score, "status": item.status, "topics": item.topics, "entered_scores": item.scores.filter(status=AssessmentScore.EntryStatus.ENTERED).count(), "questions": [{"id": question.id, "number": question.number, "topic": question.topic, "learning_objective": question.learning_objective, "maximum_score": question.maximum_score, "scores": [{"student_id": score.student_id, "score": score.score, "status": score.status} for score in question.scores.all()]} for question in item.questions.all()]} for item in assessments], "assignments": [{"id": item.id, "title": item.title, "due_date": item.due_date, "status": item.status, "counts_toward_ca": item.counts_toward_ca} for item in assignments]})
 
     def post(self, request):
         membership, school_class, subject = self.get_context(request)
@@ -323,15 +334,160 @@ class TeachingWorkView(APIView):
                 record, _ = AssessmentScore.objects.update_or_create(assessment=assessment, student=student, defaults={"score": score, "status": status, "entered_by": membership})
                 record.full_clean(); record.save(); saved += 1
             return Response({"saved": saved})
-        raise serializers.ValidationError({"action": "Choose assessment or assignment."})
+        if action == "score_import":
+            assessment = get_object_or_404(Assessment, id=request.data.get("assessment_id"), school=membership.school, school_class=school_class, subject=subject, status=Assessment.Status.DRAFT)
+            rows = request.data.get("rows", [])
+            if not isinstance(rows, list) or not rows:
+                raise serializers.ValidationError({"rows": "Provide at least one score row."})
+            parsed_rows, errors = [], []
+            for index, row in enumerate(rows, start=2):
+                student_id = str(row.get("student_id", "")).strip()
+                try:
+                    score = float(row.get("score"))
+                except (TypeError, ValueError):
+                    errors.append(f"Row {index}: enter a numeric score.")
+                    continue
+                student = Student.objects.filter(school=membership.school, school_class=school_class, student_id__iexact=student_id, is_active=True).first()
+                if student is None:
+                    errors.append(f"Row {index}: no active student matches '{student_id or 'blank'}'.")
+                    continue
+                if score < 0 or score > float(assessment.maximum_score):
+                    errors.append(f"Row {index}: score must be between 0 and {assessment.maximum_score}.")
+                    continue
+                parsed_rows.append((student, score))
+            if errors:
+                raise serializers.ValidationError({"rows": errors[:12]})
+            with transaction.atomic():
+                for student, score in parsed_rows:
+                    AssessmentScore.objects.update_or_create(assessment=assessment, student=student, defaults={"score": score, "status": AssessmentScore.EntryStatus.ENTERED, "entered_by": membership})
+            return Response({"saved": len(parsed_rows), "source": "csv"})
+        if action == "questions":
+            assessment = get_object_or_404(Assessment, id=request.data.get("assessment_id"), school=membership.school, school_class=school_class, subject=subject, status=Assessment.Status.DRAFT)
+            questions = request.data.get("questions", [])
+            if not isinstance(questions, list) or not questions:
+                raise serializers.ValidationError({"questions": "Add at least one mapped question."})
+            seen, saved = set(), []
+            for row in questions:
+                try:
+                    number = int(row.get("number"))
+                except (TypeError, ValueError):
+                    raise serializers.ValidationError({"questions": "Each question needs a valid number."})
+                topic = str(row.get("topic", "")).strip()
+                if number < 1 or number in seen or not topic:
+                    raise serializers.ValidationError({"questions": "Question numbers must be unique and every question needs a topic."})
+                seen.add(number)
+                question, _ = AssessmentQuestion.objects.update_or_create(assessment=assessment, number=number, defaults={"topic": topic[:160], "learning_objective": str(row.get("learning_objective", "")).strip()[:300], "maximum_score": row.get("maximum_score") or None})
+                question.full_clean(); question.save(); saved.append(question)
+            AssessmentQuestion.objects.filter(assessment=assessment).exclude(number__in=seen).delete()
+            return Response({"saved": len(saved), "questions": [{"id": item.id, "number": item.number, "topic": item.topic, "learning_objective": item.learning_objective, "maximum_score": item.maximum_score} for item in saved]})
+        if action == "question_scores":
+            assessment = get_object_or_404(Assessment, id=request.data.get("assessment_id"), school=membership.school, school_class=school_class, subject=subject, status=Assessment.Status.DRAFT)
+            rows = request.data.get("scores", [])
+            if not isinstance(rows, list) or not rows:
+                raise serializers.ValidationError({"scores": "Provide question score rows."})
+            saved = 0
+            for row in rows:
+                question = get_object_or_404(AssessmentQuestion, id=row.get("question_id"), assessment=assessment)
+                student = get_object_or_404(Student, id=row.get("student_id"), school=membership.school, school_class=school_class, is_active=True)
+                status = row.get("status", AssessmentQuestionScore.EntryStatus.ENTERED)
+                score = row.get("score") if status == AssessmentQuestionScore.EntryStatus.ENTERED else None
+                record, _ = AssessmentQuestionScore.objects.update_or_create(question=question, student=student, defaults={"score": score, "status": status, "entered_by": membership})
+                record.full_clean(); record.save(); saved += 1
+            return Response({"saved": saved})
+        raise serializers.ValidationError({"action": "Choose assessment, assignment, score entry, CSV import, or question mapping."})
 
-    def patch(self, request, public_id):
-        member, membership = self.get_member_and_membership(request, public_id)
-        if membership.role != SchoolMembership.Role.ADMIN:
-            raise PermissionDenied("Only school admins can change staff access.")
-        role = str(request.data.get("role", "")).strip()
-        if role not in {SchoolMembership.Role.ADMIN, SchoolMembership.Role.ACADEMIC_HEAD, SchoolMembership.Role.TEACHER}:
-            raise serializers.ValidationError({"role": "Choose a valid school role."})
-        member.role = role
-        member.save(update_fields=("role", "updated_at"))
-        return Response(self.serialize_member(member))
+
+def _topic_labels(value):
+    return list(dict.fromkeys(label.strip()[:160] for label in value.split(",") if label.strip()))
+
+
+def _assessment_scope(membership):
+    assessments = Assessment.objects.filter(school=membership.school).prefetch_related("scores", "questions__scores")
+    if membership.role != SchoolMembership.Role.TEACHER:
+        return assessments
+    assignment_filters = Q()
+    for assignment in TeachingAssignment.objects.filter(membership=membership, is_active=True):
+        assignment_filters |= Q(school_class=assignment.school_class, subject=assignment.subject)
+    return assessments.filter(assignment_filters) if assignment_filters else assessments.none()
+
+
+class AcademicIntelligenceView(APIView):
+    """Deterministic, explainable signals from topic-tagged assessment results."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        membership = active_workspace_membership(request)
+        if membership is None:
+            raise serializers.ValidationError({"detail": "Set up a school workspace first."})
+        assessments = _assessment_scope(membership).select_related("school_class", "subject")
+        if request.query_params.get("class_id"):
+            assessments = assessments.filter(school_class_id=request.query_params["class_id"])
+        if request.query_params.get("subject_id"):
+            assessments = assessments.filter(subject_id=request.query_params["subject_id"])
+
+        total_percentages, assessed_students, topic_data = [], set(), {}
+        for assessment in assessments:
+            entered_scores = [score for score in assessment.scores.all() if score.status == AssessmentScore.EntryStatus.ENTERED and score.score is not None]
+            if not entered_scores or not assessment.maximum_score:
+                continue
+            percentages = [float(score.score) / float(assessment.maximum_score) * 100 for score in entered_scores]
+            total_percentages.extend(percentages)
+            assessed_students.update(score.student_id for score in entered_scores)
+            question_evidence = False
+            for question in assessment.questions.all():
+                question_scores = [score for score in question.scores.all() if score.status == AssessmentQuestionScore.EntryStatus.ENTERED and score.score is not None]
+                if not question_scores or not question.maximum_score:
+                    continue
+                question_evidence = True
+                topic = question.topic
+                key = (assessment.school_class_id, assessment.subject_id, topic.casefold())
+                item = topic_data.setdefault(key, {"topic": topic, "class_id": assessment.school_class_id, "class_name": assessment.school_class.name, "subject_id": assessment.subject_id, "subject_name": assessment.subject.name, "percentages": [], "assessment_ids": set(), "student_ids": set(), "question_level": False})
+                item["percentages"].extend(float(score.score) / float(question.maximum_score) * 100 for score in question_scores)
+                item["assessment_ids"].add(assessment.id)
+                item["student_ids"].update(score.student_id for score in question_scores)
+                item["question_level"] = True
+            if not question_evidence:
+                for topic in _topic_labels(assessment.topics):
+                    key = (assessment.school_class_id, assessment.subject_id, topic.casefold())
+                    item = topic_data.setdefault(key, {"topic": topic, "class_id": assessment.school_class_id, "class_name": assessment.school_class.name, "subject_id": assessment.subject_id, "subject_name": assessment.subject.name, "percentages": [], "assessment_ids": set(), "student_ids": set(), "question_level": False})
+                    item["percentages"].extend(percentages)
+                    item["assessment_ids"].add(assessment.id)
+                    item["student_ids"].update(score.student_id for score in entered_scores)
+
+        topic_signals = []
+        for item in topic_data.values():
+            average = round(sum(item["percentages"]) / len(item["percentages"]), 1)
+            coverage = len(item["percentages"])
+            confidence = "sufficient" if coverage >= 10 and len(item["assessment_ids"]) >= 2 else "early"
+            topic_signals.append({
+                "topic": item["topic"], "class_id": item["class_id"], "class_name": item["class_name"], "subject_id": item["subject_id"], "subject_name": item["subject_name"],
+                "average": average, "assessed_students": len(item["student_ids"]), "assessments": len(item["assessment_ids"]), "coverage": coverage, "confidence": confidence,
+                "evidence": f"{coverage} recorded {'question-level' if item['question_level'] else 'topic-tagged'} scores across {len(item['assessment_ids'])} assessment{'s' if len(item['assessment_ids']) != 1 else ''}.",
+            })
+        topic_signals.sort(key=lambda item: item["average"])
+        interventions = AcademicIntervention.objects.filter(school=membership.school).select_related("school_class", "subject")
+        if membership.role == SchoolMembership.Role.TEACHER:
+            allowed = {(item.school_class_id, item.subject_id) for item in TeachingAssignment.objects.filter(membership=membership, is_active=True)}
+            interventions = [item for item in interventions if (item.school_class_id, item.subject_id) in allowed]
+        else:
+            interventions = list(interventions)
+        return Response({
+            "summary": {"overall_average": round(sum(total_percentages) / len(total_percentages), 1) if total_percentages else None, "students_assessed": len(assessed_students), "topics_needing_attention": sum(item["average"] < 60 for item in topic_signals), "active_interventions": sum(item.status in {AcademicIntervention.Status.DRAFT, AcademicIntervention.Status.ACTIVE} for item in interventions)},
+            "topic_signals": topic_signals,
+            "interventions": [{"id": item.id, "topic": item.topic, "title": item.title, "status": item.status, "class_name": item.school_class.name, "subject_name": item.subject.name, "baseline_average": float(item.baseline_average) if item.baseline_average is not None else None} for item in interventions[:12]],
+        })
+
+    def post(self, request):
+        membership = active_workspace_membership(request)
+        if membership is None:
+            raise serializers.ValidationError({"detail": "Set up a school workspace first."})
+        school_class = get_object_or_404(SchoolClass, id=request.data.get("class_id"), school=membership.school)
+        subject = get_object_or_404(Subject, id=request.data.get("subject_id"), school=membership.school)
+        class_subject_access_or_403(request.user, membership.school, school_class, subject)
+        topic = str(request.data.get("topic", "")).strip()
+        if not topic:
+            raise serializers.ValidationError({"topic": "Choose a topic before creating an intervention."})
+        baseline = request.data.get("baseline_average")
+        intervention = AcademicIntervention(school=membership.school, school_class=school_class, subject=subject, topic=topic[:160], title=str(request.data.get("title") or f"Focused {topic} revision").strip()[:180], rationale=str(request.data.get("rationale") or f"Teacher review requested after topic-tagged assessment evidence showed {topic} below the selected benchmark.").strip(), baseline_average=baseline or None, created_by=membership)
+        intervention.full_clean(); intervention.save()
+        return Response({"id": intervention.id, "title": intervention.title, "status": intervention.status, "topic": intervention.topic}, status=201)

@@ -15,6 +15,8 @@ import "./homepage-network.css";
 import "./schools.css";
 import "./schools-dashboard.css";
 import "./schools-dashboard-empty.css";
+import "./schools-intelligence.css";
+import "./schools-question-evidence.css";
 import "./schools-setup.css";
 import "./schools-pricing.css";
 import "./post-opportunity.css";
@@ -31,6 +33,8 @@ import "./verification-badges.css";
 import "./opportunity-check.css";
 import "./pricing-billing.css";
 import "./neba-design.css";
+import "./neba-corporate.css";
+import "./workspace.css";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-geist" });
 const manrope = Manrope({ subsets: ["latin"], variable: "--font-manrope", display: "swap" });

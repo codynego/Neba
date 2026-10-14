@@ -7,7 +7,7 @@ from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.test import APITestCase
 
-from .models import School, SchoolClass, SchoolMembership, Student, Subject, TeachingAssignment
+from .models import AcademicIntervention, Assessment, AssessmentQuestion, AssessmentQuestionScore, AssessmentScore, School, SchoolClass, SchoolMembership, Student, Subject, TeachingAssignment
 from .permissions import class_subject_access_or_403
 
 
@@ -173,3 +173,51 @@ class SchoolRosterTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         membership.refresh_from_db()
         self.assertEqual(membership.role, SchoolMembership.Role.ACADEMIC_HEAD)
+
+
+class AcademicIntelligenceTests(APITestCase):
+    def setUp(self):
+        self.admin = get_user_model().objects.create_user(username="insight-admin", password="password")
+        self.school = School.objects.create(name="Insight School", slug="insight-school")
+        self.membership = SchoolMembership.objects.create(school=self.school, user=self.admin, role=SchoolMembership.Role.ADMIN, status=SchoolMembership.Status.ACTIVE)
+        self.school_class = SchoolClass.objects.create(school=self.school, name="JSS 2", academic_session="2026/2027")
+        self.subject = Subject.objects.create(school=self.school, name="Mathematics")
+        first = Student.objects.create(school=self.school, school_class=self.school_class, first_name="Ada", last_name="Okafor")
+        second = Student.objects.create(school=self.school, school_class=self.school_class, first_name="Tobi", last_name="Bello")
+        assessment = Assessment.objects.create(school=self.school, school_class=self.school_class, subject=self.subject, academic_session="2026/2027", term="First term", title="CA 1", assessment_type=Assessment.Type.CA, maximum_score=20, topics="Fractions", created_by=self.membership)
+        AssessmentScore.objects.create(assessment=assessment, student=first, score=8, status=AssessmentScore.EntryStatus.ENTERED, entered_by=self.membership)
+        AssessmentScore.objects.create(assessment=assessment, student=second, score=10, status=AssessmentScore.EntryStatus.ENTERED, entered_by=self.membership)
+        self.client.force_authenticate(self.admin)
+
+    def test_topic_tagged_scores_return_an_explainable_signal(self):
+        response = self.client.get(f"/api/schools/intelligence/?school_id={self.school.id}")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["summary"]["overall_average"], 45.0)
+        self.assertEqual(response.data["topic_signals"][0]["topic"], "Fractions")
+        self.assertEqual(response.data["topic_signals"][0]["average"], 45.0)
+        self.assertIn("topic-tagged scores", response.data["topic_signals"][0]["evidence"])
+
+    def test_member_can_create_a_teacher_reviewed_intervention_draft(self):
+        response = self.client.post(f"/api/schools/intelligence/?school_id={self.school.id}", {"class_id": self.school_class.id, "subject_id": self.subject.id, "topic": "Fractions", "baseline_average": 45}, format="json")
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(AcademicIntervention.objects.get().status, AcademicIntervention.Status.DRAFT)
+
+    def test_teacher_can_save_question_topic_mapping_and_import_validated_csv_rows(self):
+        assessment = Assessment.objects.get(school=self.school)
+        response = self.client.post(f"/api/schools/teaching-work/?school_id={self.school.id}&class_id={self.school_class.id}&subject_id={self.subject.id}", {"action": "questions", "assessment_id": assessment.id, "questions": [{"number": 1, "topic": "Equivalent fractions", "learning_objective": "Recognise equivalent fractions", "maximum_score": 10}, {"number": 2, "topic": "Adding fractions", "maximum_score": 10}]}, format="json")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(AssessmentQuestion.objects.filter(assessment=assessment).count(), 2)
+        first = Student.objects.get(first_name="Ada")
+        response = self.client.post(f"/api/schools/teaching-work/?school_id={self.school.id}&class_id={self.school_class.id}&subject_id={self.subject.id}", {"action": "score_import", "assessment_id": assessment.id, "rows": [{"student_id": first.student_id, "score": "14"}]}, format="json")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["saved"], 1)
+        self.assertEqual(AssessmentScore.objects.get(assessment=assessment, student=first).score, 14)
+
+        question = AssessmentQuestion.objects.get(assessment=assessment, number=1)
+        response = self.client.post(f"/api/schools/teaching-work/?school_id={self.school.id}&class_id={self.school_class.id}&subject_id={self.subject.id}", {"action": "question_scores", "assessment_id": assessment.id, "scores": [{"question_id": question.id, "student_id": first.id, "score": "4", "status": "entered"}]}, format="json")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(AssessmentQuestionScore.objects.get(question=question, student=first).score, 4)
+        response = self.client.get(f"/api/schools/intelligence/?school_id={self.school.id}")
+        self.assertEqual(response.data["topic_signals"][0]["topic"], "Equivalent fractions")
+        self.assertEqual(response.data["topic_signals"][0]["average"], 40.0)
+        self.assertIn("question-level scores", response.data["topic_signals"][0]["evidence"])

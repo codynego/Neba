@@ -286,6 +286,54 @@ class AssessmentScore(models.Model):
             raise ValidationError({"score": "Score must be between zero and the assessment maximum."})
 
 
+class AssessmentQuestion(models.Model):
+    """Question-to-topic evidence mapping, reviewed by the teacher before analysis."""
+    assessment = models.ForeignKey(Assessment, on_delete=models.CASCADE, related_name="questions")
+    number = models.PositiveSmallIntegerField()
+    topic = models.CharField(max_length=160)
+    learning_objective = models.CharField(max_length=300, blank=True)
+    maximum_score = models.DecimalField(max_digits=7, decimal_places=2, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("number",)
+        constraints = [models.UniqueConstraint(fields=("assessment", "number"), name="unique_assessment_question_number")]
+
+    def clean(self):
+        if self.number < 1:
+            raise ValidationError({"number": "Question number must be at least one."})
+        if self.maximum_score is not None and self.maximum_score <= 0:
+            raise ValidationError({"maximum_score": "Maximum score must be greater than zero."})
+
+
+class AssessmentQuestionScore(models.Model):
+    class EntryStatus(models.TextChoices):
+        ENTERED = "entered", "Entered"
+        MISSING = "missing", "Missing"
+        EXCUSED = "excused", "Excused"
+        ABSENT = "absent", "Absent"
+
+    question = models.ForeignKey(AssessmentQuestion, on_delete=models.CASCADE, related_name="scores")
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name="question_scores")
+    score = models.DecimalField(max_digits=7, decimal_places=2, null=True, blank=True)
+    status = models.CharField(max_length=16, choices=EntryStatus.choices, default=EntryStatus.MISSING)
+    entered_by = models.ForeignKey(SchoolMembership, null=True, on_delete=models.SET_NULL, related_name="entered_question_scores")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=("question", "student"), name="unique_assessment_question_student_score")]
+
+    def clean(self):
+        assessment = self.question.assessment if self.question_id else None
+        if assessment and self.student_id and self.student.school_id != assessment.school_id:
+            raise ValidationError({"student": "Student belongs to another school."})
+        if assessment and self.student_id and self.student.school_class_id != assessment.school_class_id:
+            raise ValidationError({"student": "Student is not in this assessment's class."})
+        if self.score is not None and self.question.maximum_score is not None and (self.score < 0 or self.score > self.question.maximum_score):
+            raise ValidationError({"score": "Score must be between zero and the question maximum."})
+
+
 class Assignment(models.Model):
     class Status(models.TextChoices):
         DRAFT = "draft", "Draft"
@@ -303,3 +351,32 @@ class Assignment(models.Model):
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.DRAFT)
     created_by = models.ForeignKey(SchoolMembership, null=True, on_delete=models.SET_NULL, related_name="created_assignments")
     created_at = models.DateTimeField(auto_now_add=True)
+
+
+class AcademicIntervention(models.Model):
+    """A teacher-reviewed response to a topic signal; never an automatic student decision."""
+    class Status(models.TextChoices):
+        DRAFT = "draft", "Draft"
+        ACTIVE = "active", "Active"
+        COMPLETE = "complete", "Complete"
+
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="academic_interventions")
+    school_class = models.ForeignKey(SchoolClass, on_delete=models.PROTECT, related_name="academic_interventions")
+    subject = models.ForeignKey(Subject, on_delete=models.PROTECT, related_name="academic_interventions")
+    topic = models.CharField(max_length=160)
+    title = models.CharField(max_length=180)
+    rationale = models.TextField(blank=True)
+    baseline_average = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.DRAFT)
+    created_by = models.ForeignKey(SchoolMembership, null=True, on_delete=models.SET_NULL, related_name="created_interventions")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+
+    def clean(self):
+        if self.school_class_id and self.school_id and self.school_class.school_id != self.school_id:
+            raise ValidationError({"school_class": "The class must belong to this school."})
+        if self.subject_id and self.school_id and self.subject.school_id != self.school_id:
+            raise ValidationError({"subject": "The subject must belong to this school."})

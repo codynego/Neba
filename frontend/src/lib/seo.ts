@@ -7,7 +7,7 @@ if (siteUrl.protocol !== "https:" || siteUrl.username || siteUrl.password || sit
 }
 export const indexPublicPages = process.env.NODE_ENV === "production" && process.env.SEO_INDEXABLE !== "false" && (!process.env.VERCEL_ENV || process.env.VERCEL_ENV === "production");
 export const publicSearchPaths = ["/", "/opportunities", "/schools", "/schools/pricing", "/install", "/about", "/stories", "/help", "/community-guidelines", "/privacy", "/terms"];
-export const siteDescription = "Discover jobs, scholarships, grants, internships, fellowships, funding, and other opportunities relevant to Nigerians and Africans.";
+export const siteDescription = "Neba is an intelligence ecosystem for education—helping schools operate better, educators teach with clarity, and learners move forward with confidence.";
 
 export function publicPageMetadata(title: string, description: string, path: string): Metadata {
   const url = new URL(path, siteUrl).toString();
