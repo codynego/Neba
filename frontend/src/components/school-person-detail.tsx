@@ -2,13 +2,13 @@
 
 import { FormEvent, ReactNode, useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, BarChart3, Bot, Check, CheckCircle2, ClipboardCheck, Edit3, FileText, LayoutDashboard, Settings, Sparkles, Target, TrendingDown, TrendingUp, Users, UsersRound } from "lucide-react";
+import { ArrowLeft, ArrowRight, BarChart3, Bot, CalendarCheck2, Check, CheckCircle2, ClipboardCheck, Edit3, FileText, LayoutDashboard, Settings, Sparkles, Target, TrendingDown, TrendingUp, Users, UsersRound } from "lucide-react";
 import { api } from "@/lib/api";
 
 type Workspace = { id: number; name: string; role: string };
 type Student = { public_id: string; first_name: string; last_name: string; full_name: string; admission_number: string; school_class: number; class_name: string; address_line: string; city: string; state: string; guardian_name: string; guardian_phone: string; guardian_email: string };
 type Member = { public_id: string; name: string; email: string; role: string; status: string; created_at: string };
-type StudentTab = "profile" | "intelligence" | "history" | "support" | "family";
+type StudentTab = "profile" | "intelligence" | "history" | "support" | "attendance" | "family";
 type TopicSignal = { topic: string; subject: string; subject_id: number; average: number; coverage: number; assessments: number; confidence: "early" | "sufficient"; status: "needs_support" | "developing" | "strength"; change: number | null; evidence: string };
 type StudentIntelligence = {
   summary: { overall_average: number | null; assessments_recorded: number; topics_needing_support: number; active_interventions: number };
@@ -16,6 +16,7 @@ type StudentIntelligence = {
   assessment_history: Array<{ id: number; title: string; subject: string; assessment_type: string; date: string; percentage: number; score: number; maximum_score: number }>;
   interventions: Array<{ id: number; title: string; topic: string; subject: string; status: "draft" | "active" | "complete"; baseline_average: number | null; follow_up_average: number | null; created_at: string; completed_at: string | null }>;
 };
+type StudentAttendance = { summary: { present: number; late: number; absent: number; excused: number; attendance_rate: number | null; days_recorded: number }; history: Array<{ date: string; status: "present" | "late" | "absent" | "excused"; note: string }> };
 
 const workspaceId = () => typeof window === "undefined" ? "" : window.localStorage.getItem("neba_school_workspace") || "";
 const workspaceSuffix = () => workspaceId() ? `?school_id=${workspaceId()}` : "";
@@ -37,13 +38,15 @@ export function StudentDetail({ studentId }: { studentId: string }) {
   const [student, setStudent] = useState<Student | null>(null);
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [intelligence, setIntelligence] = useState<StudentIntelligence | null>(null);
+  const [attendance, setAttendance] = useState<StudentAttendance | null>(null);
   const [tab, setTab] = useState<StudentTab>("intelligence");
   const [editing, setEditing] = useState(false);
   const [notice, setNotice] = useState("");
   const load = async () => {
     const suffix = workspaceSuffix();
-    const [workspaceResult, studentResult, intelligenceResult] = await Promise.all([api<{ workspace: Workspace }>(`/schools/workspace/${suffix}`), api<Student>(`/schools/students/${studentId}/${suffix}`), api<StudentIntelligence>(`/schools/students/${studentId}/intelligence/${suffix}`)]);
-    setWorkspace(workspaceResult.workspace); setStudent(studentResult); setIntelligence(intelligenceResult);
+    const attendanceSuffix = workspaceId() ? `?school_id=${workspaceId()}&student_id=${studentId}` : `?student_id=${studentId}`;
+    const [workspaceResult, studentResult, intelligenceResult, attendanceResult] = await Promise.all([api<{ workspace: Workspace }>(`/schools/workspace/${suffix}`), api<Student>(`/schools/students/${studentId}/${suffix}`), api<StudentIntelligence>(`/schools/students/${studentId}/intelligence/${suffix}`), api<StudentAttendance>(`/schools/attendance/${attendanceSuffix}`)]);
+    setWorkspace(workspaceResult.workspace); setStudent(studentResult); setIntelligence(intelligenceResult); setAttendance(attendanceResult);
   };
   useEffect(() => { void load().catch(() => setNotice("This student could not be found in the selected school workspace.")); }, [studentId]);
   const save = async (event: FormEvent<HTMLFormElement>) => {
@@ -58,8 +61,8 @@ export function StudentDetail({ studentId }: { studentId: string }) {
     <header><Link href="/schools/dashboard?section=students"><ArrowLeft size={16} /> Back to students</Link><span>{workspace.name.toUpperCase()} · STUDENT RECORD</span></header>
     <section className="school-detail-hero"><div className="school-detail-avatar">{initials(student.first_name, student.last_name)}</div><div><span>STUDENT ID · {shortId(student.public_id)}</span><h1>{student.full_name}</h1><p>{student.class_name} · Private record in {workspace.name}</p></div><button className="school-app-button quiet" onClick={() => setEditing((value) => !value)}><Edit3 size={15} /> {editing ? "Cancel" : "Edit student"}</button></section>
     {notice && <p className="school-detail-notice"><Check size={15} /> {notice}</p>}
-    <nav className="school-detail-tabs" aria-label="Student detail sections">{(["intelligence", "history", "support", "profile", "family"] as StudentTab[]).map((item) => <button key={item} className={tab === item ? "active" : ""} onClick={() => setTab(item)}>{item === "history" ? "Assessment history" : item === "support" ? "Support plans" : item === "family" ? "Family & contact" : item}</button>)}</nav>
-    {editing ? <StudentEditForm student={student} save={save} /> : <StudentContent student={student} intelligence={intelligence} tab={tab} onRefresh={() => void load()} onNotice={setNotice} />}
+    <nav className="school-detail-tabs" aria-label="Student detail sections">{(["intelligence", "history", "support", "attendance", "profile", "family"] as StudentTab[]).map((item) => <button key={item} className={tab === item ? "active" : ""} onClick={() => setTab(item)}>{item === "history" ? "Assessment history" : item === "support" ? "Support plans" : item === "family" ? "Family & contact" : item}</button>)}</nav>
+    {editing ? <StudentEditForm student={student} save={save} /> : <StudentContent student={student} intelligence={intelligence} attendance={attendance} tab={tab} onRefresh={() => void load()} onNotice={setNotice} />}
   </main></div>;
 }
 
@@ -71,13 +74,20 @@ function StudentEditForm({ student, save }: { student: Student; save: (event: Fo
   </form></section>;
 }
 
-function StudentContent({ student, intelligence, tab, onRefresh, onNotice }: { student: Student; intelligence: StudentIntelligence | null; tab: StudentTab; onRefresh: () => void; onNotice: (message: string) => void }) {
+function StudentContent({ student, intelligence, attendance, tab, onRefresh, onNotice }: { student: Student; intelligence: StudentIntelligence | null; attendance: StudentAttendance | null; tab: StudentTab; onRefresh: () => void; onNotice: (message: string) => void }) {
   if (tab === "profile") return <section className="school-detail-card"><dl><DetailItem label="Student ID" value={student.public_id || "Preparing ID…"} /><DetailItem label="Class" value={student.class_name} /><DetailItem label="School reference" value={student.admission_number || "Not recorded"} /></dl></section>;
   if (tab === "family") return <section className="school-detail-card"><dl className="school-detail-contact-grid"><DetailItem label="Home address" value={[student.address_line, student.city, student.state].filter(Boolean).join(", ") || "Not recorded"} /><DetailItem label="Parent or guardian" value={student.guardian_name || "Not recorded"} /><DetailItem label="Guardian phone" value={student.guardian_phone || "Not recorded"} /><DetailItem label="Guardian email" value={student.guardian_email || "Not recorded"} /></dl></section>;
+  if (tab === "attendance") return <StudentAttendancePanel data={attendance} />;
   if (!intelligence) return <EmptyState icon={<BarChart3 size={25} />} title="Student intelligence is loading" copy="The private profile will show only recorded assessment evidence available to your role." />;
   if (tab === "intelligence") return <StudentIntelligencePanel student={student} data={intelligence} onRefresh={onRefresh} onNotice={onNotice} />;
   if (tab === "history") return <AssessmentHistory history={intelligence.assessment_history} />;
   return <StudentSupportPlans student={student} data={intelligence} onRefresh={onRefresh} onNotice={onNotice} />;
+}
+
+function StudentAttendancePanel({ data }: { data: StudentAttendance | null }) {
+  if (!data) return <EmptyState icon={<CalendarCheck2 size={25} />} title="Attendance is loading" copy="The learner's recorded school days will appear here." />;
+  if (!data.history.length) return <EmptyState icon={<CalendarCheck2 size={25} />} title="No attendance has been recorded" copy="A teacher can mark this learner from the Attendance tab inside their class workspace." />;
+  return <section className="student-history"><header><span>DAILY ATTENDANCE</span><h2>{data.summary.attendance_rate ?? "—"}{data.summary.attendance_rate !== null ? "% attendance" : ""}</h2><p>{data.summary.present} present · {data.summary.late} late · {data.summary.absent} absent · {data.summary.excused} excused</p></header><div className="student-history-list">{data.history.map((item) => <article key={item.date}><div><span>{new Date(`${item.date}T12:00:00`).toLocaleDateString("en-NG", { weekday: "long" })}</span><strong>{new Date(`${item.date}T12:00:00`).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" })}</strong>{item.note && <small>{item.note}</small>}</div><div><strong>{item.status}</strong></div></article>)}</div></section>;
 }
 
 function StudentIntelligencePanel({ student, data, onRefresh, onNotice }: { student: Student; data: StudentIntelligence; onRefresh: () => void; onNotice: (message: string) => void }) {

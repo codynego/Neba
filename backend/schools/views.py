@@ -1,11 +1,12 @@
 import json
 import re
+from datetime import date
 
 import requests
 
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Avg, Count, ExpressionWrapper, F, FloatField, Q
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 from django.utils.text import slugify
@@ -15,7 +16,7 @@ from rest_framework.generics import get_object_or_404
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import AcademicIntervention, Assessment, AssessmentQuestion, AssessmentQuestionScore, AssessmentScore, Assignment, ClassTeacherAssignment, School, SchoolClass, SchoolMembership, Student, StudentIntervention, Subject, TeachingAssignment
+from .models import AcademicIntervention, Assessment, AssessmentQuestion, AssessmentQuestionScore, AssessmentScore, Assignment, AttendanceRecord, ClassTeacherAssignment, School, SchoolClass, SchoolMembership, Student, StudentIntervention, Subject, TeachingAssignment
 from .permissions import active_membership_or_403, class_subject_access_or_403
 
 
@@ -157,10 +158,37 @@ class SchoolRosterView(APIView):
         members = school.memberships.none()
         if membership.role in {SchoolMembership.Role.ADMIN, SchoolMembership.Role.ACADEMIC_HEAD}:
             members = school.memberships.select_related("user").filter(status=SchoolMembership.Status.ACTIVE).order_by("user__first_name", "user__username")
+        student_payload = StudentSerializer(students, many=True).data
+        student_ids = [item["id"] for item in student_payload]
+        percentage = ExpressionWrapper(100.0 * F("score") / F("assessment__maximum_score"), output_field=FloatField())
+        academic = {
+            item["student_id"]: item
+            for item in AssessmentScore.objects.filter(
+                student_id__in=student_ids,
+                status=AssessmentScore.EntryStatus.ENTERED,
+                score__isnull=False,
+                assessment__maximum_score__gt=0,
+            ).values("student_id").annotate(academic_average=Avg(percentage), assessments_recorded=Count("id"))
+        }
+        attendance = {
+            item["student_id"]: item
+            for item in AttendanceRecord.objects.filter(student_id__in=student_ids)
+            .values("student_id")
+            .annotate(
+                marked=Count("id", filter=~Q(status=AttendanceRecord.Status.EXCUSED)),
+                attended=Count("id", filter=Q(status__in=(AttendanceRecord.Status.PRESENT, AttendanceRecord.Status.LATE))),
+            )
+        }
+        for item in student_payload:
+            academic_item = academic.get(item["id"])
+            attendance_item = attendance.get(item["id"])
+            item["academic_average"] = round(academic_item["academic_average"], 1) if academic_item else None
+            item["assessments_recorded"] = academic_item["assessments_recorded"] if academic_item else 0
+            item["attendance_rate"] = round(attendance_item["attended"] / attendance_item["marked"] * 100, 1) if attendance_item and attendance_item["marked"] else None
         return Response({
             "classes": list(classes),
             "subjects": list(subjects),
-            "students": StudentSerializer(students, many=True).data,
+            "students": student_payload,
             "members": [{
                 "id": item.id,
                 "public_id": item.public_id,
@@ -226,6 +254,114 @@ class SchoolRosterView(APIView):
             )
             return Response({"id": school_member.id, "public_id": school_member.public_id, "name": user.get_full_name() or user.display_name or user.username, "email": user.email, "role": school_member.role}, status=201 if created else 200)
         raise serializers.ValidationError({"action": "Choose class, subject, or student."})
+
+
+def _class_access_or_403(membership, school_class):
+    if membership.role != SchoolMembership.Role.TEACHER:
+        return
+    today = timezone.localdate()
+    assignment_filter = Q(
+        teaching_assignments__school_class=school_class,
+        teaching_assignments__is_active=True,
+        teaching_assignments__starts_at__lte=today,
+    ) & (Q(teaching_assignments__ends_at__isnull=True) | Q(teaching_assignments__ends_at__gte=today))
+    class_teacher_filter = Q(
+        class_teacher_assignments__school_class=school_class,
+        class_teacher_assignments__is_active=True,
+        class_teacher_assignments__starts_at__lte=today,
+    ) & (Q(class_teacher_assignments__ends_at__isnull=True) | Q(class_teacher_assignments__ends_at__gte=today))
+    if not SchoolMembership.objects.filter(Q(pk=membership.pk) & (assignment_filter | class_teacher_filter)).exists():
+        raise PermissionDenied("You are not assigned to this class.")
+
+
+def _parse_attendance_date(value):
+    try:
+        selected = date.fromisoformat(str(value or timezone.localdate()))
+    except ValueError as exc:
+        raise serializers.ValidationError({"date": "Use a valid date in YYYY-MM-DD format."}) from exc
+    if selected > timezone.localdate():
+        raise serializers.ValidationError({"date": "Attendance cannot be recorded for a future date."})
+    return selected
+
+
+class AttendanceView(APIView):
+    """Read and save a daily class register, scoped to assigned school staff."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        membership = active_workspace_membership(request)
+        if membership is None:
+            raise serializers.ValidationError({"detail": "Set up a school workspace first."})
+        student_public_id = request.query_params.get("student_id")
+        if student_public_id:
+            student = StudentDetailView().get_student_and_membership(request, student_public_id)[0]
+            records = student.attendance_records.order_by("-date")[:60]
+            totals = {choice: 0 for choice in AttendanceRecord.Status.values}
+            history = []
+            for item in records:
+                totals[item.status] += 1
+                history.append({"date": item.date, "status": item.status, "note": item.note})
+            denominator = totals[AttendanceRecord.Status.PRESENT] + totals[AttendanceRecord.Status.LATE] + totals[AttendanceRecord.Status.ABSENT]
+            attended = totals[AttendanceRecord.Status.PRESENT] + totals[AttendanceRecord.Status.LATE]
+            return Response({
+                "summary": {**totals, "attendance_rate": round(attended / denominator * 100, 1) if denominator else None, "days_recorded": sum(totals.values())},
+                "history": history,
+            })
+
+        school_class = get_object_or_404(SchoolClass, id=request.query_params.get("class_id"), school=membership.school, is_active=True)
+        _class_access_or_403(membership, school_class)
+        selected_date = _parse_attendance_date(request.query_params.get("date"))
+        records = {item.student_id: item for item in AttendanceRecord.objects.filter(school_class=school_class, date=selected_date)}
+        students = Student.objects.filter(school=membership.school, school_class=school_class, is_active=True).order_by("last_name", "first_name")
+        rows = []
+        for student in students:
+            record = records.get(student.id)
+            rows.append({
+                "student_id": student.id,
+                "student_public_id": student.public_id,
+                "student_number": student.student_id,
+                "name": student.full_name,
+                "status": record.status if record else "unmarked",
+                "note": record.note if record else "",
+            })
+        counts = {status: sum(row["status"] == status for row in rows) for status in AttendanceRecord.Status.values}
+        return Response({"date": selected_date, "class_id": school_class.id, "class_name": school_class.name, "rows": rows, "summary": {**counts, "unmarked": sum(row["status"] == "unmarked" for row in rows)}})
+
+    @transaction.atomic
+    def post(self, request):
+        membership = active_workspace_membership(request)
+        if membership is None:
+            raise serializers.ValidationError({"detail": "Set up a school workspace first."})
+        school_class = get_object_or_404(SchoolClass, id=request.data.get("class_id"), school=membership.school, is_active=True)
+        _class_access_or_403(membership, school_class)
+        selected_date = _parse_attendance_date(request.data.get("date"))
+        rows = request.data.get("rows")
+        if not isinstance(rows, list) or not rows:
+            raise serializers.ValidationError({"rows": "Mark at least one student before saving attendance."})
+        students = {item.id: item for item in Student.objects.filter(school=membership.school, school_class=school_class, is_active=True, id__in=[row.get("student_id") for row in rows if isinstance(row, dict)])}
+        saved = 0
+        for row in rows:
+            student = students.get(row.get("student_id")) if isinstance(row, dict) else None
+            if student is None:
+                raise serializers.ValidationError({"rows": "Every attendance row must identify an active student in this class."})
+            attendance_status = row.get("status")
+            if attendance_status not in AttendanceRecord.Status.values:
+                raise serializers.ValidationError({"status": f"Choose present, late, absent, or excused for {student.full_name}."})
+            record, _ = AttendanceRecord.objects.update_or_create(
+                student=student,
+                date=selected_date,
+                defaults={
+                    "school": membership.school,
+                    "school_class": school_class,
+                    "status": attendance_status,
+                    "note": str(row.get("note", "")).strip()[:240],
+                    "recorded_by": membership,
+                },
+            )
+            record.full_clean()
+            saved += 1
+        return Response({"saved": saved, "date": selected_date})
 
 
 class StudentDetailView(APIView):

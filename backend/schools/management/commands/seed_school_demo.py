@@ -13,6 +13,7 @@ from schools.models import (
     AssessmentQuestionScore,
     AssessmentScore,
     Assignment,
+    AttendanceRecord,
     School,
     SchoolClass,
     SchoolMembership,
@@ -117,7 +118,7 @@ class Command(BaseCommand):
             )
 
         students = {}
-        for admission_number, first_name, last_name, class_name in DEMO_STUDENTS:
+        for index, (admission_number, first_name, last_name, class_name) in enumerate(DEMO_STUDENTS, start=1):
             student, _ = Student.objects.update_or_create(
                 school=school,
                 admission_number=admission_number,
@@ -128,6 +129,10 @@ class Command(BaseCommand):
                     "school_class": classes[class_name],
                     "city": "Lagos",
                     "state": "Lagos",
+                    "address_line": f"{index} Learning Avenue",
+                    "guardian_name": f"{last_name} Family Contact",
+                    "guardian_phone": f"+234800000{index:04d}",
+                    "guardian_email": f"guardian{index:02d}@example.com",
                     "is_active": True,
                 },
             )
@@ -149,7 +154,62 @@ class Command(BaseCommand):
         math = subjects["Mathematics"]
         jss1 = classes["JSS 1 Gold"]
         jss1_students = [students[row[0]] for row in DEMO_STUDENTS if row[3] == "JSS 1 Gold"]
-        assessments = (
+        jss2 = classes["JSS 2 Gold"]
+        jss2_students = [students[row[0]] for row in DEMO_STUDENTS if row[3] == "JSS 2 Gold"]
+
+        def seed_assessments(school_class, class_students, assessments):
+            for title, assessment_date, question_specs, score_rows in assessments:
+                assessment, _ = Assessment.objects.update_or_create(
+                    school=school,
+                    school_class=school_class,
+                    subject=math,
+                    academic_session=academic_session,
+                    term="First term",
+                    title=title,
+                    defaults={
+                        "assessment_type": Assessment.Type.CA,
+                        "maximum_score": Decimal("30.00"),
+                        "weight": Decimal("20.00"),
+                        "assessment_date": assessment_date,
+                        "topics": ", ".join(topic for topic, _objective in question_specs),
+                        "status": Assessment.Status.PUBLISHED,
+                        "created_by": creator,
+                    },
+                )
+                questions = []
+                for number, (topic, objective) in enumerate(question_specs, start=1):
+                    question, _ = AssessmentQuestion.objects.update_or_create(
+                        assessment=assessment,
+                        number=number,
+                        defaults={
+                            "topic": topic,
+                            "learning_objective": objective,
+                            "maximum_score": Decimal("10.00"),
+                        },
+                    )
+                    questions.append(question)
+                for student, row in zip(class_students, score_rows):
+                    AssessmentScore.objects.update_or_create(
+                        assessment=assessment,
+                        student=student,
+                        defaults={
+                            "score": Decimal(sum(row)),
+                            "status": AssessmentScore.EntryStatus.ENTERED,
+                            "entered_by": creator,
+                        },
+                    )
+                    for question, score in zip(questions, row):
+                        AssessmentQuestionScore.objects.update_or_create(
+                            question=question,
+                            student=student,
+                            defaults={
+                                "score": Decimal(score),
+                                "status": AssessmentQuestionScore.EntryStatus.ENTERED,
+                                "entered_by": creator,
+                            },
+                        )
+
+        seed_assessments(jss1, jss1_students, (
             (
                 "[Demo] Mathematics Baseline Check",
                 today - timedelta(days=28),
@@ -162,58 +222,44 @@ class Command(BaseCommand):
                 (("Fractions", "Solve fraction problems"), ("Algebraic expressions", "Use substitution"), ("Word problems", "Explain a multi-step solution")),
                 ((6, 8, 6), (6, 9, 7), (7, 9, 8), (5, 8, 6), (6, 9, 7), (5, 8, 7), (8, 10, 8), (6, 8, 7)),
             ),
-        )
-        for title, assessment_date, question_specs, score_rows in assessments:
-            assessment, _ = Assessment.objects.update_or_create(
-                school=school,
-                school_class=jss1,
-                subject=math,
-                academic_session=academic_session,
-                term="First term",
-                title=title,
-                defaults={
-                    "assessment_type": Assessment.Type.CA,
-                    "maximum_score": Decimal("30.00"),
-                    "weight": Decimal("20.00"),
-                    "assessment_date": assessment_date,
-                    "topics": "Fractions, Algebraic expressions, Word problems",
-                    "status": Assessment.Status.PUBLISHED,
-                    "created_by": creator,
-                },
-            )
-            questions = []
-            for number, (topic, objective) in enumerate(question_specs, start=1):
-                question, _ = AssessmentQuestion.objects.update_or_create(
-                    assessment=assessment,
-                    number=number,
-                    defaults={
-                        "topic": topic,
-                        "learning_objective": objective,
-                        "maximum_score": Decimal("10.00"),
-                    },
-                )
-                questions.append(question)
-            for student, row in zip(jss1_students, score_rows):
-                total = sum(row)
-                AssessmentScore.objects.update_or_create(
-                    assessment=assessment,
+        ))
+        seed_assessments(jss2, jss2_students, (
+            (
+                "[Demo] JSS 2 Mathematics Baseline Check",
+                today - timedelta(days=26),
+                (("Linear equations", "Solve one-step equations"), ("Geometry", "Use angle relationships"), ("Data handling", "Interpret a simple chart")),
+                ((8, 7, 8), (7, 6, 7), (9, 8, 8), (6, 7, 7), (8, 9, 8), (7, 8, 7), (9, 9, 8), (6, 6, 7)),
+            ),
+            (
+                "[Demo] JSS 2 Mathematics Progress Check",
+                today - timedelta(days=5),
+                (("Linear equations", "Solve two-step equations"), ("Geometry", "Apply angle rules"), ("Data handling", "Compare values in charts")),
+                ((9, 8, 9), (8, 7, 8), (10, 9, 9), (7, 8, 8), (9, 9, 9), (8, 9, 8), (10, 9, 9), (7, 7, 8)),
+            ),
+        ))
+
+        attendance_dates = []
+        attendance_day = today - timedelta(days=1)
+        while len(attendance_dates) < 5:
+            if attendance_day.weekday() < 5:
+                attendance_dates.append(attendance_day)
+            attendance_day -= timedelta(days=1)
+        all_students = [students[row[0]] for row in DEMO_STUDENTS]
+        for day_index, attendance_date in enumerate(attendance_dates):
+            for student_index, student in enumerate(all_students):
+                marker = (day_index + student_index) % 13
+                attendance_status = AttendanceRecord.Status.ABSENT if marker == 0 else AttendanceRecord.Status.LATE if marker in {5, 9} else AttendanceRecord.Status.PRESENT
+                AttendanceRecord.objects.update_or_create(
                     student=student,
+                    date=attendance_date,
                     defaults={
-                        "score": Decimal(total),
-                        "status": AssessmentScore.EntryStatus.ENTERED,
-                        "entered_by": creator,
+                        "school": school,
+                        "school_class": student.school_class,
+                        "status": attendance_status,
+                        "note": "Demo attendance record" if attendance_status != AttendanceRecord.Status.PRESENT else "",
+                        "recorded_by": creator,
                     },
                 )
-                for question, score in zip(questions, row):
-                    AssessmentQuestionScore.objects.update_or_create(
-                        question=question,
-                        student=student,
-                        defaults={
-                            "score": Decimal(score),
-                            "status": AssessmentQuestionScore.EntryStatus.ENTERED,
-                            "entered_by": creator,
-                        },
-                    )
 
         Assignment.objects.update_or_create(
             school=school,
@@ -260,7 +306,7 @@ class Command(BaseCommand):
         self.stdout.write(
             self.style.SUCCESS(
                 f'Seeded demo data for "{school.name}" ({academic_session}): '
-                "2 classes, 3 subjects, 16 students, 2 assessments, 48 question scores, "
-                "2 assignments, and 1 intervention."
+                "2 classes, 3 subjects, 16 students, 4 assessments, 96 question scores, "
+                "80 attendance records, 2 assignments, and 1 intervention."
             )
         )

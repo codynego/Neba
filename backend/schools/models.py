@@ -258,6 +258,48 @@ class ClassTeacherAssignment(models.Model):
         return f"{self.membership}: class teacher for {self.school_class}"
 
 
+class AttendanceRecord(models.Model):
+    """One teacher-recorded daily attendance decision for a learner."""
+
+    class Status(models.TextChoices):
+        PRESENT = "present", "Present"
+        LATE = "late", "Late"
+        ABSENT = "absent", "Absent"
+        EXCUSED = "excused", "Excused"
+
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="attendance_records")
+    school_class = models.ForeignKey(SchoolClass, on_delete=models.PROTECT, related_name="attendance_records")
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name="attendance_records")
+    date = models.DateField(default=timezone.localdate)
+    status = models.CharField(max_length=16, choices=Status.choices)
+    note = models.CharField(max_length=240, blank=True)
+    recorded_by = models.ForeignKey(SchoolMembership, null=True, blank=True, on_delete=models.SET_NULL, related_name="recorded_attendance")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("-date", "student__last_name", "student__first_name")
+        constraints = [models.UniqueConstraint(fields=("student", "date"), name="unique_student_attendance_date")]
+        indexes = [models.Index(fields=("school_class", "date"), name="class_attendance_date_idx")]
+
+    def clean(self):
+        errors = {}
+        if self.student_id and self.school_id and self.student.school_id != self.school_id:
+            errors["student"] = "The student must belong to this school."
+        if self.school_class_id and self.school_id and self.school_class.school_id != self.school_id:
+            errors["school_class"] = "The class must belong to this school."
+        if self.student_id and self.school_class_id and self.student.school_class_id != self.school_class_id:
+            errors["school_class"] = "The attendance class must match the student's current class."
+        if self.recorded_by_id and self.school_id and self.recorded_by.school_id != self.school_id:
+            errors["recorded_by"] = "The recorder must belong to this school."
+        if errors:
+            raise ValidationError(errors)
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+
 class Assessment(models.Model):
     class Type(models.TextChoices):
         CA = "ca", "Continuous assessment"

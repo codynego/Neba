@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import ClassTeacherAssignment, School, SchoolClass, SchoolMembership, Student, StudentIntervention, Subject, TeachingAssignment
+from .models import AttendanceRecord, ClassTeacherAssignment, School, SchoolClass, SchoolMembership, Student, StudentIntervention, Subject, TeachingAssignment
 
 
 @admin.register(School)
@@ -45,6 +45,13 @@ class TeachingAssignmentAdmin(admin.ModelAdmin):
 class ClassTeacherAssignmentAdmin(admin.ModelAdmin):
     list_display = ("membership", "school_class", "starts_at", "ends_at", "is_active")
     list_filter = ("is_active", "school_class__school")
+
+
+@admin.register(AttendanceRecord)
+class AttendanceRecordAdmin(admin.ModelAdmin):
+    list_display = ("student", "school_class", "date", "status", "recorded_by")
+    list_filter = ("school", "school_class", "date", "status")
+    search_fields = ("student__first_name", "student__last_name", "student__student_id")
 
 
 @admin.register(StudentIntervention)

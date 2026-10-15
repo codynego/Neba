@@ -8,7 +8,7 @@ from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.test import APITestCase
 
-from .models import AcademicIntervention, Assessment, AssessmentQuestion, AssessmentQuestionScore, AssessmentScore, ClassTeacherAssignment, School, SchoolClass, SchoolMembership, Student, StudentIntervention, Subject, TeachingAssignment
+from .models import AcademicIntervention, Assessment, AssessmentQuestion, AssessmentQuestionScore, AssessmentScore, AttendanceRecord, ClassTeacherAssignment, School, SchoolClass, SchoolMembership, Student, StudentIntervention, Subject, TeachingAssignment
 from .permissions import class_subject_access_or_403
 
 
@@ -146,6 +146,22 @@ class SchoolRosterTests(APITestCase):
         self.assertEqual(response.status_code, 403)
         self.assertFalse(Student.objects.exists())
 
+    def test_roster_includes_academic_and_attendance_summary(self):
+        membership = SchoolMembership.objects.get(school=self.school, user=self.admin)
+        student = Student.objects.create(school=self.school, school_class=self.school_class, first_name="Ada", last_name="Okafor")
+        subject = Subject.objects.create(school=self.school, name="Mathematics")
+        assessment = Assessment.objects.create(school=self.school, school_class=self.school_class, subject=subject, academic_session="2026/2027", term="First term", title="CA 1", assessment_type=Assessment.Type.CA, maximum_score=20, created_by=membership)
+        AssessmentScore.objects.create(assessment=assessment, student=student, score=15, status=AssessmentScore.EntryStatus.ENTERED, entered_by=membership)
+        AttendanceRecord.objects.create(school=self.school, school_class=self.school_class, student=student, date="2026-10-14", status=AttendanceRecord.Status.PRESENT, recorded_by=membership)
+        AttendanceRecord.objects.create(school=self.school, school_class=self.school_class, student=student, date="2026-10-15", status=AttendanceRecord.Status.ABSENT, recorded_by=membership)
+
+        response = self.client.get("/api/schools/roster/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["students"][0]["academic_average"], 75.0)
+        self.assertEqual(response.data["students"][0]["assessments_recorded"], 1)
+        self.assertEqual(response.data["students"][0]["attendance_rate"], 50.0)
+
     def test_student_receives_public_id_and_can_be_updated_only_in_own_school(self):
         student = Student.objects.create(school=self.school, school_class=self.school_class, first_name="Ada", last_name="Okafor")
         response = self.client.get(f"/api/schools/students/{student.public_id}/")
@@ -208,6 +224,56 @@ class SchoolRosterTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         assignment.refresh_from_db()
         self.assertFalse(assignment.is_active)
+
+
+class AttendanceTests(APITestCase):
+    def setUp(self):
+        self.admin = get_user_model().objects.create_user(username="attendance-admin", password="password")
+        self.teacher = get_user_model().objects.create_user(username="attendance-teacher", password="password")
+        self.school = School.objects.create(name="Attendance School", slug="attendance-school")
+        self.school_class = SchoolClass.objects.create(school=self.school, name="JSS 1", academic_session="2026/2027")
+        self.other_class = SchoolClass.objects.create(school=self.school, name="JSS 2", academic_session="2026/2027")
+        self.student = Student.objects.create(school=self.school, school_class=self.school_class, first_name="Ada", last_name="Okafor")
+        self.admin_membership = SchoolMembership.objects.create(school=self.school, user=self.admin, role=SchoolMembership.Role.ADMIN, status=SchoolMembership.Status.ACTIVE)
+        self.teacher_membership = SchoolMembership.objects.create(school=self.school, user=self.teacher, role=SchoolMembership.Role.TEACHER, status=SchoolMembership.Status.ACTIVE)
+
+    def test_admin_can_save_and_update_a_daily_class_register(self):
+        self.client.force_authenticate(self.admin)
+        payload = {"class_id": self.school_class.id, "date": "2026-10-15", "rows": [{"student_id": self.student.id, "status": "present", "note": ""}]}
+        response = self.client.post("/api/schools/attendance/", payload, format="json")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["saved"], 1)
+
+        payload["rows"][0]["status"] = "late"
+        response = self.client.post("/api/schools/attendance/", payload, format="json")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(AttendanceRecord.objects.get().status, AttendanceRecord.Status.LATE)
+        self.assertEqual(AttendanceRecord.objects.count(), 1)
+
+    def test_assigned_teacher_can_read_and_mark_attendance(self):
+        ClassTeacherAssignment.objects.create(membership=self.teacher_membership, school_class=self.school_class)
+        self.client.force_authenticate(self.teacher)
+        response = self.client.get(f"/api/schools/attendance/?class_id={self.school_class.id}&date=2026-10-15")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["rows"][0]["status"], "unmarked")
+        response = self.client.post("/api/schools/attendance/", {"class_id": self.school_class.id, "date": "2026-10-15", "rows": [{"student_id": self.student.id, "status": "present"}]}, format="json")
+        self.assertEqual(response.status_code, 200)
+
+    def test_unassigned_teacher_cannot_access_another_class_register(self):
+        ClassTeacherAssignment.objects.create(membership=self.teacher_membership, school_class=self.other_class)
+        self.client.force_authenticate(self.teacher)
+        response = self.client.get(f"/api/schools/attendance/?class_id={self.school_class.id}&date=2026-10-15")
+        self.assertEqual(response.status_code, 403)
+
+    def test_student_attendance_summary_ignores_excused_days_in_rate(self):
+        AttendanceRecord.objects.create(school=self.school, school_class=self.school_class, student=self.student, date="2026-10-13", status=AttendanceRecord.Status.PRESENT, recorded_by=self.admin_membership)
+        AttendanceRecord.objects.create(school=self.school, school_class=self.school_class, student=self.student, date="2026-10-14", status=AttendanceRecord.Status.ABSENT, recorded_by=self.admin_membership)
+        AttendanceRecord.objects.create(school=self.school, school_class=self.school_class, student=self.student, date="2026-10-15", status=AttendanceRecord.Status.EXCUSED, recorded_by=self.admin_membership)
+        self.client.force_authenticate(self.admin)
+        response = self.client.get(f"/api/schools/attendance/?student_id={self.student.public_id}")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["summary"]["attendance_rate"], 50.0)
+        self.assertEqual(response.data["summary"]["days_recorded"], 3)
 
 
 class AcademicIntelligenceTests(APITestCase):

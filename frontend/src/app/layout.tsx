@@ -15,6 +15,7 @@ import "./homepage-network.css";
 import "./schools.css";
 import "./schools-dashboard.css";
 import "./schools-dashboard-empty.css";
+import "./schools-attendance.css";
 import "./schools-intelligence.css";
 import "./schools-question-evidence.css";
 import "./schools-setup.css";

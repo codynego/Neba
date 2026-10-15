@@ -10,6 +10,7 @@ from .models import (
     AssessmentQuestionScore,
     AssessmentScore,
     Assignment,
+    AttendanceRecord,
     School,
     SchoolClass,
     Student,
@@ -41,9 +42,10 @@ class SeedSchoolDemoCommandTests(TestCase):
         self.assertEqual(Subject.objects.filter(school=self.school).count(), 3)
         self.assertEqual(Student.objects.filter(school=self.school).count(), 16)
         self.assertEqual(StudentEnrollment.objects.filter(school=self.school).count(), 16)
-        self.assertEqual(Assessment.objects.filter(school=self.school).count(), 2)
-        self.assertEqual(AssessmentScore.objects.count(), 16)
-        self.assertEqual(AssessmentQuestionScore.objects.count(), 48)
+        self.assertEqual(Assessment.objects.filter(school=self.school).count(), 4)
+        self.assertEqual(AssessmentScore.objects.count(), 32)
+        self.assertEqual(AssessmentQuestionScore.objects.count(), 96)
+        self.assertEqual(AttendanceRecord.objects.filter(school=self.school).count(), 80)
         self.assertEqual(Assignment.objects.filter(school=self.school).count(), 2)
         self.assertEqual(AcademicIntervention.objects.filter(school=self.school).count(), 1)
 
@@ -54,8 +56,9 @@ class SeedSchoolDemoCommandTests(TestCase):
         self.run_seed()
 
         self.assertEqual(Student.objects.filter(school=self.school).count(), 16)
-        self.assertEqual(Assessment.objects.filter(school=self.school).count(), 2)
-        self.assertEqual(AssessmentQuestionScore.objects.count(), 48)
+        self.assertEqual(Assessment.objects.filter(school=self.school).count(), 4)
+        self.assertEqual(AssessmentQuestionScore.objects.count(), 96)
+        self.assertEqual(AttendanceRecord.objects.filter(school=self.school).count(), 80)
         self.assertEqual(original_student_ids, set(Student.objects.values_list("student_id", flat=True)))
 
     def test_refuses_to_create_a_missing_school(self):
