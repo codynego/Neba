@@ -37,7 +37,7 @@ INSTALLED_APPS = [
     "django.contrib.admin", "django.contrib.auth", "django.contrib.contenttypes",
     "django.contrib.sessions", "django.contrib.messages", "django.contrib.staticfiles",
     "rest_framework", "rest_framework.authtoken", "rest_framework_simplejwt.token_blacklist", "corsheaders",
-    "accounts.apps.AccountsConfig", "billing.apps.BillingConfig", "schools.apps.SchoolsConfig", "locations", "tasks", "offers", "bookings", "opportunities.apps.OpportunitiesConfig",
+    "accounts.apps.AccountsConfig", "billing.apps.BillingConfig", "schools.apps.SchoolsConfig", "exam_buddy.apps.ExamBuddyConfig", "locations", "tasks", "offers", "bookings", "opportunities.apps.OpportunitiesConfig",
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",

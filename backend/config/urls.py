@@ -29,6 +29,7 @@ urlpatterns = [
     path("api/health/", health),
     path("api/auth/", include("accounts.urls")),
     path("api/schools/", include("schools.urls")),
+    path("api/exam-buddy/", include("exam_buddy.urls")),
     path("api/billing/", include("billing.urls")),
     path("api/operations/dashboard/", StaffDashboard.as_view()),
     path("api/operations/opportunities/fetch/", OpportunityFetch.as_view()),
