@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Exam, ExamPaper, LearnerExamGoal, PracticeSession, Question, QuestionAttempt, Topic
+from .models import ContentSource, Exam, ExamBlueprint, ExamPaper, ExamVersion, GenerationJob, LearnerExamGoal, PracticeSession, Question, QuestionAttempt, Topic, TopicMastery
 
 
-admin.site.register((Exam, ExamPaper, Topic, Question, LearnerExamGoal, PracticeSession, QuestionAttempt))
+admin.site.register((Exam, ExamVersion, ExamBlueprint, ExamPaper, Topic, ContentSource, Question, LearnerExamGoal, PracticeSession, QuestionAttempt, TopicMastery, GenerationJob))

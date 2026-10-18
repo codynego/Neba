@@ -7,7 +7,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Exam, ExamPaper, LearnerExamGoal, PracticeSession, Question, QuestionAttempt
+from .models import Exam, ExamBlueprint, ExamPaper, LearnerExamGoal, PracticeSession, Question, QuestionAttempt, TopicMastery
 
 
 def paper_payload(paper):
@@ -76,14 +76,20 @@ class PracticeSessionView(APIView):
         if not paper:
             return Response({"paper_id": ["Choose an active exam paper."]}, status=400)
         questions = Question.objects.filter(paper=paper, status=Question.Status.VERIFIED).select_related("topic")
+        mode = data.validated_data["mode"]
+        if mode == PracticeSession.Mode.PAST_QUESTIONS:
+            questions = questions.exclude(source=Question.Source.ORIGINAL)
+        if mode == PracticeSession.Mode.AI_PRACTICE:
+            questions = questions.filter(source=Question.Source.ORIGINAL)
         topic_ids = data.validated_data.get("topic_ids")
         if topic_ids:
             questions = questions.filter(topic__public_id__in=topic_ids)
         selected = list(questions.order_by("?")[:data.validated_data["question_count"]])
         if not selected:
             return Response({"detail": "No verified questions are available for this selection yet."}, status=409)
-        session = PracticeSession.objects.create(learner=request.user, paper=paper, mode=data.validated_data["mode"])
-        QuestionAttempt.objects.bulk_create([QuestionAttempt(session=session, question=question) for question in selected])
+        blueprint = ExamBlueprint.objects.filter(paper=paper, is_active=True, exam_version__is_current=True).first()
+        session = PracticeSession.objects.create(learner=request.user, paper=paper, mode=mode, timer_seconds=(blueprint.duration_minutes * 60 if mode == PracticeSession.Mode.MOCK and blueprint and blueprint.duration_minutes else None), immediate_feedback=mode != PracticeSession.Mode.MOCK)
+        QuestionAttempt.objects.bulk_create([QuestionAttempt(session=session, question=question, position=index) for index, question in enumerate(selected, start=1)])
         return Response(session_payload(session, reveal_answers=False), status=201)
 
     def get(self, request, session_id):
@@ -118,7 +124,16 @@ class PracticeAnswerView(APIView):
         attempt.response_seconds = data.validated_data.get("response_seconds")
         attempt.answered_at = timezone.now()
         attempt.save(update_fields=("answer", "is_correct", "score", "response_seconds", "answered_at"))
-        return Response({"correct": correct, "score": attempt.score, "explanation": question.explanation, "correct_answer": question.correct_answer, "topic": question.topic.name if question.topic else None})
+        if question.topic_id:
+            mastery, _ = TopicMastery.objects.get_or_create(learner=request.user, topic=question.topic)
+            mastery.attempts += 1
+            mastery.correct_attempts += int(correct)
+            mastery.mastery_score = round(100 * mastery.correct_attempts / mastery.attempts, 2)
+            mastery.last_practised_at = attempt.answered_at
+            mastery.save(update_fields=("attempts", "correct_attempts", "mastery_score", "last_practised_at", "updated_at"))
+        if attempt.session.immediate_feedback:
+            return Response({"correct": correct, "score": attempt.score, "explanation": question.explanation, "correct_answer": question.correct_answer, "topic": question.topic.name if question.topic else None})
+        return Response({"saved": True, "answered": True})
 
 
 class CompleteSessionView(APIView):
@@ -167,8 +182,8 @@ def session_payload(session, reveal_answers):
     question_payload = []
     for attempt in attempts:
         question = attempt.question
-        item = {"id": str(question.public_id), "topic": question.topic.name if question.topic else None, "format": question.question_format, "difficulty": question.difficulty, "prompt": question.prompt, "options": question.options, "marks": question.marks, "answered": attempt.is_correct is not None}
-        if reveal_answers or attempt.is_correct is not None:
+        item = {"id": str(question.public_id), "position": attempt.position, "topic": question.topic.name if question.topic else None, "format": question.question_format, "difficulty": question.difficulty, "prompt": question.prompt, "options": question.options, "marks": question.marks, "answered": attempt.is_correct is not None, "flagged": attempt.is_flagged}
+        if reveal_answers or (session.immediate_feedback and attempt.is_correct is not None):
             item.update({"answer": attempt.answer, "correct": attempt.is_correct, "correct_answer": question.correct_answer, "explanation": question.explanation})
         question_payload.append(item)
     topic_totals = defaultdict(lambda: [0, 0])
@@ -177,4 +192,4 @@ def session_payload(session, reveal_answers):
         topic_totals[label][0] += int(bool(attempt.is_correct))
         topic_totals[label][1] += 1
     focus = sorted(({"topic": topic, "accuracy": round(100 * hits / total), "attempts": total} for topic, (hits, total) in topic_totals.items()), key=lambda item: (item["accuracy"], -item["attempts"]))
-    return {"id": str(session.public_id), "exam": session.paper.exam.name, "paper": session.paper.name, "mode": session.mode, "status": session.status, "questions": question_payload, "summary": {"total": len(attempts), "answered": len(answered), "correct": correct, "accuracy": round(100 * correct / len(answered)) if answered else None, "topic_focus": focus}}
+    return {"id": str(session.public_id), "exam": session.paper.exam.name, "paper": session.paper.name, "mode": session.mode, "status": session.status, "timer_seconds": session.timer_seconds, "immediate_feedback": session.immediate_feedback, "questions": question_payload, "summary": {"total": len(attempts), "answered": len(answered), "correct": correct, "accuracy": round(100 * correct / len(answered)) if answered else None, "topic_focus": focus}}

@@ -48,3 +48,12 @@ class ExamBuddyApiTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["summary"]["accuracy"], 100)
         self.assertEqual(response.data["topic_performance"][0]["status"], "secure")
+
+    def test_mock_session_hides_answer_key_until_completion(self):
+        response = self.client.post("/api/exam-buddy/practice/", {"paper_id": str(self.paper.public_id), "mode": "mock", "question_count": 1}, format="json")
+        session_id = response.data["id"]
+        self.client.post(f"/api/exam-buddy/practice/{session_id}/answer/", {"question_id": str(self.question.public_id), "answer": {"option_id": "a"}}, format="json")
+        response = self.client.get(f"/api/exam-buddy/practice/{session_id}/")
+        self.assertNotIn("correct_answer", response.data["questions"][0])
+        response = self.client.post(f"/api/exam-buddy/practice/{session_id}/complete/", format="json")
+        self.assertEqual(response.data["questions"][0]["correct_answer"], {"option_id": "a"})
