@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, BookOpen, BrainCircuit, ClipboardCheck, Home, LayoutGrid } from "lucide-react";
+import { ArrowUpRight, BarChart3, BookOpen, BrainCircuit, ClipboardCheck, Home, LayoutGrid } from "lucide-react";
 
 const links = [
   { href: "/learn/dashboard", label: "Home", icon: Home },
@@ -14,5 +14,6 @@ const links = [
 
 export function LearnNav() {
   const path = usePathname();
-  return <header className="ld-topbar"><Link href="/learn/dashboard" className="ld-brand"><span>n</span><strong>Neba Learn</strong></Link><nav className="ld-nav" aria-label="Neba Learn navigation">{links.map(({ href, label, icon: Icon }) => <Link key={href} href={href} className={path === href ? "active" : ""} aria-current={path === href ? "page" : undefined}><Icon size={15} /><span>{label}</span></Link>)}</nav><Link className="ld-products" href="/workspace" aria-label="All Neba products"><LayoutGrid size={16} /></Link></header>;
+  const navigation = <nav aria-label="Neba Learn navigation">{links.map(({ href, label, icon: Icon }) => <Link key={href} href={href} className={path === href || (href === "/learn/exam-prep" && path.startsWith("/learn/exam-prep/")) ? "active" : ""} aria-current={path === href ? "page" : undefined}><Icon size={18} /><span>{label}</span></Link>)}</nav>;
+  return <><aside className="learn-sidebar"><Link href="/learn/dashboard" className="learn-sidebar-brand"><span>n</span><strong>Neba Learn</strong></Link><p>STUDENT LEARNING WORKSPACE</p>{navigation}<div className="learn-sidebar-bottom"><Link href="/workspace"><LayoutGrid size={16} /> All Neba products</Link><Link href="/learn"><ArrowUpRight size={16} /> About Neba Learn</Link></div></aside><nav className="learn-mobile-nav" aria-label="Neba Learn mobile navigation">{links.slice(0, 4).map(({ href, label, icon: Icon }) => <Link key={href} href={href} className={path === href || (href === "/learn/exam-prep" && path.startsWith("/learn/exam-prep/")) ? "active" : ""}><Icon size={19} /><span>{label === "Exam Prep" ? "Prep" : label.replace("AI ", "")}</span></Link>)}<Link href="/learn/performance" className={path === "/learn/performance" ? "active" : ""}><BarChart3 size={19} /><span>Scores</span></Link></nav></>;
 }
