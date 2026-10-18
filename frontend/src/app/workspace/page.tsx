@@ -10,11 +10,12 @@ import type { User } from "@/lib/types";
 
 const yourProducts = [
   { id: "schools", name: "Neba for Schools", description: "School operations, records, and academic progress", href: "/schools/dashboard", icon: GraduationCap, tone: "schools", note: "Your school workspace" },
+  { id: "learn", name: "Neba Learn", description: "Study plans, Exam Buddy practice, and learning progress", context: "Personal workspace", href: "/learn/dashboard", icon: BookOpenCheck, tone: "learn", note: "Your study space" },
   { id: "opportunities", name: "Neba Opportunities", description: "Scholarships, grants, and academic pathways", context: "Personal workspace", href: "/dashboard", icon: BriefcaseBusiness, tone: "opportunities", note: "Your opportunity workspace" },
 ];
 
 const catalogProducts = [
-  { name: "Neba Learn", description: "Study support, practice, and clearer next steps for learners.", availability: "Coming soon", href: "/learn", icon: BookOpenCheck },
+  { name: "Neba Learn", description: "Study support, Exam Buddy practice, and clearer next steps for learners.", availability: "Early access", href: "/learn/dashboard", icon: BookOpenCheck },
 ];
 
 type SchoolWorkspace = { id: number; name: string; slug: string };

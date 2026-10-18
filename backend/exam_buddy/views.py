@@ -136,6 +136,30 @@ class CompleteSessionView(APIView):
         return Response(session_payload(session, reveal_answers=True))
 
 
+class LearnerPerformanceView(APIView):
+    """Personal performance evidence, derived only from completed practice attempts."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        sessions = PracticeSession.objects.filter(learner=request.user, status=PracticeSession.Status.COMPLETE).select_related("paper__exam").prefetch_related("attempts__question__topic").order_by("-completed_at")
+        total_answered = total_correct = 0
+        topic_totals = defaultdict(lambda: [0, 0])
+        recent = []
+        for session in sessions:
+            attempts = [attempt for attempt in session.attempts.all() if attempt.is_correct is not None]
+            correct = sum(bool(attempt.is_correct) for attempt in attempts)
+            total_answered += len(attempts)
+            total_correct += correct
+            for attempt in attempts:
+                label = attempt.question.topic.name if attempt.question.topic else "Unmapped"
+                topic_totals[label][0] += int(bool(attempt.is_correct))
+                topic_totals[label][1] += 1
+            recent.append({"id": str(session.public_id), "exam": session.paper.exam.name, "paper": session.paper.name, "mode": session.mode, "completed_at": session.completed_at, "answered": len(attempts), "accuracy": round(100 * correct / len(attempts)) if attempts else None})
+        topics = sorted(({"topic": topic, "accuracy": round(100 * hits / total), "attempts": total, "status": "needs_attention" if hits / total < .6 else "developing" if hits / total < .8 else "secure"} for topic, (hits, total) in topic_totals.items()), key=lambda item: (item["accuracy"], -item["attempts"]))
+        return Response({"summary": {"sessions_completed": len(recent), "questions_answered": total_answered, "accuracy": round(100 * total_correct / total_answered) if total_answered else None}, "topic_performance": topics, "recent_sessions": recent[:8]})
+
+
 def session_payload(session, reveal_answers):
     attempts = list(session.attempts.all())
     answered = [attempt for attempt in attempts if attempt.is_correct is not None]

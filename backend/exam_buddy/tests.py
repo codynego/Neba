@@ -38,3 +38,13 @@ class ExamBuddyApiTests(APITestCase):
         self.client.force_authenticate(self.other_learner)
         response = self.client.get(f"/api/exam-buddy/practice/{response.data['id']}/")
         self.assertEqual(response.status_code, 404)
+
+    def test_performance_uses_only_completed_attempts(self):
+        response = self.client.post("/api/exam-buddy/practice/", {"paper_id": str(self.paper.public_id), "question_count": 1}, format="json")
+        session_id = response.data["id"]
+        self.client.post(f"/api/exam-buddy/practice/{session_id}/answer/", {"question_id": str(self.question.public_id), "answer": {"option_id": "a"}}, format="json")
+        self.client.post(f"/api/exam-buddy/practice/{session_id}/complete/", format="json")
+        response = self.client.get("/api/exam-buddy/performance/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["summary"]["accuracy"], 100)
+        self.assertEqual(response.data["topic_performance"][0]["status"], "secure")

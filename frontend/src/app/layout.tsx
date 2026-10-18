@@ -36,6 +36,8 @@ import "./pricing-billing.css";
 import "./neba-design.css";
 import "./neba-corporate.css";
 import "./learn.css";
+import "./learn-dashboard.css";
+import "./learn-extra.css";
 import "./workspace.css";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-geist" });
