@@ -387,6 +387,13 @@ class AcademicIntelligenceTests(APITestCase):
         assessment.refresh_from_db()
         self.assertEqual(assessment.status, Assessment.Status.PUBLISHED)
 
+    def test_school_admin_can_publish_a_draft_directly(self):
+        assessment = Assessment.objects.create(school=self.school, school_class=self.school_class, subject=self.subject, academic_session="2026/2027", term="First term", title="Direct publish", assessment_type=Assessment.Type.CA, maximum_score=20, created_by=self.membership)
+        url = f"/api/schools/teaching-work/?school_id={self.school.id}&class_id={self.school_class.id}&subject_id={self.subject.id}"
+        response = self.client.post(url, {"action": "assessment_status", "assessment_id": assessment.id, "status": "published"}, format="json")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["status"], Assessment.Status.PUBLISHED)
+
     def test_teacher_can_save_question_topic_mapping_and_import_validated_csv_rows(self):
         assessment = Assessment.objects.get(school=self.school)
         assessment.status = Assessment.Status.DRAFT

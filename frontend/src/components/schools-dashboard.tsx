@@ -4186,10 +4186,10 @@ function ScoreEntry({
           </span>
           <button
             type="button"
-            className="school-app-button quiet"
-            onClick={() => void updateStatus("submitted")}
+            className={`school-app-button ${role === "admin" || role === "academic_head" ? "primary" : "quiet"}`}
+            onClick={() => void updateStatus(role === "admin" || role === "academic_head" ? "published" : "submitted")}
           >
-            Submit for review
+            {role === "admin" || role === "academic_head" ? "Publish results" : "Submit for review"}
           </button>
         </div>
         <form
@@ -4240,21 +4240,22 @@ function ScoreEntry({
         {notice && <p className="school-app-notice">{notice}</p>}
       </section>
     );
+  const progress = assessmentProgress(assessment, students.length);
   return (
     <section className="school-app-score-entry">
       <div>
         <strong>{assessment.title}</strong>
         <span>
-          {assessment.entered_scores} entered · out of{" "}
-          {assessment.maximum_score} · {assessment.status}
+          {progress.entered} score entries recorded · {progress.percent}%
+          complete · {assessment.status}
         </span>
         {assessment.status === "draft" && (
           <button
             type="button"
-            className="school-app-button quiet"
-            onClick={() => void updateStatus("submitted")}
+            className={`school-app-button ${role === "admin" || role === "academic_head" ? "primary" : "quiet"}`}
+            onClick={() => void updateStatus(role === "admin" || role === "academic_head" ? "published" : "submitted")}
           >
-            Submit for review
+            {role === "admin" || role === "academic_head" ? "Publish results" : "Submit for review"}
           </button>
         )}
         {assessment.status === "submitted" &&

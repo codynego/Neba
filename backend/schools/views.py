@@ -316,7 +316,7 @@ class SchoolRosterView(APIView):
             assessment = get_object_or_404(Assessment, id=request.data.get("assessment_id"), school=school, school_class=school_class, subject=subject)
             next_status = str(request.data.get("status", "")).strip()
             transitions = {
-                Assessment.Status.DRAFT: {"submitted": Assessment.Status.SUBMITTED},
+                Assessment.Status.DRAFT: {"submitted": Assessment.Status.SUBMITTED, "published": Assessment.Status.PUBLISHED},
                 Assessment.Status.SUBMITTED: {"reviewed": Assessment.Status.REVIEWED},
                 Assessment.Status.REVIEWED: {"published": Assessment.Status.PUBLISHED},
             }
@@ -1112,7 +1112,7 @@ class TeachingWorkView(APIView):
             assessment = get_object_or_404(Assessment, id=request.data.get("assessment_id"), school=membership.school, school_class=school_class, subject=subject)
             next_status = str(request.data.get("status", "")).strip()
             transitions = {
-                Assessment.Status.DRAFT: {"submitted": Assessment.Status.SUBMITTED},
+                Assessment.Status.DRAFT: {"submitted": Assessment.Status.SUBMITTED, "published": Assessment.Status.PUBLISHED},
                 Assessment.Status.SUBMITTED: {"reviewed": Assessment.Status.REVIEWED},
                 Assessment.Status.REVIEWED: {"published": Assessment.Status.PUBLISHED},
             }
