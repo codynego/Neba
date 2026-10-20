@@ -1,39 +1,44 @@
 import type { Metadata } from "next";
-import { indexPublicPages, jsonLd, siteUrl } from "@/lib/seo";
 import { opportunityIdFromRoute, opportunityPath } from "@/lib/routes";
+import { indexPublicPages, publicPageMetadata } from "@/lib/seo";
 
-type OpportunitySummary = { public_id: string; title: string; provider: string; summary: string; category: string; country: string; location_label: string; is_remote: boolean; deadline: string | null; benefit?: string; eligibility_notes?: string; source_url?: string; updated_at?: string; is_published?: boolean; review_status?: string };
+type OpportunitySeoRecord = {
+  public_id: string;
+  title: string;
+  provider: string;
+  summary: string;
+  category: string;
+  deadline: string | null;
+  location_label: string;
+  country: string;
+  is_remote: boolean;
+  application_mode: "internal" | "external";
+  is_published?: boolean;
+};
 
-async function getOpportunity(id: string): Promise<OpportunitySummary | null> {
-  const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+async function getOpportunity(id: string): Promise<OpportunitySeoRecord | null> {
+  const apiBase = (process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api").replace(/\/$/, "");
   try {
-    const response = await fetch(`${apiBase}/opportunities/${id}/`, { next: { revalidate: 300 } });
-    return response.ok ? response.json() : null;
-  } catch { return null; }
+    const response = await fetch(`${apiBase}/opportunities/${opportunityIdFromRoute(id)}/`, { next: { revalidate: 900 }, signal: AbortSignal.timeout(5000) });
+    return response.ok ? await response.json() as OpportunitySeoRecord : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
-  const opportunity = await getOpportunity(opportunityIdFromRoute(id));
-  if (!opportunity) return { title: "Opportunity not found", robots: { index: false, follow: false } };
-  const location = opportunity.is_remote ? "Remote" : opportunity.location_label || opportunity.country || "Open location";
-  const description = `${opportunity.summary.slice(0, 145)}${opportunity.summary.length > 145 ? "…" : ""}`;
-  const canonicalPath = opportunityPath(opportunity.title, opportunity.public_id);
-  const active = !opportunity.deadline || new Date(opportunity.deadline) > new Date();
-  const indexable = indexPublicPages && opportunity.is_published !== false && opportunity.review_status !== "rejected" && active;
-  return { title: `${opportunity.title} | Neba`, description, alternates: { canonical: new URL(canonicalPath, siteUrl).toString() }, robots: { index: indexable, follow: true, "max-image-preview": "large" }, openGraph: { title: `${opportunity.title} | Neba`, description, type: "article", url: new URL(canonicalPath, siteUrl).toString(), siteName: "Neba", locale: "en_NG", images: [{ url: new URL("/brand/getneba-social-preview-1200x630.png", siteUrl).toString(), width: 1200, height: 630, alt: `${opportunity.title} on Neba` }] }, twitter: { card: "summary_large_image", title: `${opportunity.title} | Neba`, description, images: [new URL("/brand/getneba-social-preview-1200x630.png", siteUrl).toString()] }, keywords: [opportunity.category, opportunity.provider, location, "opportunities", "Neba"] };
+  const opportunity = await getOpportunity(id);
+  if (!opportunity) {
+    return { title: "Opportunity not found", robots: { index: false, follow: false } };
+  }
+  const canonical = opportunityPath(opportunity.title, opportunity.public_id);
+  const location = opportunity.is_remote ? "Remote" : opportunity.location_label || opportunity.country || "See eligibility details";
+  const description = `${opportunity.summary || `Explore this ${opportunity.category} opportunity from ${opportunity.provider}.`} ${location}. Review eligibility, deadline, and how to apply on Neba.`.replace(/\s+/g, " ").slice(0, 160);
+  const metadata = publicPageMetadata(`${opportunity.title} — ${opportunity.provider} | Neba Opportunities`, description, canonical);
+  return { ...metadata, robots: { index: indexPublicPages, follow: true, "max-image-preview": "large" } };
 }
 
-export default async function OpportunityDetailLayout({ children, params }: Readonly<{ children: React.ReactNode; params: Promise<{ id: string }> }>) {
-  const { id } = await params;
-  const opportunity = await getOpportunity(opportunityIdFromRoute(id));
-  if (!opportunity) return children;
-  const canonical = new URL(opportunityPath(opportunity.title, opportunity.public_id), siteUrl).toString();
-  const location = opportunity.is_remote ? "Remote" : opportunity.location_label || opportunity.country || "Open location";
-  const schema: Record<string, unknown> = { "@context": "https://schema.org", "@graph": [
-    { "@type": "BreadcrumbList", itemListElement: [{ "@type": "ListItem", position: 1, name: "Home", item: siteUrl.toString() }, { "@type": "ListItem", position: 2, name: "Opportunities", item: new URL("/opportunities", siteUrl).toString() }, { "@type": "ListItem", position: 3, name: opportunity.title, item: canonical }] },
-    { "@type": "WebPage", "@id": canonical, url: canonical, name: opportunity.title, description: opportunity.summary, isPartOf: { "@id": new URL("/#website", siteUrl).toString() }, dateModified: opportunity.updated_at },
-  ] };
-  if (opportunity.category === "job") schema["@graph"] = [...schema["@graph"] as unknown[], { "@type": "JobPosting", title: opportunity.title, description: opportunity.summary, hiringOrganization: { "@type": "Organization", name: opportunity.provider }, datePosted: opportunity.updated_at, validThrough: opportunity.deadline, jobLocationType: location === "Remote" ? "TELECOMMUTE" : undefined }];
-  return <><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(schema) }} />{children}</>;
+export default function OpportunityLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  return children;
 }

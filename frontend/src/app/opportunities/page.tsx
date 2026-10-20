@@ -5,8 +5,8 @@ import { OpportunityEntryLink } from "@/components/opportunity-entry-link";
 import type { Opportunity } from "@/lib/types";
 import { jsonLd, publicPageMetadata, siteUrl } from "@/lib/seo";
 
-export const description = "Discover jobs, scholarships, grants, internships, fellowships, funding, and other opportunities relevant to Nigerians and Africans.";
-export const metadata = publicPageMetadata("Find your next opportunity, together", description, "/opportunities");
+export const description = "Discover jobs, scholarships, grants, internships, fellowships, funding, and other opportunities for Nigerians and Africans.";
+export const metadata = publicPageMetadata("Neba Opportunities — Jobs, Scholarships, Grants and More", description, "/opportunities");
 
 async function getOpportunities(): Promise<Opportunity[]> {
   try {
@@ -22,6 +22,8 @@ export default async function OpportunitiesPage({ canonicalPath = "/opportunitie
   const opportunities = await getOpportunities();
   return <main className="nb-home">
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd({ "@context": "https://schema.org", "@graph": [
+      { "@type": "Organization", "@id": new URL("/#organization", siteUrl).toString(), name: "Neba", url: siteUrl.toString(), logo: new URL("/icons/getneba-192.png", siteUrl).toString() },
+      { "@type": "WebSite", "@id": new URL("/#website", siteUrl).toString(), name: "Neba Opportunities", url: siteUrl.toString(), publisher: { "@id": new URL("/#organization", siteUrl).toString() } },
       { "@type": "CollectionPage", "@id": new URL(`${canonicalPath}#collection`, siteUrl).toString(), name: "Neba Opportunities", url: new URL(canonicalPath, siteUrl).toString(), description, isPartOf: { "@id": new URL("/#website", siteUrl).toString() } },
       { "@type": "BreadcrumbList", itemListElement: [{ "@type": "ListItem", position: 1, name: "Neba", item: siteUrl.toString() }, { "@type": "ListItem", position: 2, name: "Neba Opportunities", item: new URL(canonicalPath, siteUrl).toString() }] },
     ] }) }} />

@@ -5,7 +5,8 @@ import { Opportunity } from "@/lib/types";
 import { jsonLd, siteUrl } from "@/lib/seo";
 import { VerificationBadge } from "./verification-badge";
 
-const labels: Record<string, string> = { job: "jobs", scholarship: "scholarships", grant: "grants", internship: "internships", fellowship: "fellowships", startup: "startup opportunities" };
+const labels: Record<string, string> = { job: "jobs", scholarship: "scholarships", grant: "grants", internship: "internships", fellowship: "fellowships", competition: "competitions", training: "training programmes", startup: "startup opportunities", funding: "funding opportunities", tender: "tenders" };
+const slugs: Record<string, string> = { job: "jobs", scholarship: "scholarships", grant: "grants", internship: "internships", fellowship: "fellowships", competition: "competitions", training: "training", startup: "startup", funding: "funding", tender: "tenders" };
 const locations = (item: Opportunity) => item.is_remote ? "Remote" : item.location_label || item.country || "Open location";
 
 async function getCategoryOpportunities(category: string): Promise<Opportunity[]> {
@@ -20,7 +21,7 @@ async function getCategoryOpportunities(category: string): Promise<Opportunity[]
 
 export async function SeoOpportunityCategory({ category, heading, description }: { category: string; heading: string; description: string }) {
   const items = await getCategoryOpportunities(category);
-  const path = `/opportunities/${category === "startup" ? "startup" : labels[category] || category}`;
+  const path = `/opportunities/${slugs[category] || category}`;
   const answer = `${heading} on Getneba is a live collection of published ${labels[category] || "opportunities"} for people in Nigeria, Africa, and other eligible locations. Each listing includes the provider, location, deadline when supplied, eligibility information, and an official application source when available.`;
   const faqs = [{ question: `What are ${labels[category] || "opportunities"}?`, answer: `They are current opportunities published on Getneba in the ${labels[category] || category} category. Review each listing for its provider, requirements, location, and deadline.` }, { question: `How do I apply for ${labels[category] || "opportunities"}?`, answer: "Open a listing, review the eligibility and application details, then follow the provider's official application instructions. Getneba helps with discovery and preparation; the provider makes the final decision." }, { question: "Are all opportunities open to Nigerians?", answer: "Not necessarily. Eligibility varies by opportunity. Check the published eligible countries and the provider's official source before applying." }];
   const structuredData = { "@context": "https://schema.org", "@graph": [{ "@type": "BreadcrumbList", itemListElement: [{ "@type": "ListItem", position: 1, name: "Home", item: siteUrl.toString() }, { "@type": "ListItem", position: 2, name: "Opportunities", item: new URL("/opportunities", siteUrl).toString() }, { "@type": "ListItem", position: 3, name: heading, item: new URL(path, siteUrl).toString() }] }, { "@type": "ItemList", name: heading, description, numberOfItems: items.length, itemListElement: items.slice(0, 50).map((item, index) => ({ "@type": "ListItem", position: index + 1, name: item.title, url: new URL(opportunityPath(item.title, item.public_id), siteUrl).toString() })) }, { "@type": "FAQPage", mainEntity: faqs.map((faq) => ({ "@type": "Question", name: faq.question, acceptedAnswer: { "@type": "Answer", text: faq.answer } })) }] };
