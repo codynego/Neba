@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ArrowLeft, ArrowRight, Check, ChevronRight, Clock3, LoaderCircle, Mic, MicOff, RotateCcw, Sparkles, Square } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
-import { Opportunity } from "@/lib/types";
+import { Opportunity, OpportunityApplication, Page } from "@/lib/types";
 
 type Phase = "setup" | "live" | "report";
 type InterviewReport = {
@@ -116,6 +116,13 @@ export default function InterviewPracticePage() {
     try {
       const result = await api<InterviewReport>("/ai/interview/report/", { method: "POST", body: JSON.stringify({ focus, difficulty, answers: answers.map((item, index) => ({ question: answerQuestions[index] || questions[index % questions.length], answer: item })), opportunity_context: opportunity ? { title: opportunity.title, provider: opportunity.provider, summary: opportunity.summary, eligibility: opportunity.eligibility_notes, benefit: opportunity.benefit } : { role: targetRole.trim(), company: targetCompany.trim() || "Not specified" } }) });
       setReport(result); setPhase("report");
+      if (opportunity) {
+        api<Page<OpportunityApplication>>(`/opportunity-applications/?opportunity_id=${opportunity.public_id}`).then((page) => {
+          const application = page.results[0];
+          if (application) return api(`/opportunity-applications/${application.public_id}/attach-interview/`, { method: "POST", body: JSON.stringify({ report: result }) });
+          return null;
+        }).catch(() => {});
+      }
     } catch (reportError) { console.error("Interview report failed", reportError); setError("The interview ended, but its debrief could not be generated. Please try again."); }
     finally { setReportBusy(false); }
   }

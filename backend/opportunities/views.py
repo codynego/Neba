@@ -238,11 +238,12 @@ class OpportunityApplicationSerializer(serializers.ModelSerializer):
         if self.get_is_poster(instance):
             data["notes"] = ""
             data.pop("cv_profile_snapshot", None)
+            data.pop("interview_report", None)
         return data
     class Meta:
         model = OpportunityApplication
-        fields = ("id", "public_id", "opportunity_id", "opportunity", "status", "applied_at", "next_action", "next_action_at", "notes", "application_message", "additional_information", "shared_fields", "shared_profile", "cv_ready", "cv_profile_snapshot", "applicant_name", "is_poster", "messages", "unread_message_count", "unread_activity_count", "created_at", "updated_at")
-        read_only_fields = ("cv_ready", "cv_profile_snapshot")
+        fields = ("id", "public_id", "opportunity_id", "opportunity", "status", "applied_at", "next_action", "next_action_at", "notes", "application_message", "additional_information", "shared_fields", "shared_profile", "cv_ready", "cv_profile_snapshot", "interview_completed", "interview_report", "applicant_name", "is_poster", "messages", "unread_message_count", "unread_activity_count", "created_at", "updated_at")
+        read_only_fields = ("cv_ready", "cv_profile_snapshot", "interview_completed", "interview_report")
 
 
 class OpportunityCheckSerializer(serializers.ModelSerializer):
@@ -484,6 +485,19 @@ class OpportunityApplicationViewSet(viewsets.ModelViewSet):
             raise PermissionDenied("Only the applicant can attach a CV to this application.")
         application.cv_profile_snapshot = request.user.cv_profile or {}
         application.save(update_fields=("cv_profile_snapshot", "updated_at"))
+        return Response(self.get_serializer(application).data)
+
+    @action(detail=True, methods=["post"], url_path="attach-interview")
+    def attach_interview(self, request, *args, **kwargs):
+        application = self.get_object()
+        if application.user_id != request.user.id:
+            raise PermissionDenied("Only the applicant can attach interview practice.")
+        report = request.data.get("report") or {}
+        if not isinstance(report, dict):
+            raise serializers.ValidationError({"report": "Interview report must be an object."})
+        application.interview_completed = True
+        application.interview_report = report
+        application.save(update_fields=("interview_completed", "interview_report", "updated_at"))
         return Response(self.get_serializer(application).data)
 
     def update(self, request, *args, **kwargs):

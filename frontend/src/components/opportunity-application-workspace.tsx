@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, ArrowRight, CalendarClock, Check, Circle, ExternalLink, FileText, Mail, MessageCircle, Pencil, Phone, Sparkles } from "lucide-react";
 import { api } from "@/lib/api";
-import { OpportunityApplication } from "@/lib/types";
+import { OpportunityApplication, User } from "@/lib/types";
 
 const statuses = ["preparing", "applied", "shortlisted", "interview", "awarded"];
 const statusLabels: Record<string, string> = { preparing: "Preparing", applied: "Applied", shortlisted: "Shortlisted", interview: "Interview", awarded: "Decision", unsuccessful: "Closed", withdrawn: "Withdrawn" };
@@ -18,10 +18,10 @@ export function OpportunityApplicationWorkspace({ applicationId, view = "auto" }
   const [feedback, setFeedback] = useState("");
   const [error, setError] = useState("");
 
-  useEffect(() => { api<OpportunityApplication>(`/opportunity-applications/${applicationId}/`).then((item) => { setApplication(item); setNotes(item.notes || ""); setTasks([true, true, item.cv_ready, false, item.status !== "preparing"]); api(`/opportunity-applications/${applicationId}/mark-read/`, { method: "POST" }).catch(() => {}); }).catch((err) => setError(err.message)); }, [applicationId]);
+  useEffect(() => { Promise.all([api<OpportunityApplication>(`/opportunity-applications/${applicationId}/`), api<User>("/auth/me/")]).then(([item, user]) => { setApplication(item); setNotes(item.notes || ""); const ready = Boolean(user.country && user.education_level && user.field_of_study && user.skills.length && user.opportunity_interests.length && user.goals.length); setTasks([Boolean(item.opportunity.match), ready, item.cv_ready, item.interview_completed, item.status !== "preparing"]); api(`/opportunity-applications/${applicationId}/mark-read/`, { method: "POST" }).catch(() => {}); }).catch((err) => setError(err.message)); }, [applicationId]);
   useEffect(() => {
     if (!application || application.is_poster || view === "poster") return;
-    const refreshApplication = () => { api<OpportunityApplication>(`/opportunity-applications/${applicationId}/`).then((item) => { setApplication(item); setTasks((current) => current.map((task, index) => index === 2 ? item.cv_ready : index === 4 ? item.status !== "preparing" : task)); }).catch(() => {}); };
+    const refreshApplication = () => { api<OpportunityApplication>(`/opportunity-applications/${applicationId}/`).then((item) => { setApplication(item); setTasks((current) => current.map((task, index) => index === 2 ? item.cv_ready : index === 3 ? item.interview_completed : index === 4 ? item.status !== "preparing" : task)); }).catch(() => {}); };
     window.addEventListener("focus", refreshApplication);
     const interval = window.setInterval(refreshApplication, 15000);
     return () => { window.removeEventListener("focus", refreshApplication); window.clearInterval(interval); };
