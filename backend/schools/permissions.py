@@ -2,7 +2,7 @@ from django.db.models import Q
 from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied
 
-from .models import SchoolMembership, TeachingAssignment
+from .models import ClassTeacherAssignment, SchoolMembership, TeachingAssignment
 
 
 def active_membership_or_403(user, school):
@@ -25,16 +25,12 @@ def class_subject_access_or_403(user, school, school_class, subject=None):
     if membership.role in {SchoolMembership.Role.ADMIN, SchoolMembership.Role.ACADEMIC_HEAD}:
         return membership
 
+    today = timezone.localdate()
+    current = Q(is_active=True, starts_at__lte=today) & (Q(ends_at__isnull=True) | Q(ends_at__gte=today))
+    if ClassTeacherAssignment.objects.filter(membership=membership, school_class=school_class).filter(current).exists():
+        return membership
     if subject is None:
-        raise PermissionDenied("Teachers need a subject-specific assignment.")
-
-    assignments = TeachingAssignment.objects.filter(
-        membership=membership,
-        school_class=school_class,
-        subject=subject,
-        is_active=True,
-        starts_at__lte=timezone.localdate(),
-    ).filter(Q(ends_at__isnull=True) | Q(ends_at__gte=timezone.localdate()))
-    if not assignments.exists():
+        raise PermissionDenied("Teachers need a class-teacher assignment or a subject-specific assignment.")
+    if not TeachingAssignment.objects.filter(membership=membership, school_class=school_class, subject=subject).filter(current).exists():
         raise PermissionDenied("You are not assigned to this class and subject.")
     return membership

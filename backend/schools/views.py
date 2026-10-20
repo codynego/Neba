@@ -23,6 +23,27 @@ from .models import AcademicIntervention, Assessment, AssessmentImport, Assessme
 from .permissions import active_membership_or_403, class_subject_access_or_403
 
 
+def _current_teacher_scope(membership):
+    """Return active class ids and subject/class pairs visible to a teacher."""
+    today = timezone.localdate()
+    current = Q(is_active=True, starts_at__lte=today) & (Q(ends_at__isnull=True) | Q(ends_at__gte=today))
+    class_ids = set(membership.class_teacher_assignments.filter(current).values_list("school_class_id", flat=True))
+    pairs = set(membership.teaching_assignments.filter(current).values_list("school_class_id", "subject_id"))
+    class_ids.update(class_id for class_id, _subject_id in pairs)
+    return class_ids, pairs
+
+
+def _teacher_scope_q(membership):
+    today = timezone.localdate()
+    current = Q(is_active=True, starts_at__lte=today) & (Q(ends_at__isnull=True) | Q(ends_at__gte=today))
+    class_teacher_ids = set(membership.class_teacher_assignments.filter(current).values_list("school_class_id", flat=True))
+    _class_ids, pairs = _current_teacher_scope(membership)
+    scope = Q(school_class_id__in=class_teacher_ids)
+    for class_id, subject_id in pairs:
+        scope |= Q(school_class_id=class_id, subject_id=subject_id)
+    return scope if _class_ids else Q(pk__in=[])
+
+
 class SchoolSetupSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=180)
     academic_session = serializers.CharField(max_length=40)
@@ -156,19 +177,21 @@ class SchoolRosterView(APIView):
         subjects = school.subjects.filter(is_active=True).values("id", "name", "code")
         students = school.students.select_related("school_class").filter(is_active=True)
         if membership.role == SchoolMembership.Role.TEACHER:
-            subject_class_ids = membership.teaching_assignments.filter(is_active=True).values_list("school_class_id", flat=True)
-            class_teacher_ids = membership.class_teacher_assignments.filter(is_active=True).values_list("school_class_id", flat=True)
-            assigned_class_ids = set(subject_class_ids).union(class_teacher_ids)
-            assigned_subject_ids = membership.teaching_assignments.filter(is_active=True).values_list("subject_id", flat=True)
+            assigned_class_ids, assigned_pairs = _current_teacher_scope(membership)
+            assigned_subject_ids = {subject_id for _class_id, subject_id in assigned_pairs}
             students = students.filter(school_class_id__in=assigned_class_ids)
             classes = classes.filter(id__in=assigned_class_ids)
-            subjects = subjects.filter(id__in=assigned_subject_ids)
+            if not membership.class_teacher_assignments.filter(school_class_id__in=assigned_class_ids, is_active=True).exists():
+                subjects = subjects.filter(id__in=assigned_subject_ids)
         members = school.memberships.none()
         if membership.role in {SchoolMembership.Role.ADMIN, SchoolMembership.Role.ACADEMIC_HEAD}:
             members = school.memberships.select_related("user").filter(status=SchoolMembership.Status.ACTIVE).order_by("user__first_name", "user__username")
         student_payload = StudentSerializer(students, many=True).data
         student_ids = [item["id"] for item in student_payload]
         percentage = ExpressionWrapper(100.0 * F("score") / F("assessment__maximum_score"), output_field=FloatField())
+        visible_assessments = Assessment.objects.filter(school=school)
+        if membership.role == SchoolMembership.Role.TEACHER:
+            visible_assessments = visible_assessments.filter(_teacher_scope_q(membership))
         academic = {
             item["student_id"]: item
             for item in AssessmentScore.objects.filter(
@@ -177,6 +200,7 @@ class SchoolRosterView(APIView):
                 score__isnull=False,
                 assessment__maximum_score__gt=0,
                 assessment__status=Assessment.Status.PUBLISHED,
+                assessment__in=visible_assessments,
             ).values("student_id").annotate(academic_average=Avg(percentage), assessments_recorded=Count("id"))
         }
         attendance = {
@@ -724,7 +748,7 @@ class StudentIntelligenceView(APIView):
             raise serializers.ValidationError({"detail": "Set up a school workspace first."})
         students = Student.objects.select_related("school_class").filter(school=membership.school, public_id=public_id, is_active=True)
         if membership.role == SchoolMembership.Role.TEACHER:
-            class_ids = membership.teaching_assignments.filter(is_active=True).values_list("school_class_id", flat=True)
+            class_ids, _assigned_pairs = _current_teacher_scope(membership)
             students = students.filter(school_class_id__in=class_ids)
         return get_object_or_404(students), membership
 
@@ -1240,10 +1264,7 @@ def _assessment_scope(membership):
     assessments = Assessment.objects.filter(school=membership.school, status=Assessment.Status.PUBLISHED).prefetch_related("scores", "questions__scores")
     if membership.role != SchoolMembership.Role.TEACHER:
         return assessments
-    assignment_filters = Q()
-    for assignment in TeachingAssignment.objects.filter(membership=membership, is_active=True):
-        assignment_filters |= Q(school_class=assignment.school_class, subject=assignment.subject)
-    return assessments.filter(assignment_filters) if assignment_filters else assessments.none()
+    return assessments.filter(_teacher_scope_q(membership))
 
 
 class AcademicIntelligenceView(APIView):
@@ -1312,8 +1333,8 @@ class AcademicIntelligenceView(APIView):
         topic_signals.sort(key=lambda item: item["average"])
         interventions = AcademicIntervention.objects.filter(school=membership.school).select_related("school_class", "subject")
         if membership.role == SchoolMembership.Role.TEACHER:
-            allowed = {(item.school_class_id, item.subject_id) for item in TeachingAssignment.objects.filter(membership=membership, is_active=True)}
-            interventions = [item for item in interventions if (item.school_class_id, item.subject_id) in allowed]
+            interventions = interventions.filter(_teacher_scope_q(membership))
+            interventions = list(interventions)
         else:
             interventions = list(interventions)
         return Response({

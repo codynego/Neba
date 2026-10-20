@@ -2,7 +2,6 @@ from datetime import timedelta
 from decimal import Decimal
 
 from django.core.management.base import BaseCommand, CommandError
-from django.db import transaction
 from django.db.models import Case, IntegerField, Q, Value, When
 from django.utils import timezone
 
@@ -67,7 +66,6 @@ class Command(BaseCommand):
             help="Session label, for example 2026/2027 (defaults to the current session).",
         )
 
-    @transaction.atomic
     def handle(self, *args, **options):
         school_label = options["school"].strip()
         school = (
@@ -80,6 +78,7 @@ class Command(BaseCommand):
                 f'No school named or slugged "{school_label}" exists. '
                 "Create the school first, then run this command again."
             )
+        self.stdout.write(f"Using school {school.name}...")
 
         today = timezone.localdate()
         academic_session = options.get("academic_session") or current_academic_session(today)
@@ -117,26 +116,29 @@ class Command(BaseCommand):
                 name=name,
                 defaults={"code": code, "is_active": True},
             )
+        self.stdout.write("School structure ready...")
 
         students = {}
         for index, (admission_number, first_name, last_name, class_name) in enumerate(DEMO_STUDENTS, start=1):
-            student, _ = Student.objects.update_or_create(
-                school=school,
-                admission_number=admission_number,
-                defaults={
-                    "first_name": first_name,
-                    "last_name": last_name,
-                    "admission_year": int(academic_session[:4]),
-                    "school_class": classes[class_name],
-                    "city": "Lagos",
-                    "state": "Lagos",
-                    "address_line": f"{index} Learning Avenue",
-                    "guardian_name": f"{last_name} Family Contact",
-                    "guardian_phone": f"+234800000{index:04d}",
-                    "guardian_email": f"guardian{index:02d}@example.com",
-                    "is_active": True,
-                },
-            )
+            defaults = {
+                "first_name": first_name,
+                "last_name": last_name,
+                "admission_year": int(academic_session[:4]),
+                "school_class": classes[class_name],
+                "city": "Lagos",
+                "state": "Lagos",
+                "address_line": f"{index} Learning Avenue",
+                "guardian_name": f"{last_name} Family Contact",
+                "guardian_phone": f"+234800000{index:04d}",
+                "guardian_email": f"guardian{index:02d}@example.com",
+                "is_active": True,
+            }
+            student = Student.objects.filter(school=school, admission_number=admission_number).first()
+            if student is None:
+                student = Student.objects.create(school=school, admission_number=admission_number, **defaults)
+            else:
+                Student.objects.filter(pk=student.pk).update(**defaults)
+                student.refresh_from_db()
             StudentEnrollment.objects.update_or_create(
                 student=student,
                 academic_session=academic_session,
@@ -151,6 +153,7 @@ class Command(BaseCommand):
                 },
             )
             students[admission_number] = student
+        self.stdout.write("Student roster ready...")
 
         math = subjects["Mathematics"]
         jss1 = classes["JSS 1 Gold"]
@@ -162,6 +165,7 @@ class Command(BaseCommand):
 
         def seed_assessments(school_class, class_students, assessments):
             for title, assessment_date, question_specs, score_rows in assessments:
+                self.stdout.write(f"Preparing {title}...")
                 assessment, _ = Assessment.objects.update_or_create(
                     school=school,
                     school_class=school_class,
@@ -212,6 +216,7 @@ class Command(BaseCommand):
                                 "entered_by": creator,
                             },
                         )
+                self.stdout.write(f"Finished {title}.")
 
         seed_assessments(jss1, jss1_students, (
             (

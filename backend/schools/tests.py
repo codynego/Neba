@@ -29,6 +29,17 @@ class SchoolAccessTests(TestCase):
         membership = class_subject_access_or_403(self.teacher, self.school, self.school_class, self.subject)
         self.assertEqual(membership, self.teacher_membership)
 
+    def test_class_teacher_can_access_every_subject_in_their_class(self):
+        ClassTeacherAssignment.objects.create(membership=self.teacher_membership, school_class=self.school_class)
+        membership = class_subject_access_or_403(self.teacher, self.school, self.school_class, self.other_subject)
+        self.assertEqual(membership, self.teacher_membership)
+
+    def test_class_teacher_without_subject_can_access_class_level_scope(self):
+        self.teacher_membership.teaching_assignments.all().delete()
+        ClassTeacherAssignment.objects.create(membership=self.teacher_membership, school_class=self.school_class)
+        membership = class_subject_access_or_403(self.teacher, self.school, self.school_class)
+        self.assertEqual(membership, self.teacher_membership)
+
     def test_teacher_cannot_access_an_unassigned_subject(self):
         with self.assertRaises(PermissionDenied):
             class_subject_access_or_403(self.teacher, self.school, self.school_class, self.other_subject)
@@ -383,6 +394,35 @@ class AcademicIntelligenceTests(APITestCase):
         self.assertEqual(response.data["source"], "structured_fallback")
         self.assertEqual(response.data["evidence"]["average"], 45.0)
         self.assertIn("teacher-review", response.data["teacher_note"])
+
+    @override_settings(OPENAI_API_KEY="")
+    def test_class_teacher_sees_all_subjects_but_subject_teacher_sees_only_assigned_subject(self):
+        english = Subject.objects.create(school=self.school, name="English")
+        other_class = SchoolClass.objects.create(school=self.school, name="JSS 3", academic_session="2026/2027")
+        teacher = get_user_model().objects.create_user(username="scope-teacher", password="password")
+        membership = SchoolMembership.objects.create(school=self.school, user=teacher, role=SchoolMembership.Role.TEACHER, status=SchoolMembership.Status.ACTIVE)
+        TeachingAssignment.objects.create(membership=membership, school_class=self.school_class, subject=self.subject)
+        other_student = Student.objects.create(school=self.school, school_class=other_class, first_name="Musa", last_name="Bello")
+        english_assessment = Assessment.objects.create(school=self.school, school_class=self.school_class, subject=english, academic_session="2026/2027", term="First term", title="English CA", assessment_type=Assessment.Type.CA, maximum_score=20, topics="Grammar", status=Assessment.Status.PUBLISHED, created_by=self.membership)
+        AssessmentScore.objects.create(assessment=english_assessment, student=Student.objects.first(), score=18, status=AssessmentScore.EntryStatus.ENTERED, entered_by=self.membership)
+        other_assessment = Assessment.objects.create(school=self.school, school_class=other_class, subject=self.subject, academic_session="2026/2027", term="First term", title="Other class CA", assessment_type=Assessment.Type.CA, maximum_score=20, topics="Fractions", status=Assessment.Status.PUBLISHED, created_by=self.membership)
+        AssessmentScore.objects.create(assessment=other_assessment, student=other_student, score=20, status=AssessmentScore.EntryStatus.ENTERED, entered_by=self.membership)
+
+        self.client.force_authenticate(teacher)
+        response = self.client.get(f"/api/schools/intelligence/?school_id={self.school.id}")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual({item["subject_name"] for item in response.data["topic_signals"]}, {"Mathematics"})
+        response = self.client.post(f"/api/schools/teaching-assistant/?school_id={self.school.id}", {"class_id": self.school_class.id, "subject_id": english.id, "topic": "Grammar", "kind": "revision"}, format="json")
+        self.assertEqual(response.status_code, 403)
+
+        ClassTeacherAssignment.objects.create(membership=membership, school_class=self.school_class)
+        response = self.client.get(f"/api/schools/intelligence/?school_id={self.school.id}")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual({item["subject_name"] for item in response.data["topic_signals"]}, {"Mathematics", "English"})
+        response = self.client.post(f"/api/schools/teaching-assistant/?school_id={self.school.id}", {"class_id": self.school_class.id, "subject_id": english.id, "topic": "Grammar", "kind": "revision"}, format="json")
+        self.assertEqual(response.status_code, 200)
+        response = self.client.get(f"/api/schools/intelligence/?school_id={self.school.id}&class_id={other_class.id}")
+        self.assertEqual(response.data["topic_signals"], [])
 
 
 class StudentIntelligenceTests(APITestCase):

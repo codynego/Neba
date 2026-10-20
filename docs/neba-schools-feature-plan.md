@@ -118,7 +118,7 @@ Goal: make Neba useful even when a school has poor or incomplete digital records
 - Student roster with stable school identifiers.
 - Bulk student import from common spreadsheet formats.
 - Manual student and class entry for schools without clean files.
-- Teacher role and class/subject permissions.
+- [x] Teacher role and class/subject permissions, including class-teacher whole-class access and subject-teacher class/subject scope.
 - Academic dashboard with students, classes, assessments, and pending work.
 - Assessment creation and basic score entry.
 - CSV/XLSX result import with mapping preview.
