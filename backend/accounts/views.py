@@ -195,7 +195,7 @@ class SchoolPilotInterestSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = SchoolPilotInterest
-        fields = ("school_name", "contact_name", "role", "email", "phone", "student_count", "can_provide_sample", "consent_to_contact")
+        fields = ("school_name", "contact_name", "role", "email", "phone", "student_count", "pilot_goal", "assessment_format", "can_provide_sample", "consent_to_contact")
 
     def validate(self, attrs):
         attrs = super().validate(attrs)

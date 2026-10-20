@@ -4,7 +4,7 @@ import { OpportunityCard } from "@/components/opportunity-card";
 import type { Opportunity } from "@/lib/types";
 import { jsonLd, publicPageMetadata, siteUrl } from "@/lib/seo";
 
-const description = "Discover jobs, scholarships, grants, internships, fellowships, funding, and other opportunities relevant to Nigerians and Africans.";
+export const description = "Discover jobs, scholarships, grants, internships, fellowships, funding, and other opportunities relevant to Nigerians and Africans.";
 export const metadata = publicPageMetadata("Find your next opportunity, together", description, "/opportunities");
 
 async function getOpportunities(): Promise<Opportunity[]> {
@@ -17,12 +17,12 @@ async function getOpportunities(): Promise<Opportunity[]> {
   } catch { return []; }
 }
 
-export default async function OpportunitiesPage() {
+export default async function OpportunitiesPage({ canonicalPath = "/opportunities" }: { canonicalPath?: string }) {
   const opportunities = await getOpportunities();
   return <main className="nb-home">
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd({ "@context": "https://schema.org", "@graph": [
-      { "@type": "CollectionPage", "@id": new URL("/opportunities#collection", siteUrl).toString(), name: "Neba Opportunities", url: new URL("/opportunities", siteUrl).toString(), description, isPartOf: { "@id": new URL("/#website", siteUrl).toString() } },
-      { "@type": "BreadcrumbList", itemListElement: [{ "@type": "ListItem", position: 1, name: "Neba", item: siteUrl.toString() }, { "@type": "ListItem", position: 2, name: "Neba Opportunities", item: new URL("/opportunities", siteUrl).toString() }] },
+      { "@type": "CollectionPage", "@id": new URL(`${canonicalPath}#collection`, siteUrl).toString(), name: "Neba Opportunities", url: new URL(canonicalPath, siteUrl).toString(), description, isPartOf: { "@id": new URL("/#website", siteUrl).toString() } },
+      { "@type": "BreadcrumbList", itemListElement: [{ "@type": "ListItem", position: 1, name: "Neba", item: siteUrl.toString() }, { "@type": "ListItem", position: 2, name: "Neba Opportunities", item: new URL(canonicalPath, siteUrl).toString() }] },
     ] }) }} />
     <section className="nb-hero"><div className="nb-wrap nb-hero-grid">
       <div className="nb-hero-copy"><span className="nb-kicker"><span /> A LITTLE CONNECTION. A BIG NEXT STEP.</span><h1>Someone knows<br />your next<br /><em>opportunity.</em></h1><p>Find work, learning and funding worth pursuing.<br className="nb-desktop-break" /> Share a good find. Help someone move forward.</p><div className="nb-actions"><Link href="/opportunities/explore" className="nb-button nb-button-lime">Find your next move <ArrowUpRight size={20} /></Link><Link href="/my-opportunities/new" className="nb-hero-share">Share an opportunity <ArrowRight size={18} /></Link></div><div className="nb-hero-foot"><HeartHandshake size={18} /><span>Good opportunities deserve to be passed on.</span></div></div>

@@ -98,13 +98,10 @@ class PushSubscriptionAdmin(admin.ModelAdmin):
 
 @admin.register(SchoolPilotInterest)
 class SchoolPilotInterestAdmin(admin.ModelAdmin):
-    list_display = ("school_name", "contact_name", "role", "student_count", "can_provide_sample", "created_at")
-    list_filter = ("student_count", "can_provide_sample", "created_at")
+    list_display = ("school_name", "contact_name", "role", "student_count", "status", "created_at")
+    list_filter = ("status", "student_count", "assessment_format", "can_provide_sample", "created_at")
     search_fields = ("school_name", "contact_name", "email", "phone")
-    readonly_fields = ("school_name", "contact_name", "role", "email", "phone", "student_count", "can_provide_sample", "consent_version", "created_at")
+    readonly_fields = ("school_name", "contact_name", "role", "email", "phone", "student_count", "pilot_goal", "assessment_format", "can_provide_sample", "consent_version", "created_at")
 
     def has_add_permission(self, request):
-        return False
-
-    def has_change_permission(self, request, obj=None):
         return False

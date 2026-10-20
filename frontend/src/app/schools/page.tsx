@@ -15,6 +15,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import { Brand } from "@/components/brand";
+import { SchoolsPilotForm } from "@/components/schools-pilot-form";
 import { jsonLd, publicPageMetadata, siteUrl } from "@/lib/seo";
 
 const description = "Academic intelligence for schools: turn assessment results into learning insights, targeted teaching resources, and measurable student progress.";
@@ -38,10 +39,10 @@ export default function SchoolsPage() {
           <h1>Know what students missed.<br />Know what to <em>teach next.</em></h1>
           <p>Turn assessment results into learning insights, targeted teaching resources, and a clearer picture of student progress—so educators can make better academic decisions with confidence.</p>
           <div className="schools-actions">
-            <Link className="schools-button schools-button-primary" href="/schools/get-started">Get started for your school <ArrowUpRight size={19} /></Link>
+            <Link className="schools-button schools-button-primary" href="#pilot">Request a pilot <ArrowUpRight size={19} /></Link>
             <a className="schools-text-link" href="#how-it-works">See how it works <ArrowRight size={17} /></a>
           </div>
-          <p className="schools-demo-note">Already exploring Neba? <a href="mailto:support@getneba.com?subject=Neba%20for%20Schools%20demo">Book a demo instead.</a></p>
+          <p className="schools-demo-note">Already exploring Neba? <Link href="/schools/get-started">Create a workspace and explore the demo.</Link></p>
           <small className="schools-hero-note"><Check size={15} /> Built for school leaders and teachers. Start with results you already collect.</small>
         </div>
 
@@ -97,9 +98,9 @@ export default function SchoolsPage() {
       <div className="schools-trust-points"><p><ShieldCheck size={18} /><span><strong>Access designed around school roles</strong>Teachers and school leaders see only the records they are authorised to use.</span></p><p><ShieldCheck size={18} /><span><strong>Evidence before automation</strong>Teachers review learning-gap evidence and remain responsible for every intervention.</span></p><p><ShieldCheck size={18} /><span><strong>Start without replacing everything</strong>Use assessment data you already collect, then grow the workspace as it becomes useful.</span></p></div>
     </div></section>
 
-    <section className="schools-final schools-shell" id="setup">
-      <div className="schools-final-copy"><span>FOR SCHOOL LEADERS</span><h2>Make every assessment more useful.</h2><p>Create a school workspace, begin with the results you already have, and give your team a clearer way to decide what happens next.</p></div>
-      <div className="schools-setup-card"><span>START ON YOUR TERMS</span><ol><li><b>1</b><div><strong>Create your school workspace</strong><small>Set up your school and become its first administrator.</small></div></li><li><b>2</b><div><strong>Explore the first workflow</strong><small>Add a class and subjects only when you are ready to use them.</small></div></li><li><b>3</b><div><strong>Bring in your team</strong><small>Invite teachers and give access based on their role.</small></div></li></ol><Link className="schools-button schools-button-light" href="/schools/get-started">Get started for your school <ArrowRight size={18} /></Link><small>Want a tailored walkthrough? <a href="mailto:support@getneba.com?subject=Neba%20for%20Schools%20demo">Book a school demo.</a></small></div>
+    <section className="schools-final schools-shell" id="pilot">
+      <div className="schools-final-copy"><span>START WITH A PILOT</span><h2>Make every assessment more useful.</h2><p>Tell us where your school is today. We will help you choose one class or subject, prepare the data, and complete the first analyse-to-action workflow with your team.</p><p className="schools-pilot-steps">Request received → school context reviewed → pilot workspace prepared → first academic workflow completed.</p></div>
+      <div><SchoolsPilotForm /><p className="schools-direct-start">Prefer to explore first? <Link href="/schools/get-started">Create a workspace with sample data.</Link></p></div>
     </section>
 
     <footer className="schools-footer"><div className="schools-shell"><div><Brand /><span>Neba for Schools</span></div><nav aria-label="Neba for Schools footer links"><a href="#how-it-works">How it works</a><Link href="/schools/pricing">Pricing</Link><a href="#setup">Set up a school</a><Link href="/privacy">Privacy</Link><a href="mailto:support@getneba.com">Contact</a></nav><small>Early access by GetNeba. School leaders control workspace access and data setup.</small></div></footer>

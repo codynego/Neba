@@ -135,6 +135,15 @@ class Organization(models.Model):
 
 
 class SchoolPilotInterest(models.Model):
+    class Status(models.TextChoices):
+        NEW = "new", "New request"
+        CONTACTED = "contacted", "Contacted"
+        QUALIFIED = "qualified", "Pilot qualified"
+        SETUP = "setup", "Workspace setup"
+        ACTIVE = "active", "Pilot active"
+        COMPLETED = "completed", "Pilot completed"
+        NOT_A_FIT = "not_a_fit", "Not a fit"
+
     class StudentCount(models.TextChoices):
         UNDER_100 = "under_100", "Under 100"
         FROM_100_TO_299 = "100_299", "100-299"
@@ -148,7 +157,11 @@ class SchoolPilotInterest(models.Model):
     email = models.EmailField(blank=True)
     phone = models.CharField(max_length=32, blank=True)
     student_count = models.CharField(max_length=16, choices=StudentCount.choices)
+    pilot_goal = models.CharField(max_length=80, blank=True)
+    assessment_format = models.CharField(max_length=80, blank=True)
     can_provide_sample = models.BooleanField(default=False)
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.NEW)
+    internal_notes = models.TextField(blank=True)
     consent_version = models.CharField(max_length=20, default="schools-pilot-v1")
     created_at = models.DateTimeField(auto_now_add=True)
 
