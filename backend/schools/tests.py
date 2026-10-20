@@ -223,7 +223,9 @@ class SchoolRosterTests(APITestCase):
 
     def test_admin_can_assign_class_and_subject_responsibilities(self):
         membership = SchoolMembership.objects.create(school=self.school, user=self.other, role=SchoolMembership.Role.TEACHER, status=SchoolMembership.Status.ACTIVE)
+        second_class = SchoolClass.objects.create(school=self.school, name="SS 2", academic_session="2026/2027")
         subject = Subject.objects.create(school=self.school, name="Mathematics")
+        second_subject = Subject.objects.create(school=self.school, name="Physics")
 
         response = self.client.patch(
             f"/api/schools/members/{membership.public_id}/",
@@ -235,12 +237,29 @@ class SchoolRosterTests(APITestCase):
 
         response = self.client.patch(
             f"/api/schools/members/{membership.public_id}/",
+            {"action": "add_assignment", "type": "class_teacher", "class_id": second_class.id},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(ClassTeacherAssignment.objects.filter(membership=membership, is_active=True).count(), 2)
+
+        response = self.client.patch(
+            f"/api/schools/members/{membership.public_id}/",
             {"action": "add_assignment", "type": "subject_teacher", "class_id": self.school_class.id, "subject_id": subject.id},
             format="json",
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual({item["type"] for item in response.data["assignments"]}, {"class_teacher", "subject_teacher"})
         self.assertTrue(TeachingAssignment.objects.filter(membership=membership, school_class=self.school_class, subject=subject, is_active=True).exists())
+
+        response = self.client.patch(
+            f"/api/schools/members/{membership.public_id}/",
+            {"action": "add_assignment", "type": "subject_teacher", "class_id": second_class.id, "subject_id": second_subject.id},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(TeachingAssignment.objects.filter(membership=membership, is_active=True).count(), 2)
+        self.assertEqual(len(response.data["assignments"]), 4)
 
     def test_changing_teacher_role_revokes_active_assignments(self):
         membership = SchoolMembership.objects.create(school=self.school, user=self.other, role=SchoolMembership.Role.TEACHER, status=SchoolMembership.Status.ACTIVE)
@@ -288,6 +307,13 @@ class AttendanceTests(APITestCase):
 
     def test_unassigned_teacher_cannot_access_another_class_register(self):
         ClassTeacherAssignment.objects.create(membership=self.teacher_membership, school_class=self.other_class)
+        self.client.force_authenticate(self.teacher)
+        response = self.client.get(f"/api/schools/attendance/?class_id={self.school_class.id}&date=2026-10-15")
+        self.assertEqual(response.status_code, 403)
+
+    def test_subject_teacher_cannot_manage_whole_class_attendance_register(self):
+        subject = Subject.objects.create(school=self.school, name="Mathematics")
+        TeachingAssignment.objects.create(membership=self.teacher_membership, school_class=self.school_class, subject=subject)
         self.client.force_authenticate(self.teacher)
         response = self.client.get(f"/api/schools/attendance/?class_id={self.school_class.id}&date=2026-10-15")
         self.assertEqual(response.status_code, 403)

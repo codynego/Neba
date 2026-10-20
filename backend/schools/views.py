@@ -419,6 +419,19 @@ def _class_access_or_403(membership, school_class):
         raise PermissionDenied("You are not assigned to this class.")
 
 
+def _class_teacher_access_or_403(membership, school_class):
+    if membership.role != SchoolMembership.Role.TEACHER:
+        return
+    today = timezone.localdate()
+    assignment_filter = Q(
+        class_teacher_assignments__school_class=school_class,
+        class_teacher_assignments__is_active=True,
+        class_teacher_assignments__starts_at__lte=today,
+    ) & (Q(class_teacher_assignments__ends_at__isnull=True) | Q(class_teacher_assignments__ends_at__gte=today))
+    if not SchoolMembership.objects.filter(Q(pk=membership.pk) & assignment_filter).exists():
+        raise PermissionDenied("Only the class teacher can manage this class register.")
+
+
 def _parse_attendance_date(value):
     try:
         selected = date.fromisoformat(str(value or timezone.localdate()))
@@ -455,7 +468,7 @@ class AttendanceView(APIView):
             })
 
         school_class = get_object_or_404(SchoolClass, id=request.query_params.get("class_id"), school=membership.school, is_active=True)
-        _class_access_or_403(membership, school_class)
+        _class_teacher_access_or_403(membership, school_class)
         selected_date = _parse_attendance_date(request.query_params.get("date"))
         records = {item.student_id: item for item in AttendanceRecord.objects.filter(school_class=school_class, date=selected_date)}
         students = Student.objects.filter(school=membership.school, school_class=school_class, is_active=True).order_by("last_name", "first_name")
@@ -479,7 +492,7 @@ class AttendanceView(APIView):
         if membership is None:
             raise serializers.ValidationError({"detail": "Set up a school workspace first."})
         school_class = get_object_or_404(SchoolClass, id=request.data.get("class_id"), school=membership.school, is_active=True)
-        _class_access_or_403(membership, school_class)
+        _class_teacher_access_or_403(membership, school_class)
         selected_date = _parse_attendance_date(request.data.get("date"))
         rows = request.data.get("rows")
         if not isinstance(rows, list) or not rows:
