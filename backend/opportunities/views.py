@@ -217,6 +217,7 @@ class OpportunityApplicationSerializer(serializers.ModelSerializer):
     shared_profile = serializers.SerializerMethodField()
     unread_message_count = serializers.SerializerMethodField()
     unread_activity_count = serializers.SerializerMethodField()
+    cv_ready = serializers.SerializerMethodField()
     def get_applicant_name(self, application): return application.user.display_name or application.user.username
     def get_is_poster(self, application): return application.opportunity.organization_id == getattr(getattr(self.context["request"].user, "organization", None), "id", None)
     def get_messages(self, application): return [{"id": message.id, "sender": message.sender_id, "sender_name": message.sender.display_name or message.sender.username, "text": message.text, "created_at": message.created_at, "is_mine": message.sender_id == self.context["request"].user.id} for message in application.messages.select_related("sender").all()]
@@ -227,6 +228,7 @@ class OpportunityApplicationSerializer(serializers.ModelSerializer):
         seen_at = application.poster_updates_seen_at if is_poster else application.applicant_updates_seen_at
         unread_status = bool(application.status_updated_at and (not seen_at or application.status_updated_at > seen_at)) if is_poster is False else False
         return unread_messages + (1 if unread_status else 0)
+    def get_cv_ready(self, application): return bool(application.cv_profile_snapshot)
     def get_shared_profile(self, application):
         if application.shared_profile_snapshot:
             return application.shared_profile_snapshot
@@ -238,7 +240,8 @@ class OpportunityApplicationSerializer(serializers.ModelSerializer):
         return data
     class Meta:
         model = OpportunityApplication
-        fields = ("id", "public_id", "opportunity_id", "opportunity", "status", "applied_at", "next_action", "next_action_at", "notes", "application_message", "additional_information", "shared_fields", "shared_profile", "applicant_name", "is_poster", "messages", "unread_message_count", "unread_activity_count", "created_at", "updated_at")
+        fields = ("id", "public_id", "opportunity_id", "opportunity", "status", "applied_at", "next_action", "next_action_at", "notes", "application_message", "additional_information", "shared_fields", "shared_profile", "cv_ready", "cv_profile_snapshot", "applicant_name", "is_poster", "messages", "unread_message_count", "unread_activity_count", "created_at", "updated_at")
+        read_only_fields = ("cv_ready", "cv_profile_snapshot")
 
 
 class OpportunityCheckSerializer(serializers.ModelSerializer):
@@ -453,7 +456,7 @@ class OpportunityApplicationViewSet(viewsets.ModelViewSet):
         if internal and not opportunity.organization_id:
             raise serializers.ValidationError("This listing is not connected to an authorised application recipient.")
         shared_fields = request.data.get("shared_fields", []) if internal else []
-        item, created = OpportunityApplication.objects.get_or_create(user=request.user, opportunity=opportunity, defaults={"status": status, "applied_at": now if submitted else None, "next_action": str(request.data.get("next_action", ""))[:240], "next_action_at": next_action_at, "notes": str(request.data.get("notes", ""))[:2000], "application_message": str(request.data.get("application_message", ""))[:2000] if internal else "", "additional_information": str(request.data.get("additional_information", ""))[:3000] if internal else "", "shared_fields": shared_fields, "shared_profile_snapshot": shared_profile_snapshot(request.user, shared_fields) if internal else {}, "status_updated_at": now, "applicant_updates_seen_at": now})
+        item, created = OpportunityApplication.objects.get_or_create(user=request.user, opportunity=opportunity, defaults={"status": status, "applied_at": now if submitted else None, "next_action": str(request.data.get("next_action", ""))[:240], "next_action_at": next_action_at, "notes": str(request.data.get("notes", ""))[:2000], "application_message": str(request.data.get("application_message", ""))[:2000] if internal else "", "additional_information": str(request.data.get("additional_information", ""))[:3000] if internal else "", "shared_fields": shared_fields, "shared_profile_snapshot": shared_profile_snapshot(request.user, shared_fields) if internal else {}, "cv_profile_snapshot": request.user.cv_profile or {}, "status_updated_at": now, "applicant_updates_seen_at": now})
         if not created: raise serializers.ValidationError("This opportunity is already in your application tracker.")
         if not opportunity.tracker_only:
             SavedOpportunity.objects.update_or_create(user=request.user, opportunity=opportunity, defaults={"status": "applied" if submitted else "preparing"})

@@ -43,6 +43,7 @@ import "./learn-sidebar.css";
 import "./exam-buddy.css";
 import "./workspace.css";
 import "./cv-builder.css";
+import "./application-cv.css";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-geist" });
 const manrope = Manrope({ subsets: ["latin"], variable: "--font-manrope", display: "swap" });

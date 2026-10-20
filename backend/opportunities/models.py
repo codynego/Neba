@@ -120,6 +120,7 @@ class OpportunityApplication(models.Model):
     additional_information = models.TextField(max_length=3000, blank=True)
     shared_fields = models.JSONField(default=list, blank=True)
     shared_profile_snapshot = models.JSONField(default=dict, blank=True)
+    cv_profile_snapshot = models.JSONField(default=dict, blank=True)
     status_updated_at = models.DateTimeField(null=True, blank=True)
     applicant_updates_seen_at = models.DateTimeField(null=True, blank=True)
     poster_updates_seen_at = models.DateTimeField(null=True, blank=True)
