@@ -1,6 +1,22 @@
 from django.contrib import admin
 
-from .models import Opportunity, OpportunityApplication, OpportunityCheck, OpportunityCorrection, OpportunityThanks, SavedOpportunity
+from .models import CommunityInsight, Opportunity, OpportunityApplication, OpportunityCheck, OpportunityCorrection, OpportunityProfile, OpportunityThanks, SavedOpportunity
+
+
+@admin.register(OpportunityProfile)
+class OpportunityProfileAdmin(admin.ModelAdmin):
+    list_display = ("name", "profile_type", "is_verified", "is_published", "updated_at")
+    list_filter = ("profile_type", "is_verified", "is_published")
+    search_fields = ("name", "slug", "summary", "website")
+    readonly_fields = ("public_id", "created_at", "updated_at")
+
+
+@admin.register(CommunityInsight)
+class CommunityInsightAdmin(admin.ModelAdmin):
+    list_display = ("profile", "kind", "author", "status", "recommendation", "created_at")
+    list_filter = ("kind", "status", "recommendation")
+    search_fields = ("profile__name", "author__username", "body", "title")
+    readonly_fields = ("public_id", "created_at", "updated_at")
 
 
 @admin.register(Opportunity)

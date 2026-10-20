@@ -4,6 +4,65 @@ from django.conf import settings
 from django.db import models
 
 
+class OpportunityProfile(models.Model):
+    class ProfileType(models.TextChoices):
+        ORGANIZATION = "organization", "Organization"
+        COMPANY = "company", "Company"
+        SCHOOL = "school", "School"
+        TRAINING = "training", "Training provider"
+        PROGRAMME = "programme", "Programme"
+        ACCELERATOR = "accelerator", "Accelerator"
+
+    public_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False, db_index=True)
+    name = models.CharField(max_length=180)
+    slug = models.SlugField(max_length=200, unique=True)
+    profile_type = models.CharField(max_length=24, choices=ProfileType.choices, default=ProfileType.ORGANIZATION)
+    summary = models.TextField(max_length=1800, blank=True)
+    website = models.URLField(max_length=500, blank=True)
+    country = models.CharField(max_length=120, blank=True)
+    location_label = models.CharField(max_length=140, blank=True)
+    is_verified = models.BooleanField(default=False)
+    is_published = models.BooleanField(default=True, db_index=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="created_opportunity_profiles")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("name",)
+        indexes = [models.Index(fields=("is_published", "profile_type", "name"))]
+
+    def __str__(self):
+        return self.name
+
+
+class CommunityInsight(models.Model):
+    class Kind(models.TextChoices):
+        REVIEW = "review", "Review"
+        TIP = "tip", "Tip"
+        WARNING = "warning", "Warning"
+        APPLICATION = "application", "Application experience"
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Awaiting review"
+        PUBLISHED = "published", "Published"
+        REJECTED = "rejected", "Rejected"
+
+    public_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False, db_index=True)
+    profile = models.ForeignKey(OpportunityProfile, on_delete=models.CASCADE, related_name="insights")
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="community_insights")
+    kind = models.CharField(max_length=20, choices=Kind.choices, default=Kind.REVIEW)
+    title = models.CharField(max_length=180, blank=True)
+    body = models.TextField(max_length=2400)
+    recommendation = models.CharField(max_length=12, choices=(("yes", "Recommend"), ("maybe", "Mixed"), ("no", "Do not recommend")), blank=True)
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.PENDING, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+        indexes = [models.Index(fields=("profile", "status", "created_at"))]
+
+
 class Opportunity(models.Model):
     class ReviewStatus(models.TextChoices):
         DRAFT = "draft", "Draft"
@@ -64,6 +123,7 @@ class Opportunity(models.Model):
     view_count = models.PositiveIntegerField(default=0)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="created_opportunities")
     organization = models.ForeignKey("accounts.Organization", on_delete=models.SET_NULL, null=True, blank=True, related_name="opportunities")
+    profile = models.ForeignKey(OpportunityProfile, on_delete=models.SET_NULL, null=True, blank=True, related_name="opportunities")
     review_status = models.CharField(max_length=16, choices=ReviewStatus.choices, default=ReviewStatus.APPROVED)
     review_note = models.CharField(max_length=500, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

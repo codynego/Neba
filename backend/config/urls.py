@@ -5,12 +5,14 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 from accounts.notification_views import NotificationViewSet
 from accounts.staff_views import OpportunityFetch, StaffDashboard, StaffIdentityDecision, StaffOrganizationDecision, StaffOperationsSection, StaffOpportunityCollection, StaffOpportunityDecision
-from opportunities.views import OpportunityApplicationViewSet, OpportunityCheckViewSet, OpportunityViewSet, OrganizationOpportunityViewSet, PersonalOpportunityViewSet, SavedOpportunityViewSet
+from opportunities.views import CommunityInsightViewSet, OpportunityApplicationViewSet, OpportunityCheckViewSet, OpportunityProfileViewSet, OpportunityViewSet, OrganizationOpportunityViewSet, PersonalOpportunityViewSet, SavedOpportunityViewSet
 from ai_views import InterviewText, InterviewTranscription, InterviewReport, CVTailor, OpportunityFit
 
 router = DefaultRouter()
 router.register("notifications", NotificationViewSet, basename="notification")
 router.register("opportunities", OpportunityViewSet, basename="opportunity")
+router.register("insight-profiles", OpportunityProfileViewSet, basename="insight-profile")
+router.register("community-insights", CommunityInsightViewSet, basename="community-insight")
 router.register("saved-opportunities", SavedOpportunityViewSet, basename="saved-opportunity")
 router.register("opportunity-applications", OpportunityApplicationViewSet, basename="opportunity-application")
 router.register("opportunity-checks", OpportunityCheckViewSet, basename="opportunity-check")

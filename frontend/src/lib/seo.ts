@@ -25,6 +25,7 @@ export const publicSearchPaths = [
   "/opportunities/training",
   "/opportunities/funding",
   "/opportunities/tenders",
+  "/insights",
   "/pricing",
   "/install",
   "/about",

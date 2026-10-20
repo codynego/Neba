@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Brand } from "./brand";
 const groups = [
-  { title: "Products", links: [["/schools", "Neba for Schools"], ["/learn", "Neba Learn — coming soon"], ["/opportunities", "Neba Opportunities"]] },
+  { title: "Products", links: [["/schools", "Neba for Schools"], ["/learn", "Neba Learn — coming soon"], ["/opportunities", "Neba Opportunities"], ["/insights", "Neba Insights"]] },
   { title: "Company", links: [["/about", "About Neba"], ["/help", "Contact"], ["/privacy", "Privacy policy"], ["/terms", "Terms of service"]] },
 ];
 export function Footer() {

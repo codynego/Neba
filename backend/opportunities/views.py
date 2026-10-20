@@ -19,7 +19,7 @@ from accounts.models import User
 from accounts.notifications import notify
 from .matching import build_match_context, diverse_recommendations, match_for, rank_opportunities
 from .checks import CheckError, normalized_input_hash, run_opportunity_check
-from .models import Opportunity, OpportunityApplication, OpportunityCheck, OpportunityCorrection, OpportunityMessage, OpportunityThanks, SavedOpportunity
+from .models import CommunityInsight, Opportunity, OpportunityApplication, OpportunityCheck, OpportunityCorrection, OpportunityMessage, OpportunityProfile, OpportunityThanks, SavedOpportunity
 
 
 class OpportunityPageParser(HTMLParser):
@@ -119,10 +119,17 @@ class OpportunitySerializer(serializers.ModelSerializer):
     contributor = serializers.SerializerMethodField()
     thanks_count = serializers.SerializerMethodField()
     thanked_by_me = serializers.SerializerMethodField()
+    profile = serializers.SerializerMethodField()
 
     class Meta:
         model = Opportunity
-        fields = ("public_id", "title", "provider", "summary", "category", "application_mode", "application_channel", "application_url", "application_email", "application_phone", "deadline", "country", "location_label", "is_remote", "requires_physical_presence", "requires_local_residency", "benefit", "eligibility_notes", "eligible_countries", "education_levels", "fields_of_study", "employment_statuses", "min_age", "max_age", "requires_business", "tracker_only", "source_url", "share_note", "view_count", "application_count", "created_at", "updated_at", "match", "saved_status", "application_status", "verification", "contributor", "thanks_count", "thanked_by_me")
+        fields = ("public_id", "title", "provider", "summary", "category", "application_mode", "application_channel", "application_url", "application_email", "application_phone", "deadline", "country", "location_label", "is_remote", "requires_physical_presence", "requires_local_residency", "benefit", "eligibility_notes", "eligible_countries", "education_levels", "fields_of_study", "employment_statuses", "min_age", "max_age", "requires_business", "tracker_only", "source_url", "share_note", "view_count", "application_count", "created_at", "updated_at", "match", "saved_status", "application_status", "verification", "contributor", "thanks_count", "thanked_by_me", "profile")
+
+    def get_profile(self, opportunity):
+        profile = getattr(opportunity, "profile", None)
+        if not profile or not profile.is_published:
+            return None
+        return {"public_id": str(profile.public_id), "name": profile.name, "slug": profile.slug, "profile_type": profile.profile_type, "is_verified": profile.is_verified}
 
     def get_verification(self, opportunity):
         if opportunity.created_by_id and opportunity.created_by and opportunity.created_by.is_staff and not opportunity.organization_id:
@@ -181,6 +188,63 @@ class OpportunitySerializer(serializers.ModelSerializer):
 
     def get_application_count(self, opportunity):
         return opportunity.applications.filter(status__in=("applied", "shortlisted", "interview", "awarded", "unsuccessful", "withdrawn")).count()
+
+
+class CommunityInsightSerializer(serializers.ModelSerializer):
+    profile_id = serializers.UUIDField(source="profile.public_id", read_only=True)
+    profile_public_id = serializers.UUIDField(write_only=True, required=True)
+    author_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CommunityInsight
+        fields = ("public_id", "profile_id", "profile_public_id", "kind", "title", "body", "recommendation", "author_name", "created_at")
+        read_only_fields = ("public_id", "profile_id", "author_name", "created_at")
+
+    def validate_profile_public_id(self, value):
+        try:
+            return OpportunityProfile.objects.get(public_id=value, is_published=True)
+        except OpportunityProfile.DoesNotExist:
+            raise serializers.ValidationError("That profile is not available.")
+
+    def create(self, validated_data):
+        profile = validated_data.pop("profile_public_id")
+        return CommunityInsight.objects.create(profile=profile, **validated_data)
+
+    def get_author_name(self, insight):
+        if not insight.author:
+            return "Community member"
+        return insight.author.display_name or insight.author.username or "Community member"
+
+    def validate_body(self, value):
+        value = value.strip()
+        if len(value) < 20:
+            raise serializers.ValidationError("Share at least a little useful context so others can understand it.")
+        return value
+
+
+class OpportunityProfileSerializer(serializers.ModelSerializer):
+    opportunity_count = serializers.SerializerMethodField()
+    insight_count = serializers.SerializerMethodField()
+    opportunities = serializers.SerializerMethodField()
+    insights = serializers.SerializerMethodField()
+
+    class Meta:
+        model = OpportunityProfile
+        fields = ("public_id", "name", "slug", "profile_type", "summary", "website", "country", "location_label", "is_verified", "opportunity_count", "insight_count", "opportunities", "insights")
+
+    def get_opportunity_count(self, profile):
+        return profile.opportunities.filter(review_status=Opportunity.ReviewStatus.APPROVED, is_published=True).count()
+
+    def get_insight_count(self, profile):
+        return profile.insights.filter(status=CommunityInsight.Status.PUBLISHED).count()
+
+    def get_opportunities(self, profile):
+        items = profile.opportunities.filter(review_status=Opportunity.ReviewStatus.APPROVED, is_published=True).order_by("deadline", "-created_at")[:8]
+        return [{"public_id": str(item.public_id), "title": item.title, "category": item.category, "deadline": item.deadline, "location_label": item.location_label, "is_remote": item.is_remote} for item in items]
+
+    def get_insights(self, profile):
+        items = profile.insights.filter(status=CommunityInsight.Status.PUBLISHED).select_related("author")[:30]
+        return CommunityInsightSerializer(items, many=True).data
 
 
 class SavedOpportunitySerializer(serializers.ModelSerializer):
@@ -309,6 +373,40 @@ class OpportunityCheckViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, mi
         return Response(self.get_serializer(check).data, status=status.HTTP_201_CREATED)
 
 
+class OpportunityProfileViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = OpportunityProfileSerializer
+    lookup_field = "public_id"
+
+    def get_queryset(self):
+        queryset = OpportunityProfile.objects.filter(is_published=True).prefetch_related("insights", "opportunities")
+        query = self.request.query_params.get("search", "").strip()
+        profile_type = self.request.query_params.get("profile_type", "").strip()
+        if query:
+            queryset = queryset.filter(Q(name__icontains=query) | Q(summary__icontains=query))
+        if profile_type:
+            queryset = queryset.filter(profile_type=profile_type)
+        return queryset
+
+
+class CommunityInsightViewSet(viewsets.ModelViewSet):
+    serializer_class = CommunityInsightSerializer
+    lookup_field = "public_id"
+    http_method_names = ["get", "post", "head", "options"]
+
+    def get_permissions(self):
+        return [permissions.AllowAny()] if self.action == "list" else [permissions.IsAuthenticated()]
+
+    def get_queryset(self):
+        queryset = CommunityInsight.objects.filter(status=CommunityInsight.Status.PUBLISHED).select_related("profile", "author")
+        profile_id = self.request.query_params.get("profile", "").strip()
+        if profile_id:
+            queryset = queryset.filter(profile__public_id=profile_id)
+        return queryset
+
+    def perform_create(self, serializer):
+        serializer.save(author=self.request.user, status=CommunityInsight.Status.PENDING)
+
+
 class OpportunityViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = OpportunitySerializer
     lookup_field = "public_id"
@@ -318,7 +416,7 @@ class OpportunityViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        queryset = Opportunity.objects.filter(review_status=Opportunity.ReviewStatus.APPROVED, is_published=True).select_related("created_by", "organization").annotate(thanks_count_value=Count("thanks", distinct=True))
+        queryset = Opportunity.objects.filter(review_status=Opportunity.ReviewStatus.APPROVED, is_published=True).select_related("created_by", "organization", "profile").annotate(thanks_count_value=Count("thanks", distinct=True))
         if self.action in ("list", "matches", "dashboard"):
             queryset = queryset.filter(Q(deadline__isnull=True) | Q(deadline__gte=timezone.now()))
         if user.is_authenticated:
