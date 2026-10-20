@@ -170,3 +170,50 @@ class InterviewReport(APIView):
             return Response(report)
         except (requests.RequestException, json.JSONDecodeError, TypeError, ValueError) as error:
             return Response({"detail": f"Interview report could not be generated: {error}"}, status=status.HTTP_502_BAD_GATEWAY)
+
+
+class CVTailor(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        if not settings.OPENAI_API_KEY:
+            return Response({"detail": "CV tailoring is not configured yet."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        opportunity = request.data.get("opportunity_context") or {}
+        profile = request.data.get("profile") or {}
+        if not isinstance(opportunity, dict) or not isinstance(profile, dict):
+            return Response({"detail": "Opportunity and profile context must be objects."}, status=status.HTTP_400_BAD_REQUEST)
+
+        context = "\n".join(f"- {key}: {value}" for key, value in opportunity.items() if value)
+        profile_context = "\n".join(f"- {key}: {value}" for key, value in profile.items() if value)
+        instructions = (
+            "You are Neba's truthful CV editor. Create an ATS-compatible CV draft tailored to the opportunity. "
+            "Use only facts present in the candidate profile. Never invent employers, dates, qualifications, metrics, tools, responsibilities, or achievements. "
+            "You may improve wording, reorder skills, and turn clearly stated responsibilities into concise achievement-oriented bullets, but mark unsupported areas for the candidate to complete. "
+            "Keep the writing clear and suitable for Nigeria and international employers. Avoid tables, columns, graphics, icons, emojis, and decorative formatting. "
+            "Return valid JSON only with this exact shape: "
+            '{"headline": string, "summary": string, "experience": [{"role": string, "organization": string, "dates": string, "bullets": [string]}], '
+            '"education": [{"qualification": string, "institution": string, "dates": string}], "skills": [string], '
+            '"keywords": [string], "missing_information": [string], "tailoring_notes": [string]}. '
+            "If the profile does not contain work experience, return an empty experience array and explain what is missing. "
+            "Keep the summary under 75 words, use 8 to 14 skills, and keep bullets concise."
+        )
+        prompt = f"Opportunity:\n{context or 'No specific opportunity selected.'}\n\nCandidate profile:\n{profile_context or 'The candidate profile is empty.'}"
+        try:
+            response = requests.post(
+                "https://api.openai.com/v1/responses",
+                headers={"Authorization": f"Bearer {settings.OPENAI_API_KEY}", "Content-Type": "application/json"},
+                json={"model": settings.OPENAI_TEXT_MODEL, "instructions": instructions, "input": prompt},
+                timeout=30,
+            )
+            if not response.ok:
+                return Response({"detail": f"CV could not be prepared: {response.text[:500]}"}, status=status.HTTP_502_BAD_GATEWAY)
+            data = response.json()
+            output = str(data.get("output_text", "")).strip()
+            if not output:
+                output = " ".join(content.get("text", "") for item in data.get("output", []) for content in item.get("content", []) if content.get("type") == "output_text").strip()
+            output = re.sub(r"^```(?:json)?\s*|\s*```$", "", output.strip(), flags=re.IGNORECASE)
+            draft = json.loads(output)
+            return Response(draft)
+        except (requests.RequestException, json.JSONDecodeError, TypeError, ValueError) as error:
+            return Response({"detail": f"CV could not be prepared: {error}"}, status=status.HTTP_502_BAD_GATEWAY)
