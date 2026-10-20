@@ -19,6 +19,7 @@ from schools.models import (
     SchoolMembership,
     Student,
     StudentEnrollment,
+    StudentIntervention,
     Subject,
 )
 
@@ -157,6 +158,8 @@ class Command(BaseCommand):
         jss2 = classes["JSS 2 Gold"]
         jss2_students = [students[row[0]] for row in DEMO_STUDENTS if row[3] == "JSS 2 Gold"]
 
+        assessment_records = {}
+
         def seed_assessments(school_class, class_students, assessments):
             for title, assessment_date, question_specs, score_rows in assessments:
                 assessment, _ = Assessment.objects.update_or_create(
@@ -176,6 +179,7 @@ class Command(BaseCommand):
                         "created_by": creator,
                     },
                 )
+                assessment_records[title] = assessment
                 questions = []
                 for number, (topic, objective) in enumerate(question_specs, start=1):
                     question, _ = AssessmentQuestion.objects.update_or_create(
@@ -297,8 +301,32 @@ class Command(BaseCommand):
             title="[Demo] Small-group fractions clinic",
             defaults={
                 "rationale": "Two question-level checks show that fractions remain the class's weakest recorded topic. A teacher should review the evidence before using this plan.",
-                "baseline_average": Decimal("55.00"),
+                "baseline_average": Decimal("48.75"),
+                "baseline_assessment": assessment_records["[Demo] Mathematics Baseline Check"],
+                "follow_up_assessment": assessment_records["[Demo] Mathematics Progress Check"],
+                "expected_review_date": today + timedelta(days=7),
+                "outcome_status": "improvement",
                 "status": AcademicIntervention.Status.ACTIVE,
+                "created_by": creator,
+            },
+        )
+        StudentIntervention.objects.update_or_create(
+            school=school,
+            student=jss1_students[0],
+            topic="Fractions",
+            defaults={
+                "school_class": jss1,
+                "subject": math,
+                "title": "[Demo] Amina fractions support plan",
+                "rationale": "The learner's baseline and progress checks provide a concrete example of teacher-owned follow-up.",
+                "baseline_average": Decimal("40.00"),
+                "follow_up_average": Decimal("60.00"),
+                "baseline_assessment": assessment_records["[Demo] Mathematics Baseline Check"],
+                "follow_up_assessment": assessment_records["[Demo] Mathematics Progress Check"],
+                "expected_review_date": today + timedelta(days=7),
+                "outcome_status": "improvement",
+                "status": StudentIntervention.Status.COMPLETE,
+                "completed_at": timezone.now(),
                 "created_by": creator,
             },
         )
@@ -307,6 +335,6 @@ class Command(BaseCommand):
             self.style.SUCCESS(
                 f'Seeded demo data for "{school.name}" ({academic_session}): '
                 "2 classes, 3 subjects, 16 students, 4 assessments, 96 question scores, "
-                "80 attendance records, 2 assignments, and 1 intervention."
+                "80 attendance records, 2 assignments, 1 class intervention, and 1 learner support plan."
             )
         )

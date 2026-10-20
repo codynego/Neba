@@ -1,4 +1,6 @@
 import json
+import csv
+import io
 import re
 from datetime import date
 
@@ -11,12 +13,13 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 from django.utils.text import slugify
 from rest_framework import permissions, serializers, status
+from rest_framework import parsers
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.generics import get_object_or_404
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import AcademicIntervention, Assessment, AssessmentQuestion, AssessmentQuestionScore, AssessmentScore, Assignment, AttendanceRecord, ClassTeacherAssignment, School, SchoolClass, SchoolMembership, Student, StudentIntervention, Subject, TeachingAssignment
+from .models import AcademicIntervention, Assessment, AssessmentImport, AssessmentQuestion, AssessmentQuestionScore, AssessmentScore, Assignment, AttendanceRecord, ClassTeacherAssignment, School, SchoolClass, SchoolMembership, Student, StudentIntervention, StudentRosterImport, Subject, TeachingAssignment
 from .permissions import active_membership_or_403, class_subject_access_or_403
 
 
@@ -73,6 +76,10 @@ def workspace_payload(membership):
         "classes_count": school.classes.filter(is_active=True).count(),
         "subjects_count": school.subjects.filter(is_active=True).count(),
         "students_count": school.students.filter(is_active=True).count(),
+        "intelligence_benchmarks": {
+            "review_threshold": float(school.intelligence_review_threshold),
+            "strength_threshold": float(school.intelligence_strength_threshold),
+        },
     }
 
 
@@ -135,6 +142,7 @@ class SchoolRosterView(APIView):
     """Read and maintain the current member's own school roster."""
 
     permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [parsers.JSONParser, parsers.MultiPartParser, parsers.FormParser]
 
     def get_school_and_membership(self, request):
         membership = active_workspace_membership(request)
@@ -168,6 +176,7 @@ class SchoolRosterView(APIView):
                 status=AssessmentScore.EntryStatus.ENTERED,
                 score__isnull=False,
                 assessment__maximum_score__gt=0,
+                assessment__status=Assessment.Status.PUBLISHED,
             ).values("student_id").annotate(academic_average=Avg(percentage), assessments_recorded=Count("id"))
         }
         attendance = {
@@ -205,6 +214,81 @@ class SchoolRosterView(APIView):
             return Response({"detail": "Teachers cannot change the school roster."}, status=403)
 
         action = request.data.get("action")
+        if action == "intelligence_benchmarks":
+            if membership.role not in {SchoolMembership.Role.ADMIN, SchoolMembership.Role.ACADEMIC_HEAD}:
+                raise PermissionDenied("Only a school administrator or academic head can change intelligence benchmarks.")
+            try:
+                review_threshold = float(request.data.get("review_threshold"))
+                strength_threshold = float(request.data.get("strength_threshold"))
+            except (TypeError, ValueError):
+                raise serializers.ValidationError({"thresholds": "Enter numeric thresholds between 0 and 100."})
+            school.intelligence_review_threshold = review_threshold
+            school.intelligence_strength_threshold = strength_threshold
+            school.full_clean()
+            school.save(update_fields=("intelligence_review_threshold", "intelligence_strength_threshold", "updated_at"))
+            return Response({"review_threshold": review_threshold, "strength_threshold": strength_threshold})
+        if action == "student_import_file_preview":
+            upload = request.FILES.get("file")
+            if upload is None:
+                raise serializers.ValidationError({"file": "Choose a CSV or XLSX roster file."})
+            headers, raw_rows = TeachingWorkView._read_import_file(upload)
+            mapping = {
+                "first_name": str(request.data.get("first_name_column") or TeachingWorkView._suggest_column(headers, {"first name", "first_name", "given name", "forename"})),
+                "last_name": str(request.data.get("last_name_column") or TeachingWorkView._suggest_column(headers, {"last name", "last_name", "surname", "family name"})),
+                "class_name": str(request.data.get("class_column") or TeachingWorkView._suggest_column(headers, {"class", "class name", "form", "arm"})),
+                "admission_number": str(request.data.get("admission_number_column") or TeachingWorkView._suggest_column(headers, {"admission number", "admission_number", "student number", "student id", "id"})),
+                "admission_year": str(request.data.get("admission_year_column") or TeachingWorkView._suggest_column(headers, {"admission year", "admission_year", "year"})),
+            }
+            required = ("first_name", "last_name", "class_name")
+            if any(mapping[key] not in headers for key in required):
+                return Response({"valid": False, "needs_mapping": True, "columns": headers, "mapping": mapping, "row_count": len(raw_rows), "valid_count": 0, "errors": ["Choose columns for first name, last name, and class before validating."], "rows": []})
+            rows = [{key: str(row.get(column, "")).strip() if column else "" for key, column in mapping.items()} for row in raw_rows]
+            normalized_rows, errors = self._validate_roster_import(rows, school)
+            return Response({"valid": not errors, "needs_mapping": False, "columns": headers, "mapping": mapping, "row_count": len(rows), "valid_count": len(normalized_rows), "errors": errors[:20], "rows": normalized_rows, "source_name": upload.name})
+        if action == "student_import":
+            rows = request.data.get("rows", [])
+            if not isinstance(rows, list) or not rows:
+                raise serializers.ValidationError({"rows": "Validate a roster file before importing it."})
+            classes = {item.id: item for item in school.classes.filter(is_active=True)}
+            if any(not isinstance(row, dict) or int(row.get("class_id", 0)) not in classes for row in rows):
+                raise serializers.ValidationError({"rows": "The roster contains a class that is no longer active in this school."})
+            source_name = str(request.data.get("source_name") or "student-roster.csv").strip()[:255]
+            created_count = matched_count = 0
+            with transaction.atomic():
+                batch = StudentRosterImport.objects.create(school=school, source_name=source_name, source_type="xlsx" if source_name.casefold().endswith(".xlsx") else "csv", row_count=len(rows), created_by=membership)
+                for row in rows:
+                    admission_number = str(row.get("admission_number", "")).strip()
+                    student = Student.objects.filter(school=school, is_active=True, admission_number__iexact=admission_number).first() if admission_number else Student.objects.filter(school=school, is_active=True, first_name__iexact=str(row.get("first_name", "")).strip(), last_name__iexact=str(row.get("last_name", "")).strip(), school_class_id=int(row["class_id"])).first()
+                    if student is None:
+                        student = Student.objects.create(school=school, school_class_id=int(row["class_id"]), first_name=str(row.get("first_name", "")).strip()[:80], last_name=str(row.get("last_name", "")).strip()[:80], admission_number=admission_number[:64], admission_year=int(row.get("admission_year") or timezone.now().year))
+                        created_count += 1
+                    else:
+                        student.first_name = str(row.get("first_name", student.first_name)).strip()[:80]
+                        student.last_name = str(row.get("last_name", student.last_name)).strip()[:80]
+                        student.school_class_id = int(row["class_id"])
+                        student.admission_number = admission_number or student.admission_number
+                        student.admission_year = int(row.get("admission_year") or student.admission_year)
+                        student.save()
+                        matched_count += 1
+                batch.created_count = created_count
+                batch.matched_count = matched_count
+                batch.save(update_fields=("created_count", "matched_count"))
+            return Response({"import_id": batch.id, "row_count": len(rows), "created_count": created_count, "matched_count": matched_count}, status=201)
+        if action == "assessment_status":
+            assessment = get_object_or_404(Assessment, id=request.data.get("assessment_id"), school=school, school_class=school_class, subject=subject)
+            next_status = str(request.data.get("status", "")).strip()
+            transitions = {
+                Assessment.Status.DRAFT: {"submitted": Assessment.Status.SUBMITTED},
+                Assessment.Status.SUBMITTED: {"reviewed": Assessment.Status.REVIEWED},
+                Assessment.Status.REVIEWED: {"published": Assessment.Status.PUBLISHED},
+            }
+            if next_status not in transitions.get(assessment.status, {}):
+                raise serializers.ValidationError({"status": "This assessment cannot move to that status from its current state."})
+            if next_status in {Assessment.Status.REVIEWED, Assessment.Status.PUBLISHED} and membership.role not in {SchoolMembership.Role.ADMIN, SchoolMembership.Role.ACADEMIC_HEAD}:
+                raise PermissionDenied("Only a school administrator or academic head can approve or publish results.")
+            assessment.status = next_status
+            assessment.save(update_fields=("status", "updated_at"))
+            return Response({"id": assessment.id, "status": assessment.status})
         if action == "class":
             serializer = SchoolClassInputSerializer(data=request.data)
             serializer.is_valid(raise_exception=True)
@@ -254,6 +338,39 @@ class SchoolRosterView(APIView):
             )
             return Response({"id": school_member.id, "public_id": school_member.public_id, "name": user.get_full_name() or user.display_name or user.username, "email": user.email, "role": school_member.role}, status=201 if created else 200)
         raise serializers.ValidationError({"action": "Choose class, subject, or student."})
+
+    @staticmethod
+    def _validate_roster_import(rows, school):
+        classes = {}
+        for item in school.classes.filter(is_active=True):
+            classes.setdefault(item.name.casefold(), []).append(item)
+        existing_admission_numbers = set(value.casefold() for value in Student.objects.filter(school=school, is_active=True).exclude(admission_number="").values_list("admission_number", flat=True))
+        seen = set()
+        normalized, errors = [], []
+        for index, row in enumerate(rows, start=2):
+            first_name = str(row.get("first_name", "")).strip()
+            last_name = str(row.get("last_name", "")).strip()
+            class_name = str(row.get("class_name", "")).strip()
+            admission_number = str(row.get("admission_number", "")).strip()
+            if not first_name or not last_name or not class_name:
+                errors.append(f"Row {index}: first name, last name, and class are required.")
+                continue
+            matching_classes = classes.get(class_name.casefold(), [])
+            if len(matching_classes) != 1:
+                errors.append(f"Row {index}: class '{class_name}' does not match exactly one active class in this school.")
+                continue
+            identity = admission_number.casefold() if admission_number else f"{first_name.casefold()}|{last_name.casefold()}|{matching_classes[0].id}"
+            if identity in seen:
+                errors.append(f"Row {index}: duplicate student identity in this file.")
+                continue
+            seen.add(identity)
+            try:
+                admission_year = int(str(row.get("admission_year", "")).strip() or timezone.now().year)
+            except (TypeError, ValueError):
+                errors.append(f"Row {index}: admission year must be a number.")
+                continue
+            normalized.append({"first_name": first_name[:80], "last_name": last_name[:80], "class_id": matching_classes[0].id, "class_name": matching_classes[0].name, "admission_number": admission_number[:64], "admission_year": admission_year, "existing": admission_number.casefold() in existing_admission_numbers if admission_number else False})
+        return normalized, errors
 
 
 def _class_access_or_403(membership, school_class):
@@ -398,8 +515,47 @@ class StudentDetailView(APIView):
         return Response(StudentSerializer(student).data)
 
 
-def _student_intelligence_payload(student, membership):
+def _assessment_topic_average(assessment, student, topic):
+    normalized = topic.casefold()
+    question_scores = []
+    for question in assessment.questions.all():
+        if question.topic.casefold() == normalized and question.maximum_score:
+            question_scores.extend(
+                float(item.score) / float(question.maximum_score) * 100
+                for item in question.scores.all()
+                if item.student_id == student.id and item.status == AssessmentQuestionScore.EntryStatus.ENTERED and item.score is not None
+            )
+    if question_scores:
+        return round(sum(question_scores) / len(question_scores), 1)
+    if normalized in {item.casefold() for item in _topic_labels(assessment.topics)} and assessment.maximum_score:
+        score = assessment.scores.filter(student=student, status=AssessmentScore.EntryStatus.ENTERED, score__isnull=False).first()
+        if score is not None:
+            return round(float(score.score) / float(assessment.maximum_score) * 100, 1)
+    return None
+
+
+def _assessment_topic_class_average(assessment, topic):
+    normalized = topic.casefold()
+    values = []
+    for question in assessment.questions.all():
+        if question.topic.casefold() == normalized and question.maximum_score:
+            values.extend(
+                float(item.score) / float(question.maximum_score) * 100
+                for item in question.scores.all()
+                if item.status == AssessmentQuestionScore.EntryStatus.ENTERED and item.score is not None
+            )
+    if values:
+        return round(sum(values) / len(values), 1)
+    if normalized in {item.casefold() for item in _topic_labels(assessment.topics)} and assessment.maximum_score:
+        values = [float(item.score) / float(assessment.maximum_score) * 100 for item in assessment.scores.all() if item.status == AssessmentScore.EntryStatus.ENTERED and item.score is not None]
+        return round(sum(values) / len(values), 1) if values else None
+    return None
+
+
+def _student_intelligence_payload(student, membership, academic_session="", term=""):
     """Return transparent learner signals from entered assessment scores only."""
+    review_threshold = float(membership.school.intelligence_review_threshold)
+    strength_threshold = float(membership.school.intelligence_strength_threshold)
     subject_ids = None
     if membership.role == SchoolMembership.Role.TEACHER:
         subject_ids = set(
@@ -415,15 +571,23 @@ def _student_intelligence_payload(student, membership):
         student=student,
         status=AssessmentScore.EntryStatus.ENTERED,
         score__isnull=False,
+        assessment__status=Assessment.Status.PUBLISHED,
     ).select_related("assessment__subject")
     question_queryset = AssessmentQuestionScore.objects.filter(
         student=student,
         status=AssessmentQuestionScore.EntryStatus.ENTERED,
         score__isnull=False,
+        question__assessment__status=Assessment.Status.PUBLISHED,
     ).select_related("question__assessment__subject")
     if subject_ids is not None:
         score_queryset = score_queryset.filter(assessment__subject_id__in=subject_ids)
         question_queryset = question_queryset.filter(question__assessment__subject_id__in=subject_ids)
+    if academic_session:
+        score_queryset = score_queryset.filter(assessment__academic_session=academic_session)
+        question_queryset = question_queryset.filter(question__assessment__academic_session=academic_session)
+    if term:
+        score_queryset = score_queryset.filter(assessment__term=term)
+        question_queryset = question_queryset.filter(question__assessment__term=term)
 
     topic_data = {}
     question_assessment_ids = set()
@@ -456,11 +620,20 @@ def _student_intelligence_payload(student, membership):
             "assessment_ids": set(),
             "dates": [],
             "question_level": evidence_type == "question-level",
+            "evidence_sources": {},
         })
         item["percentages"].append(percentage)
         item["assessment_ids"].add(assessment.id)
         item["dates"].append((assessment.assessment_date, percentage))
         item["question_level"] = item["question_level"] or evidence_type == "question-level"
+        item["evidence_sources"][assessment.id] = {
+            "id": assessment.id,
+            "title": assessment.title,
+            "subject": assessment.subject.name,
+            "date": assessment.assessment_date,
+            "percentage": percentage,
+            "evidence_type": evidence_type,
+        }
 
     for question_score in question_queryset:
         question = question_score.question
@@ -491,6 +664,7 @@ def _student_intelligence_payload(student, membership):
         change = round(dated_scores[-1][1] - dated_scores[0][1], 1) if len(dated_scores) >= 2 else None
         coverage = len(item["percentages"])
         assessment_count = len(item["assessment_ids"])
+        confidence = "sufficient" if coverage >= 2 and assessment_count >= 2 else "early" if coverage >= 2 or assessment_count >= 2 else "insufficient"
         signals.append({
             "topic": item["topic"],
             "subject": item["subject"],
@@ -498,10 +672,11 @@ def _student_intelligence_payload(student, membership):
             "average": average,
             "coverage": coverage,
             "assessments": assessment_count,
-            "confidence": "sufficient" if coverage >= 2 and assessment_count >= 2 else "early",
-            "status": "needs_support" if average < 60 else "developing" if average < 75 else "strength",
+            "confidence": confidence,
+            "status": "needs_support" if average < review_threshold else "developing" if average < strength_threshold else "strength",
             "change": change,
             "evidence": f"{coverage} recorded {'question-level' if item['question_level'] else 'topic-tagged'} score{'s' if coverage != 1 else ''} across {assessment_count} assessment{'s' if assessment_count != 1 else ''}.",
+            "evidence_sources": sorted(item["evidence_sources"].values(), key=lambda source: source["date"], reverse=True),
         })
     signals.sort(key=lambda item: (item["average"], item["topic"]))
 
@@ -518,6 +693,11 @@ def _student_intelligence_payload(student, membership):
         "follow_up_average": float(item.follow_up_average) if item.follow_up_average is not None else None,
         "created_at": item.created_at,
         "completed_at": item.completed_at,
+        "baseline_assessment_id": item.baseline_assessment_id,
+        "follow_up_assessment_id": item.follow_up_assessment_id,
+        "expected_review_date": item.expected_review_date,
+        "outcome_status": item.outcome_status,
+        "improvement": round(float(item.follow_up_average) - float(item.baseline_average), 1) if item.follow_up_average is not None and item.baseline_average is not None else None,
     } for item in intervention_queryset]
     return {
         "summary": {
@@ -525,6 +705,7 @@ def _student_intelligence_payload(student, membership):
             "assessments_recorded": len(assessment_history),
             "topics_needing_support": sum(item["status"] == "needs_support" for item in signals),
             "active_interventions": sum(item["status"] in {StudentIntervention.Status.DRAFT, StudentIntervention.Status.ACTIVE} for item in interventions),
+            "benchmarks": {"review_threshold": review_threshold, "strength_threshold": strength_threshold},
         },
         "topic_signals": signals,
         "assessment_history": sorted(assessment_history, key=lambda item: item["date"], reverse=True),
@@ -549,7 +730,17 @@ class StudentIntelligenceView(APIView):
 
     def get(self, request, public_id):
         student, membership = self.get_student_and_membership(request, public_id)
-        return Response(_student_intelligence_payload(student, membership))
+        academic_session = str(request.query_params.get("academic_session", "")).strip()
+        term = str(request.query_params.get("term", "")).strip()
+        payload = _student_intelligence_payload(student, membership, academic_session, term)
+        published = Assessment.objects.filter(school=student.school, status=Assessment.Status.PUBLISHED, scores__student=student).values("academic_session", "term").distinct()
+        payload["filters"] = {
+            "academic_sessions": sorted({item["academic_session"] for item in published}),
+            "terms": sorted({item["term"] for item in published}),
+            "selected_academic_session": academic_session,
+            "selected_term": term,
+        }
+        return Response(payload)
 
     def post(self, request, public_id):
         student, membership = self.get_student_and_membership(request, public_id)
@@ -559,6 +750,14 @@ class StudentIntelligenceView(APIView):
         if not topic:
             raise serializers.ValidationError({"topic": "Choose a topic before creating a support plan."})
         baseline = request.data.get("baseline_average")
+        baseline_assessment_id = request.data.get("baseline_assessment_id")
+        baseline_assessment = None
+        if baseline_assessment_id:
+            baseline_assessment = get_object_or_404(Assessment, id=baseline_assessment_id, school=membership.school, school_class=student.school_class, subject=subject, status=Assessment.Status.PUBLISHED)
+            baseline = _assessment_topic_average(baseline_assessment, student, topic)
+            if baseline is None:
+                raise serializers.ValidationError({"baseline_assessment_id": "The selected assessment has no recorded evidence for this topic and learner."})
+        review_date = request.data.get("expected_review_date")
         intervention = StudentIntervention(
             school=membership.school,
             student=student,
@@ -568,6 +767,8 @@ class StudentIntelligenceView(APIView):
             title=str(request.data.get("title") or f"Focused {topic} support").strip()[:180],
             rationale=str(request.data.get("rationale") or "Teacher review requested from recorded assessment evidence.").strip(),
             baseline_average=baseline or None,
+            baseline_assessment=baseline_assessment,
+            expected_review_date=date.fromisoformat(review_date) if review_date else None,
             created_by=membership,
         )
         intervention.full_clean()
@@ -582,23 +783,35 @@ class StudentIntelligenceView(APIView):
         if status not in StudentIntervention.Status.values:
             raise serializers.ValidationError({"status": "Choose draft, active, or complete."})
         intervention.status = status
+        follow_up_assessment_id = request.data.get("follow_up_assessment_id")
+        if follow_up_assessment_id:
+            follow_up_assessment = get_object_or_404(Assessment, id=follow_up_assessment_id, school=membership.school, school_class=student.school_class, subject=intervention.subject, status=Assessment.Status.PUBLISHED)
+            follow_up_average = _assessment_topic_average(follow_up_assessment, student, intervention.topic)
+            if follow_up_average is None:
+                raise serializers.ValidationError({"follow_up_assessment_id": "The selected assessment has no recorded evidence for this topic and learner."})
+            intervention.follow_up_assessment = follow_up_assessment
+            intervention.follow_up_average = follow_up_average
+            intervention.outcome_status = "improvement" if intervention.baseline_average is not None and follow_up_average > float(intervention.baseline_average) else "decline" if intervention.baseline_average is not None and follow_up_average < float(intervention.baseline_average) else "no_clear_change"
         if status == StudentIntervention.Status.COMPLETE:
             intervention.completed_at = timezone.now()
-            matching_signals = [item for item in _student_intelligence_payload(student, membership)["topic_signals"] if item["subject_id"] == intervention.subject_id and item["topic"].casefold() == intervention.topic.casefold()]
-            if matching_signals:
-                intervention.follow_up_average = matching_signals[0]["average"]
+            if intervention.follow_up_average is None:
+                matching_signals = [item for item in _student_intelligence_payload(student, membership)["topic_signals"] if item["subject_id"] == intervention.subject_id and item["topic"].casefold() == intervention.topic.casefold()]
+                if matching_signals:
+                    intervention.follow_up_average = matching_signals[0]["average"]
+                    intervention.outcome_status = "improvement" if intervention.baseline_average is not None and intervention.follow_up_average > float(intervention.baseline_average) else "decline" if intervention.baseline_average is not None and intervention.follow_up_average < float(intervention.baseline_average) else "no_clear_change"
         else:
             intervention.completed_at = None
         intervention.full_clean()
         intervention.save()
-        return Response({"id": intervention.id, "status": intervention.status, "follow_up_average": float(intervention.follow_up_average) if intervention.follow_up_average is not None else None})
+        return Response({"id": intervention.id, "status": intervention.status, "follow_up_average": float(intervention.follow_up_average) if intervention.follow_up_average is not None else None, "outcome_status": intervention.outcome_status})
 
 
 def _teaching_evidence(school_class, subject, topic):
     """Aggregate only recorded scores relevant to one requested teaching topic."""
     normalized_topic = topic.casefold()
-    assessments = Assessment.objects.filter(school=school_class.school, school_class=school_class, subject=subject).prefetch_related("scores", "questions__scores")
+    assessments = Assessment.objects.filter(school=school_class.school, school_class=school_class, subject=subject, status=Assessment.Status.PUBLISHED).prefetch_related("scores", "questions__scores")
     percentages, assessment_ids, student_ids = [], set(), set()
+    assessment_sources = {}
     for assessment in assessments:
         has_question_evidence = False
         for question in assessment.questions.all():
@@ -610,6 +823,7 @@ def _teaching_evidence(school_class, subject, topic):
                 student_ids.add(score.student_id)
             if question_scores:
                 assessment_ids.add(assessment.id)
+                assessment_sources[assessment.id] = {"id": assessment.id, "title": assessment.title, "date": assessment.assessment_date, "evidence_type": "question-level"}
                 has_question_evidence = True
         if has_question_evidence or normalized_topic not in {item.casefold() for item in _topic_labels(assessment.topics)} or not assessment.maximum_score:
             continue
@@ -618,19 +832,22 @@ def _teaching_evidence(school_class, subject, topic):
         student_ids.update(score.student_id for score in entered)
         if entered:
             assessment_ids.add(assessment.id)
+            assessment_sources[assessment.id] = {"id": assessment.id, "title": assessment.title, "date": assessment.assessment_date, "evidence_type": "topic-tagged"}
     return {
         "topic": topic,
         "average": round(sum(percentages) / len(percentages), 1) if percentages else None,
         "coverage": len(percentages),
         "assessments": len(assessment_ids),
         "students": len(student_ids),
-        "confidence": "sufficient" if len(percentages) >= 10 and len(assessment_ids) >= 2 else "early",
+        "confidence": "sufficient" if len(percentages) >= 10 and len(assessment_ids) >= 2 else "early" if len(percentages) >= 5 or len(assessment_ids) >= 2 else "insufficient",
+        "assessment_sources": sorted(assessment_sources.values(), key=lambda item: item["date"], reverse=True),
     }
 
 
 def _teaching_draft(kind, evidence, school_class, subject):
     average = evidence["average"]
     evidence_line = f"{evidence['coverage']} recorded score{'s' if evidence['coverage'] != 1 else ''} from {evidence['assessments']} assessment{'s' if evidence['assessments'] != 1 else ''}."
+    confidence_line = {"sufficient": "repeated evidence", "early": "an early signal", "insufficient": "insufficient evidence for a strong conclusion"}[evidence["confidence"]]
     common = {
         "revision": (f"{evidence['topic']} retrieval and practice", ["Start with two worked examples and ask learners to explain each step.", "Use four short practice questions, moving from guided to independent work.", "End with one exit question mapped to the same topic."], ["Check that every learner can explain the method, not only state an answer.", "Record the exit-question result before deciding the next response."]),
         "lesson": (f"Reteach {evidence['topic']}", ["Open with one misconception-revealing question from the prior assessment.", "Model the concept using a clear worked example and think aloud.", "Use paired practice, then a short individual check before closing."], ["Keep the reteach focused on the stated topic.", "Use a comparable follow-up question rather than reusing the same item."]),
@@ -641,7 +858,7 @@ def _teaching_draft(kind, evidence, school_class, subject):
     title, steps, checks = common[kind]
     return {
         "title": title,
-        "teacher_note": f"{school_class.name} {subject.name}: {evidence_line} The current topic average is {average if average is not None else 'not yet available'}%. This is a teacher-review draft, not an automatic recommendation.",
+        "teacher_note": f"{school_class.name} {subject.name}: {evidence_line} This is {confidence_line}. The current topic average is {average if average is not None else 'not yet available'}%. This is a teacher-review draft, not an automatic recommendation.",
         "evidence": evidence,
         "sections": [{"heading": "Suggested teaching sequence", "items": steps}],
         "review_checks": checks,
@@ -819,6 +1036,7 @@ class SchoolMemberDetailView(APIView):
 class TeachingWorkView(APIView):
     """Class-centred assessment and assignment records, always constrained to class/subject access."""
     permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [parsers.JSONParser, parsers.MultiPartParser, parsers.FormParser]
 
     def get_context(self, request):
         membership = active_workspace_membership(request)
@@ -839,6 +1057,34 @@ class TeachingWorkView(APIView):
     def post(self, request):
         membership, school_class, subject = self.get_context(request)
         action = request.data.get("action")
+        if action == "assessment_status":
+            assessment = get_object_or_404(Assessment, id=request.data.get("assessment_id"), school=membership.school, school_class=school_class, subject=subject)
+            next_status = str(request.data.get("status", "")).strip()
+            transitions = {
+                Assessment.Status.DRAFT: {"submitted": Assessment.Status.SUBMITTED},
+                Assessment.Status.SUBMITTED: {"reviewed": Assessment.Status.REVIEWED},
+                Assessment.Status.REVIEWED: {"published": Assessment.Status.PUBLISHED},
+            }
+            if next_status not in transitions.get(assessment.status, {}):
+                raise serializers.ValidationError({"status": "This assessment cannot move to that status from its current state."})
+            if next_status in {Assessment.Status.REVIEWED, Assessment.Status.PUBLISHED} and membership.role not in {SchoolMembership.Role.ADMIN, SchoolMembership.Role.ACADEMIC_HEAD}:
+                raise PermissionDenied("Only a school administrator or academic head can approve or publish results.")
+            assessment.status = next_status
+            assessment.save(update_fields=("status", "updated_at"))
+            return Response({"id": assessment.id, "status": assessment.status})
+        if action == "score_import_file_preview":
+            assessment = get_object_or_404(Assessment, id=request.data.get("assessment_id"), school=membership.school, school_class=school_class, subject=subject, status=Assessment.Status.DRAFT)
+            upload = request.FILES.get("file")
+            if upload is None:
+                raise serializers.ValidationError({"file": "Choose a CSV or XLSX file."})
+            headers, raw_rows = self._read_import_file(upload)
+            student_column = str(request.data.get("student_column") or self._suggest_column(headers, {"student_id", "student id", "student number", "admission number", "student"}))
+            score_column = str(request.data.get("score_column") or self._suggest_column(headers, {"score", "mark", "marks", "total", "result"}))
+            if student_column not in headers or score_column not in headers:
+                return Response({"valid": False, "needs_mapping": True, "columns": headers, "suggested_mapping": {"student_column": student_column, "score_column": score_column}, "row_count": len(raw_rows), "valid_count": 0, "errors": ["Choose the column containing the student ID and the column containing the score."], "rows": []})
+            rows = [{"student_id": str(row.get(student_column, "")).strip(), "score": str(row.get(score_column, "")).strip()} for row in raw_rows]
+            parsed_rows, errors = self._validate_score_import(rows, assessment, membership.school)
+            return Response({"valid": not errors, "needs_mapping": False, "columns": headers, "suggested_mapping": {"student_column": student_column, "score_column": score_column}, "row_count": len(rows), "valid_count": len(parsed_rows), "errors": errors[:20], "rows": rows, "source_name": upload.name})
         if action == "assessment":
             item = Assessment(school=membership.school, school_class=school_class, subject=subject, academic_session=str(request.data.get("academic_session", school_class.academic_session)), term=str(request.data.get("term", "First term")), title=str(request.data.get("title", "")).strip(), assessment_type=request.data.get("assessment_type", Assessment.Type.CA), maximum_score=request.data.get("maximum_score"), weight=request.data.get("weight") or None, topics=str(request.data.get("topics", "")).strip(), created_by=membership)
             item.full_clean(); item.save()
@@ -866,28 +1112,22 @@ class TeachingWorkView(APIView):
             rows = request.data.get("rows", [])
             if not isinstance(rows, list) or not rows:
                 raise serializers.ValidationError({"rows": "Provide at least one score row."})
-            parsed_rows, errors = [], []
-            for index, row in enumerate(rows, start=2):
-                student_id = str(row.get("student_id", "")).strip()
-                try:
-                    score = float(row.get("score"))
-                except (TypeError, ValueError):
-                    errors.append(f"Row {index}: enter a numeric score.")
-                    continue
-                student = Student.objects.filter(school=membership.school, school_class=school_class, student_id__iexact=student_id, is_active=True).first()
-                if student is None:
-                    errors.append(f"Row {index}: no active student matches '{student_id or 'blank'}'.")
-                    continue
-                if score < 0 or score > float(assessment.maximum_score):
-                    errors.append(f"Row {index}: score must be between 0 and {assessment.maximum_score}.")
-                    continue
-                parsed_rows.append((student, score))
+            parsed_rows, errors = self._validate_score_import(rows, assessment, membership.school)
             if errors:
-                raise serializers.ValidationError({"rows": errors[:12]})
+                raise serializers.ValidationError({"rows": errors[:20]})
+            source_name = str(request.data.get("source_name") or "scores.csv").strip()[:255]
             with transaction.atomic():
+                batch = AssessmentImport.objects.create(school=membership.school, assessment=assessment, source_name=source_name, source_type="csv", status=AssessmentImport.Status.COMPLETED, row_count=len(rows), saved_count=len(parsed_rows), created_by=membership)
                 for student, score in parsed_rows:
-                    AssessmentScore.objects.update_or_create(assessment=assessment, student=student, defaults={"score": score, "status": AssessmentScore.EntryStatus.ENTERED, "entered_by": membership})
-            return Response({"saved": len(parsed_rows), "source": "csv"})
+                    AssessmentScore.objects.update_or_create(assessment=assessment, student=student, defaults={"score": score, "status": AssessmentScore.EntryStatus.ENTERED, "entered_by": membership, "import_batch": batch})
+            return Response({"saved": len(parsed_rows), "source": "csv", "import_id": batch.id})
+        if action == "score_import_preview":
+            assessment = get_object_or_404(Assessment, id=request.data.get("assessment_id"), school=membership.school, school_class=school_class, subject=subject, status=Assessment.Status.DRAFT)
+            rows = request.data.get("rows", [])
+            if not isinstance(rows, list) or not rows:
+                raise serializers.ValidationError({"rows": "Provide at least one score row."})
+            parsed_rows, errors = self._validate_score_import(rows, assessment, membership.school)
+            return Response({"valid": not errors, "row_count": len(rows), "valid_count": len(parsed_rows), "errors": errors[:20]})
         if action == "questions":
             assessment = get_object_or_404(Assessment, id=request.data.get("assessment_id"), school=membership.school, school_class=school_class, subject=subject, status=Assessment.Status.DRAFT)
             questions = request.data.get("questions", [])
@@ -923,13 +1163,81 @@ class TeachingWorkView(APIView):
             return Response({"saved": saved})
         raise serializers.ValidationError({"action": "Choose assessment, assignment, score entry, CSV import, or question mapping."})
 
+    @staticmethod
+    def _suggest_column(headers, candidates):
+        normalized = {re.sub(r"[^a-z0-9]+", " ", header.casefold()).strip(): header for header in headers}
+        for candidate in candidates:
+            if candidate in normalized:
+                return normalized[candidate]
+        return ""
+
+    @staticmethod
+    def _read_import_file(upload):
+        if upload.size > 10 * 1024 * 1024:
+            raise serializers.ValidationError({"file": "Keep result files under 10 MB."})
+        name = (upload.name or "").casefold()
+        if not name.endswith((".csv", ".xlsx")):
+            raise serializers.ValidationError({"file": "Use a CSV or XLSX result file."})
+        if name.endswith(".xlsx"):
+            from openpyxl import load_workbook
+            workbook = load_workbook(upload, read_only=True, data_only=True)
+            sheet = workbook.active
+            values = sheet.iter_rows(values_only=True)
+            header_row = next(values, None)
+            headers = [str(value).strip() if value is not None else "" for value in (header_row or [])]
+            rows = [dict(zip(headers, row)) for row in values if any(value is not None and str(value).strip() for value in row)]
+            workbook.close()
+        else:
+            content = upload.read().decode("utf-8-sig", errors="replace")
+            reader = csv.DictReader(io.StringIO(content))
+            headers = [str(header).strip() for header in (reader.fieldnames or [])]
+            rows = [dict(row) for row in reader if any(value and str(value).strip() for value in row.values())]
+        headers = list(dict.fromkeys(header for header in headers if header))
+        if not headers:
+            raise serializers.ValidationError({"file": "The first row must contain column headings."})
+        if len(rows) > 5000:
+            raise serializers.ValidationError({"file": "Keep one import to 5,000 result rows or fewer."})
+        return headers, rows
+
+    @staticmethod
+    def _validate_score_import(rows, assessment, school):
+        parsed_rows, errors, seen = [], [], set()
+        students = {student.student_id.casefold(): student for student in Student.objects.filter(school=school, school_class=assessment.school_class, is_active=True)}
+        for index, row in enumerate(rows, start=2):
+            if not isinstance(row, dict):
+                errors.append(f"Row {index}: row must contain student_id and score.")
+                continue
+            student_id = str(row.get("student_id", "")).strip()
+            key = student_id.casefold()
+            if not student_id:
+                errors.append(f"Row {index}: student_id is required.")
+                continue
+            if key in seen:
+                errors.append(f"Row {index}: duplicate student_id '{student_id}'.")
+                continue
+            seen.add(key)
+            student = students.get(key)
+            if student is None:
+                errors.append(f"Row {index}: no active student matches '{student_id}'.")
+                continue
+            try:
+                score = float(row.get("score"))
+            except (TypeError, ValueError):
+                errors.append(f"Row {index}: enter a numeric score.")
+                continue
+            if score < 0 or score > float(assessment.maximum_score):
+                errors.append(f"Row {index}: score must be between 0 and {assessment.maximum_score}.")
+                continue
+            parsed_rows.append((student, score))
+        return parsed_rows, errors
+
 
 def _topic_labels(value):
     return list(dict.fromkeys(label.strip()[:160] for label in value.split(",") if label.strip()))
 
 
 def _assessment_scope(membership):
-    assessments = Assessment.objects.filter(school=membership.school).prefetch_related("scores", "questions__scores")
+    assessments = Assessment.objects.filter(school=membership.school, status=Assessment.Status.PUBLISHED).prefetch_related("scores", "questions__scores")
     if membership.role != SchoolMembership.Role.TEACHER:
         return assessments
     assignment_filters = Q()
@@ -946,7 +1254,15 @@ class AcademicIntelligenceView(APIView):
         membership = active_workspace_membership(request)
         if membership is None:
             raise serializers.ValidationError({"detail": "Set up a school workspace first."})
+        review_threshold = float(membership.school.intelligence_review_threshold)
+        strength_threshold = float(membership.school.intelligence_strength_threshold)
         assessments = _assessment_scope(membership).select_related("school_class", "subject")
+        academic_session = str(request.query_params.get("academic_session", "")).strip()
+        term = str(request.query_params.get("term", "")).strip()
+        if academic_session:
+            assessments = assessments.filter(academic_session=academic_session)
+        if term:
+            assessments = assessments.filter(term=term)
         if request.query_params.get("class_id"):
             assessments = assessments.filter(school_class_id=request.query_params["class_id"])
         if request.query_params.get("subject_id"):
@@ -968,28 +1284,30 @@ class AcademicIntelligenceView(APIView):
                 question_evidence = True
                 topic = question.topic
                 key = (assessment.school_class_id, assessment.subject_id, topic.casefold())
-                item = topic_data.setdefault(key, {"topic": topic, "class_id": assessment.school_class_id, "class_name": assessment.school_class.name, "subject_id": assessment.subject_id, "subject_name": assessment.subject.name, "percentages": [], "assessment_ids": set(), "student_ids": set(), "question_level": False})
+                item = topic_data.setdefault(key, {"topic": topic, "class_id": assessment.school_class_id, "class_name": assessment.school_class.name, "subject_id": assessment.subject_id, "subject_name": assessment.subject.name, "percentages": [], "assessment_ids": set(), "student_ids": set(), "question_level": False, "evidence_sources": {}})
                 item["percentages"].extend(float(score.score) / float(question.maximum_score) * 100 for score in question_scores)
                 item["assessment_ids"].add(assessment.id)
                 item["student_ids"].update(score.student_id for score in question_scores)
+                item["evidence_sources"][assessment.id] = {"id": assessment.id, "title": assessment.title, "date": assessment.assessment_date, "evidence_type": "question-level"}
                 item["question_level"] = True
             if not question_evidence:
                 for topic in _topic_labels(assessment.topics):
                     key = (assessment.school_class_id, assessment.subject_id, topic.casefold())
-                    item = topic_data.setdefault(key, {"topic": topic, "class_id": assessment.school_class_id, "class_name": assessment.school_class.name, "subject_id": assessment.subject_id, "subject_name": assessment.subject.name, "percentages": [], "assessment_ids": set(), "student_ids": set(), "question_level": False})
+                    item = topic_data.setdefault(key, {"topic": topic, "class_id": assessment.school_class_id, "class_name": assessment.school_class.name, "subject_id": assessment.subject_id, "subject_name": assessment.subject.name, "percentages": [], "assessment_ids": set(), "student_ids": set(), "question_level": False, "evidence_sources": {}})
                     item["percentages"].extend(percentages)
                     item["assessment_ids"].add(assessment.id)
                     item["student_ids"].update(score.student_id for score in entered_scores)
+                    item["evidence_sources"][assessment.id] = {"id": assessment.id, "title": assessment.title, "date": assessment.assessment_date, "evidence_type": "topic-tagged"}
 
         topic_signals = []
         for item in topic_data.values():
             average = round(sum(item["percentages"]) / len(item["percentages"]), 1)
             coverage = len(item["percentages"])
-            confidence = "sufficient" if coverage >= 10 and len(item["assessment_ids"]) >= 2 else "early"
+            confidence = "sufficient" if coverage >= 10 and len(item["assessment_ids"]) >= 2 else "early" if coverage >= 5 or len(item["assessment_ids"]) >= 2 else "insufficient"
             topic_signals.append({
                 "topic": item["topic"], "class_id": item["class_id"], "class_name": item["class_name"], "subject_id": item["subject_id"], "subject_name": item["subject_name"],
                 "average": average, "assessed_students": len(item["student_ids"]), "assessments": len(item["assessment_ids"]), "coverage": coverage, "confidence": confidence,
-                "evidence": f"{coverage} recorded {'question-level' if item['question_level'] else 'topic-tagged'} scores across {len(item['assessment_ids'])} assessment{'s' if len(item['assessment_ids']) != 1 else ''}.",
+                "evidence": f"{coverage} recorded {'question-level' if item['question_level'] else 'topic-tagged'} scores across {len(item['assessment_ids'])} assessment{'s' if len(item['assessment_ids']) != 1 else ''}.", "evidence_sources": sorted(item["evidence_sources"].values(), key=lambda source: source["date"], reverse=True),
             })
         topic_signals.sort(key=lambda item: item["average"])
         interventions = AcademicIntervention.objects.filter(school=membership.school).select_related("school_class", "subject")
@@ -999,9 +1317,15 @@ class AcademicIntelligenceView(APIView):
         else:
             interventions = list(interventions)
         return Response({
-            "summary": {"overall_average": round(sum(total_percentages) / len(total_percentages), 1) if total_percentages else None, "students_assessed": len(assessed_students), "topics_needing_attention": sum(item["average"] < 60 for item in topic_signals), "active_interventions": sum(item.status in {AcademicIntervention.Status.DRAFT, AcademicIntervention.Status.ACTIVE} for item in interventions)},
+            "summary": {"overall_average": round(sum(total_percentages) / len(total_percentages), 1) if total_percentages else None, "students_assessed": len(assessed_students), "topics_needing_attention": sum(item["average"] < review_threshold for item in topic_signals), "active_interventions": sum(item.status in {AcademicIntervention.Status.DRAFT, AcademicIntervention.Status.ACTIVE} for item in interventions), "benchmarks": {"review_threshold": review_threshold, "strength_threshold": strength_threshold}},
             "topic_signals": topic_signals,
             "interventions": [{"id": item.id, "topic": item.topic, "title": item.title, "status": item.status, "class_name": item.school_class.name, "subject_name": item.subject.name, "baseline_average": float(item.baseline_average) if item.baseline_average is not None else None} for item in interventions[:12]],
+            "filters": {
+                "academic_sessions": sorted(set(_assessment_scope(membership).values_list("academic_session", flat=True))),
+                "terms": sorted(set(_assessment_scope(membership).values_list("term", flat=True))),
+                "selected_academic_session": academic_session,
+                "selected_term": term,
+            },
         })
 
     def post(self, request):
@@ -1015,6 +1339,13 @@ class AcademicIntelligenceView(APIView):
         if not topic:
             raise serializers.ValidationError({"topic": "Choose a topic before creating an intervention."})
         baseline = request.data.get("baseline_average")
-        intervention = AcademicIntervention(school=membership.school, school_class=school_class, subject=subject, topic=topic[:160], title=str(request.data.get("title") or f"Focused {topic} revision").strip()[:180], rationale=str(request.data.get("rationale") or f"Teacher review requested after topic-tagged assessment evidence showed {topic} below the selected benchmark.").strip(), baseline_average=baseline or None, created_by=membership)
+        baseline_assessment = None
+        baseline_assessment_id = request.data.get("baseline_assessment_id")
+        if baseline_assessment_id:
+            baseline_assessment = get_object_or_404(Assessment, id=baseline_assessment_id, school=membership.school, school_class=school_class, subject=subject, status=Assessment.Status.PUBLISHED)
+            baseline = _assessment_topic_class_average(baseline_assessment, topic)
+            if baseline is None:
+                raise serializers.ValidationError({"baseline_assessment_id": "The selected assessment has no recorded evidence for this topic."})
+        intervention = AcademicIntervention(school=membership.school, school_class=school_class, subject=subject, topic=topic[:160], title=str(request.data.get("title") or f"Focused {topic} revision").strip()[:180], rationale=str(request.data.get("rationale") or f"Teacher review requested after topic-tagged assessment evidence showed {topic} below the selected benchmark.").strip(), baseline_average=baseline or None, baseline_assessment=baseline_assessment, expected_review_date=date.fromisoformat(request.data["expected_review_date"]) if request.data.get("expected_review_date") else None, created_by=membership)
         intervention.full_clean(); intervention.save()
         return Response({"id": intervention.id, "title": intervention.title, "status": intervention.status, "topic": intervention.topic}, status=201)

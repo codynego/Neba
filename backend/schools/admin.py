@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import AttendanceRecord, ClassTeacherAssignment, School, SchoolClass, SchoolMembership, Student, StudentIntervention, Subject, TeachingAssignment
+from .models import AssessmentImport, AttendanceRecord, ClassTeacherAssignment, School, SchoolClass, SchoolMembership, Student, StudentIntervention, StudentRosterImport, Subject, TeachingAssignment
 
 
 @admin.register(School)
@@ -52,6 +52,20 @@ class AttendanceRecordAdmin(admin.ModelAdmin):
     list_display = ("student", "school_class", "date", "status", "recorded_by")
     list_filter = ("school", "school_class", "date", "status")
     search_fields = ("student__first_name", "student__last_name", "student__student_id")
+
+
+@admin.register(AssessmentImport)
+class AssessmentImportAdmin(admin.ModelAdmin):
+    list_display = ("source_name", "assessment", "status", "row_count", "saved_count", "error_count", "created_at")
+    list_filter = ("status", "source_type", "school")
+    search_fields = ("source_name", "assessment__title", "school__name")
+
+
+@admin.register(StudentRosterImport)
+class StudentRosterImportAdmin(admin.ModelAdmin):
+    list_display = ("source_name", "school", "row_count", "created_count", "matched_count", "created_at")
+    list_filter = ("source_type", "school")
+    search_fields = ("source_name", "school__name")
 
 
 @admin.register(StudentIntervention)

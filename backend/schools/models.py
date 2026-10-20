@@ -10,11 +10,24 @@ class School(models.Model):
     slug = models.SlugField(unique=True)
     student_id_prefix = models.CharField(max_length=12, default="NBS")
     next_student_number = models.PositiveIntegerField(default=1)
+    intelligence_review_threshold = models.DecimalField(max_digits=5, decimal_places=2, default=60)
+    intelligence_strength_threshold = models.DecimalField(max_digits=5, decimal_places=2, default=75)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ("name",)
+
+    def clean(self):
+        errors = {}
+        if self.intelligence_review_threshold < 0 or self.intelligence_review_threshold > 100:
+            errors["intelligence_review_threshold"] = "The review threshold must be between 0 and 100."
+        if self.intelligence_strength_threshold < 0 or self.intelligence_strength_threshold > 100:
+            errors["intelligence_strength_threshold"] = "The strength threshold must be between 0 and 100."
+        if self.intelligence_review_threshold >= self.intelligence_strength_threshold:
+            errors["intelligence_strength_threshold"] = "The strength threshold must be higher than the review threshold."
+        if errors:
+            raise ValidationError(errors)
 
     def __str__(self):
         return self.name
@@ -131,6 +144,28 @@ class Student(models.Model):
 
     def __str__(self):
         return self.full_name
+
+
+class StudentRosterImport(models.Model):
+    class Status(models.TextChoices):
+        COMPLETED = "completed", "Completed"
+
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="student_roster_imports")
+    source_name = models.CharField(max_length=255)
+    source_type = models.CharField(max_length=24, default="csv")
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.COMPLETED)
+    row_count = models.PositiveIntegerField(default=0)
+    created_count = models.PositiveIntegerField(default=0)
+    matched_count = models.PositiveIntegerField(default=0)
+    created_by = models.ForeignKey(SchoolMembership, null=True, blank=True, on_delete=models.SET_NULL, related_name="student_roster_imports")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+
+    def clean(self):
+        if self.created_by_id and self.school_id and self.created_by.school_id != self.school_id:
+            raise ValidationError({"created_by": "The importer must belong to this school."})
 
 
 class StudentEnrollment(models.Model):
@@ -309,6 +344,7 @@ class Assessment(models.Model):
 
     class Status(models.TextChoices):
         DRAFT = "draft", "Draft"
+        SUBMITTED = "submitted", "Submitted for review"
         REVIEWED = "reviewed", "Reviewed"
         PUBLISHED = "published", "Published"
 
@@ -349,6 +385,7 @@ class AssessmentScore(models.Model):
 
     assessment = models.ForeignKey(Assessment, on_delete=models.CASCADE, related_name="scores")
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name="assessment_scores")
+    import_batch = models.ForeignKey("AssessmentImport", null=True, blank=True, on_delete=models.SET_NULL, related_name="scores")
     score = models.DecimalField(max_digits=7, decimal_places=2, null=True, blank=True)
     status = models.CharField(max_length=16, choices=EntryStatus.choices, default=EntryStatus.MISSING)
     entered_by = models.ForeignKey(SchoolMembership, null=True, on_delete=models.SET_NULL, related_name="entered_scores")
@@ -364,6 +401,36 @@ class AssessmentScore(models.Model):
             raise ValidationError({"student": "Student is not in this assessment's class."})
         if self.score is not None and self.assessment_id and (self.score < 0 or self.score > self.assessment.maximum_score):
             raise ValidationError({"score": "Score must be between zero and the assessment maximum."})
+
+
+class AssessmentImport(models.Model):
+    class Status(models.TextChoices):
+        COMPLETED = "completed", "Completed"
+        REJECTED = "rejected", "Rejected"
+
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="assessment_imports")
+    assessment = models.ForeignKey(Assessment, on_delete=models.CASCADE, related_name="imports")
+    source_name = models.CharField(max_length=255)
+    source_type = models.CharField(max_length=24, default="csv")
+    status = models.CharField(max_length=16, choices=Status.choices)
+    row_count = models.PositiveIntegerField(default=0)
+    saved_count = models.PositiveIntegerField(default=0)
+    error_count = models.PositiveIntegerField(default=0)
+    error_summary = models.JSONField(default=list, blank=True)
+    created_by = models.ForeignKey(SchoolMembership, null=True, blank=True, on_delete=models.SET_NULL, related_name="assessment_imports")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+
+    def clean(self):
+        errors = {}
+        if self.assessment_id and self.school_id and self.assessment.school_id != self.school_id:
+            errors["assessment"] = "The assessment must belong to this school."
+        if self.created_by_id and self.school_id and self.created_by.school_id != self.school_id:
+            errors["created_by"] = "The importer must belong to this school."
+        if errors:
+            raise ValidationError(errors)
 
 
 class AssessmentQuestion(models.Model):
@@ -447,6 +514,10 @@ class AcademicIntervention(models.Model):
     title = models.CharField(max_length=180)
     rationale = models.TextField(blank=True)
     baseline_average = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    baseline_assessment = models.ForeignKey("Assessment", null=True, blank=True, on_delete=models.SET_NULL, related_name="class_intervention_baselines")
+    follow_up_assessment = models.ForeignKey("Assessment", null=True, blank=True, on_delete=models.SET_NULL, related_name="class_intervention_follow_ups")
+    expected_review_date = models.DateField(null=True, blank=True)
+    outcome_status = models.CharField(max_length=24, blank=True, default="")
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.DRAFT)
     created_by = models.ForeignKey(SchoolMembership, null=True, on_delete=models.SET_NULL, related_name="created_interventions")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -479,6 +550,10 @@ class StudentIntervention(models.Model):
     rationale = models.TextField(blank=True)
     baseline_average = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     follow_up_average = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    baseline_assessment = models.ForeignKey("Assessment", null=True, blank=True, on_delete=models.SET_NULL, related_name="student_intervention_baselines")
+    follow_up_assessment = models.ForeignKey("Assessment", null=True, blank=True, on_delete=models.SET_NULL, related_name="student_intervention_follow_ups")
+    expected_review_date = models.DateField(null=True, blank=True)
+    outcome_status = models.CharField(max_length=24, blank=True, default="")
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.DRAFT)
     created_by = models.ForeignKey(SchoolMembership, null=True, on_delete=models.SET_NULL, related_name="created_student_interventions")
     completed_at = models.DateTimeField(null=True, blank=True)

@@ -15,6 +15,7 @@ from .models import (
     SchoolClass,
     Student,
     StudentEnrollment,
+    StudentIntervention,
     Subject,
 )
 
@@ -48,6 +49,11 @@ class SeedSchoolDemoCommandTests(TestCase):
         self.assertEqual(AttendanceRecord.objects.filter(school=self.school).count(), 80)
         self.assertEqual(Assignment.objects.filter(school=self.school).count(), 2)
         self.assertEqual(AcademicIntervention.objects.filter(school=self.school).count(), 1)
+        self.assertEqual(StudentIntervention.objects.filter(school=self.school).count(), 1)
+        plan = StudentIntervention.objects.get(school=self.school)
+        self.assertEqual(plan.outcome_status, "improvement")
+        self.assertIsNotNone(plan.baseline_assessment_id)
+        self.assertIsNotNone(plan.follow_up_assessment_id)
 
     def test_rerunning_the_seed_is_idempotent(self):
         self.run_seed()
@@ -59,6 +65,7 @@ class SeedSchoolDemoCommandTests(TestCase):
         self.assertEqual(Assessment.objects.filter(school=self.school).count(), 4)
         self.assertEqual(AssessmentQuestionScore.objects.count(), 96)
         self.assertEqual(AttendanceRecord.objects.filter(school=self.school).count(), 80)
+        self.assertEqual(StudentIntervention.objects.filter(school=self.school).count(), 1)
         self.assertEqual(original_student_ids, set(Student.objects.values_list("student_id", flat=True)))
 
     def test_refuses_to_create_a_missing_school(self):

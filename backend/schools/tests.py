@@ -4,11 +4,12 @@ from django.contrib.auth import get_user_model
 from django.test import override_settings
 from django.core.exceptions import ValidationError
 from django.test import TestCase
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.test import APITestCase
 
-from .models import AcademicIntervention, Assessment, AssessmentQuestion, AssessmentQuestionScore, AssessmentScore, AttendanceRecord, ClassTeacherAssignment, School, SchoolClass, SchoolMembership, Student, StudentIntervention, Subject, TeachingAssignment
+from .models import AcademicIntervention, Assessment, AssessmentImport, AssessmentQuestion, AssessmentQuestionScore, AssessmentScore, AttendanceRecord, ClassTeacherAssignment, School, SchoolClass, SchoolMembership, Student, StudentIntervention, Subject, TeachingAssignment
 from .permissions import class_subject_access_or_403
 
 
@@ -146,11 +147,26 @@ class SchoolRosterTests(APITestCase):
         self.assertEqual(response.status_code, 403)
         self.assertFalse(Student.objects.exists())
 
+    def test_admin_can_preview_and_import_a_roster_without_creating_duplicates(self):
+        csv_file = SimpleUploadedFile("students.csv", b"First Name,Last Name,Class,Admission Number\nAda,Okafor,JSS 1,R-001\nTobi,Bello,JSS 1,R-002\n", content_type="text/csv")
+        preview = self.client.post("/api/schools/roster/", {"action": "student_import_file_preview", "file": csv_file}, format="multipart")
+        self.assertEqual(preview.status_code, 200)
+        self.assertTrue(preview.data["valid"])
+        self.assertEqual(preview.data["valid_count"], 2)
+        imported = self.client.post("/api/schools/roster/", {"action": "student_import", "rows": preview.data["rows"], "source_name": "students.csv"}, format="json")
+        self.assertEqual(imported.status_code, 201)
+        self.assertEqual(imported.data["created_count"], 2)
+        self.assertEqual(Student.objects.filter(school=self.school).count(), 2)
+        repeat = self.client.post("/api/schools/roster/", {"action": "student_import", "rows": preview.data["rows"], "source_name": "students.csv"}, format="json")
+        self.assertEqual(repeat.status_code, 201)
+        self.assertEqual(repeat.data["matched_count"], 2)
+        self.assertEqual(Student.objects.filter(school=self.school).count(), 2)
+
     def test_roster_includes_academic_and_attendance_summary(self):
         membership = SchoolMembership.objects.get(school=self.school, user=self.admin)
         student = Student.objects.create(school=self.school, school_class=self.school_class, first_name="Ada", last_name="Okafor")
         subject = Subject.objects.create(school=self.school, name="Mathematics")
-        assessment = Assessment.objects.create(school=self.school, school_class=self.school_class, subject=subject, academic_session="2026/2027", term="First term", title="CA 1", assessment_type=Assessment.Type.CA, maximum_score=20, created_by=membership)
+        assessment = Assessment.objects.create(school=self.school, school_class=self.school_class, subject=subject, academic_session="2026/2027", term="First term", title="CA 1", assessment_type=Assessment.Type.CA, maximum_score=20, status=Assessment.Status.PUBLISHED, created_by=membership)
         AssessmentScore.objects.create(assessment=assessment, student=student, score=15, status=AssessmentScore.EntryStatus.ENTERED, entered_by=membership)
         AttendanceRecord.objects.create(school=self.school, school_class=self.school_class, student=student, date="2026-10-14", status=AttendanceRecord.Status.PRESENT, recorded_by=membership)
         AttendanceRecord.objects.create(school=self.school, school_class=self.school_class, student=student, date="2026-10-15", status=AttendanceRecord.Status.ABSENT, recorded_by=membership)
@@ -285,7 +301,7 @@ class AcademicIntelligenceTests(APITestCase):
         self.subject = Subject.objects.create(school=self.school, name="Mathematics")
         first = Student.objects.create(school=self.school, school_class=self.school_class, first_name="Ada", last_name="Okafor")
         second = Student.objects.create(school=self.school, school_class=self.school_class, first_name="Tobi", last_name="Bello")
-        assessment = Assessment.objects.create(school=self.school, school_class=self.school_class, subject=self.subject, academic_session="2026/2027", term="First term", title="CA 1", assessment_type=Assessment.Type.CA, maximum_score=20, topics="Fractions", created_by=self.membership)
+        assessment = Assessment.objects.create(school=self.school, school_class=self.school_class, subject=self.subject, academic_session="2026/2027", term="First term", title="CA 1", assessment_type=Assessment.Type.CA, maximum_score=20, topics="Fractions", status=Assessment.Status.PUBLISHED, created_by=self.membership)
         AssessmentScore.objects.create(assessment=assessment, student=first, score=8, status=AssessmentScore.EntryStatus.ENTERED, entered_by=self.membership)
         AssessmentScore.objects.create(assessment=assessment, student=second, score=10, status=AssessmentScore.EntryStatus.ENTERED, entered_by=self.membership)
         self.client.force_authenticate(self.admin)
@@ -303,8 +319,23 @@ class AcademicIntelligenceTests(APITestCase):
         self.assertEqual(response.status_code, 201)
         self.assertEqual(AcademicIntervention.objects.get().status, AcademicIntervention.Status.DRAFT)
 
+    def test_assessment_moves_through_review_and_publish_workflow(self):
+        assessment = Assessment.objects.create(school=self.school, school_class=self.school_class, subject=self.subject, academic_session="2026/2027", term="First term", title="CA 2", assessment_type=Assessment.Type.CA, maximum_score=20, created_by=self.membership)
+        url = f"/api/schools/teaching-work/?school_id={self.school.id}&class_id={self.school_class.id}&subject_id={self.subject.id}"
+        response = self.client.post(url, {"action": "assessment_status", "assessment_id": assessment.id, "status": "submitted"}, format="json")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["status"], Assessment.Status.SUBMITTED)
+        response = self.client.post(url, {"action": "assessment_status", "assessment_id": assessment.id, "status": "reviewed"}, format="json")
+        self.assertEqual(response.status_code, 200)
+        response = self.client.post(url, {"action": "assessment_status", "assessment_id": assessment.id, "status": "published"}, format="json")
+        self.assertEqual(response.status_code, 200)
+        assessment.refresh_from_db()
+        self.assertEqual(assessment.status, Assessment.Status.PUBLISHED)
+
     def test_teacher_can_save_question_topic_mapping_and_import_validated_csv_rows(self):
         assessment = Assessment.objects.get(school=self.school)
+        assessment.status = Assessment.Status.DRAFT
+        assessment.save(update_fields=("status",))
         response = self.client.post(f"/api/schools/teaching-work/?school_id={self.school.id}&class_id={self.school_class.id}&subject_id={self.subject.id}", {"action": "questions", "assessment_id": assessment.id, "questions": [{"number": 1, "topic": "Equivalent fractions", "learning_objective": "Recognise equivalent fractions", "maximum_score": 10}, {"number": 2, "topic": "Adding fractions", "maximum_score": 10}]}, format="json")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(AssessmentQuestion.objects.filter(assessment=assessment).count(), 2)
@@ -318,10 +349,28 @@ class AcademicIntelligenceTests(APITestCase):
         response = self.client.post(f"/api/schools/teaching-work/?school_id={self.school.id}&class_id={self.school_class.id}&subject_id={self.subject.id}", {"action": "question_scores", "assessment_id": assessment.id, "scores": [{"question_id": question.id, "student_id": first.id, "score": "4", "status": "entered"}]}, format="json")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(AssessmentQuestionScore.objects.get(question=question, student=first).score, 4)
+        assessment.status = Assessment.Status.PUBLISHED
+        assessment.save(update_fields=("status",))
         response = self.client.get(f"/api/schools/intelligence/?school_id={self.school.id}")
         self.assertEqual(response.data["topic_signals"][0]["topic"], "Equivalent fractions")
         self.assertEqual(response.data["topic_signals"][0]["average"], 40.0)
         self.assertIn("question-level scores", response.data["topic_signals"][0]["evidence"])
+
+    def test_result_file_preview_validates_columns_and_records_import_provenance(self):
+        assessment = Assessment.objects.get(school=self.school)
+        assessment.status = Assessment.Status.DRAFT
+        assessment.save(update_fields=("status",))
+        first = Student.objects.get(school=self.school, first_name="Ada")
+        csv_file = SimpleUploadedFile("term-results.csv", b"Student Number,Marks\n" + f"{first.student_id},14\n".encode(), content_type="text/csv")
+        url = f"/api/schools/teaching-work/?school_id={self.school.id}&class_id={self.school_class.id}&subject_id={self.subject.id}"
+        preview = self.client.post(url, {"action": "score_import_file_preview", "assessment_id": assessment.id, "file": csv_file}, format="multipart")
+        self.assertEqual(preview.status_code, 200)
+        self.assertTrue(preview.data["valid"])
+        self.assertEqual(preview.data["suggested_mapping"]["score_column"], "Marks")
+        imported = self.client.post(url, {"action": "score_import", "assessment_id": assessment.id, "rows": preview.data["rows"], "source_name": "term-results.csv"}, format="json")
+        self.assertEqual(imported.status_code, 200)
+        self.assertEqual(imported.data["saved"], 1)
+        self.assertEqual(AssessmentImport.objects.get(id=imported.data["import_id"]).source_name, "term-results.csv")
 
     @override_settings(OPENAI_API_KEY="")
     def test_teaching_assistant_returns_an_evidence_grounded_review_draft_without_ai_configuration(self):
@@ -345,7 +394,7 @@ class StudentIntelligenceTests(APITestCase):
         self.subject = Subject.objects.create(school=self.school, name="Mathematics")
         self.student = Student.objects.create(school=self.school, school_class=self.school_class, first_name="Ada", last_name="Okafor")
         for index, score in enumerate((8, 12), start=1):
-            assessment = Assessment.objects.create(school=self.school, school_class=self.school_class, subject=self.subject, academic_session="2026/2027", term="First term", title=f"CA {index}", assessment_type=Assessment.Type.CA, maximum_score=20, topics="Fractions", created_by=self.membership)
+            assessment = Assessment.objects.create(school=self.school, school_class=self.school_class, subject=self.subject, academic_session="2026/2027", term="First term" if index == 1 else "Second term", title=f"CA {index}", assessment_type=Assessment.Type.CA, maximum_score=20, topics="Fractions", status=Assessment.Status.PUBLISHED, created_by=self.membership)
             AssessmentScore.objects.create(assessment=assessment, student=self.student, score=score, status=AssessmentScore.EntryStatus.ENTERED, entered_by=self.membership)
             question = AssessmentQuestion.objects.create(assessment=assessment, number=1, topic="Equivalent fractions", maximum_score=20)
             AssessmentQuestionScore.objects.create(question=question, student=self.student, score=score, status=AssessmentQuestionScore.EntryStatus.ENTERED, entered_by=self.membership)
@@ -359,7 +408,31 @@ class StudentIntelligenceTests(APITestCase):
         self.assertEqual(response.data["topic_signals"][0]["topic"], "Equivalent fractions")
         self.assertEqual(response.data["topic_signals"][0]["confidence"], "sufficient")
         self.assertEqual(response.data["topic_signals"][0]["status"], "needs_support")
+        self.assertEqual(len(response.data["topic_signals"][0]["evidence_sources"]), 2)
+        self.assertEqual(response.data["topic_signals"][0]["evidence_sources"][0]["evidence_type"], "question-level")
         self.assertEqual(len(response.data["assessment_history"]), 2)
+
+    def test_student_intelligence_can_be_filtered_by_term(self):
+        response = self.client.get(f"/api/schools/students/{self.student.public_id}/intelligence/?school_id={self.school.id}&term=First%20term")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["filters"]["selected_term"], "First term")
+        self.assertEqual(len(response.data["assessment_history"]), 1)
+        self.assertEqual(response.data["topic_signals"][0]["confidence"], "insufficient")
+
+    def test_school_can_configure_intelligence_benchmarks(self):
+        settings_url = f"/api/schools/roster/?school_id={self.school.id}"
+        response = self.client.post(settings_url, {"action": "intelligence_benchmarks", "review_threshold": 70, "strength_threshold": 85}, format="json")
+        self.assertEqual(response.status_code, 200)
+        intelligence = self.client.get(f"/api/schools/students/{self.student.public_id}/intelligence/?school_id={self.school.id}")
+        self.assertEqual(intelligence.data["summary"]["benchmarks"], {"review_threshold": 70.0, "strength_threshold": 85.0})
+        self.assertEqual(intelligence.data["topic_signals"][0]["status"], "needs_support")
+
+    def test_single_record_signal_is_marked_insufficient(self):
+        AssessmentQuestionScore.objects.filter(student=self.student).delete()
+        AssessmentScore.objects.filter(student=self.student).exclude(assessment__title="CA 1").delete()
+        response = self.client.get(f"/api/schools/students/{self.student.public_id}/intelligence/?school_id={self.school.id}")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["topic_signals"][0]["confidence"], "insufficient")
 
     def test_member_can_create_and_complete_a_student_support_plan(self):
         url = f"/api/schools/students/{self.student.public_id}/intelligence/?school_id={self.school.id}"
@@ -373,3 +446,19 @@ class StudentIntelligenceTests(APITestCase):
         plan.refresh_from_db()
         self.assertEqual(plan.status, StudentIntervention.Status.COMPLETE)
         self.assertEqual(float(plan.follow_up_average), 50.0)
+
+    def test_support_plan_can_link_baseline_and_follow_up_assessments(self):
+        baseline = Assessment.objects.get(title="CA 1")
+        follow_up = Assessment.objects.get(title="CA 2")
+        url = f"/api/schools/students/{self.student.public_id}/intelligence/?school_id={self.school.id}"
+        response = self.client.post(url, {"subject_id": self.subject.id, "topic": "Fractions", "baseline_assessment_id": baseline.id, "expected_review_date": "2026-11-20"}, format="json")
+        self.assertEqual(response.status_code, 201)
+        plan = StudentIntervention.objects.get()
+        self.assertEqual(plan.baseline_assessment_id, baseline.id)
+        self.assertEqual(float(plan.baseline_average), 40.0)
+        response = self.client.patch(url, {"intervention_id": plan.id, "status": "complete", "follow_up_assessment_id": follow_up.id}, format="json")
+        self.assertEqual(response.status_code, 200)
+        plan.refresh_from_db()
+        self.assertEqual(plan.follow_up_assessment_id, follow_up.id)
+        self.assertEqual(float(plan.follow_up_average), 60.0)
+        self.assertEqual(plan.outcome_status, "improvement")
