@@ -1,22 +1,31 @@
-"use client";
-
-import Link from "next/link";
-import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
-import { ArrowLeft, ArrowRight, Building2, CheckCircle2, ExternalLink, Lightbulb, MessageCircle, ShieldAlert, Star } from "lucide-react";
-import { api } from "@/lib/api";
+import { notFound } from "next/navigation";
+import { jsonLd, siteUrl } from "@/lib/seo";
 import type { OpportunityProfile } from "@/lib/types";
-import { InsightSubmission } from "@/components/insights-browser";
+import { opportunityPath } from "@/lib/routes";
+import { InsightProfileView } from "@/components/insight-profile-view";
 
-const kindLabels: Record<string, string> = { review: "Review", tip: "Tip", warning: "Warning", application: "Application experience" };
-const formatDate = (value: string) => new Intl.DateTimeFormat("en", { month: "short", day: "numeric", year: "numeric" }).format(new Date(value));
+async function getProfile(id: string): Promise<OpportunityProfile | null> {
+  try {
+    const base = (process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api").replace(/\/$/, "");
+    const response = await fetch(`${base}/insight-profiles/${id}/`, { next: { revalidate: 900 }, signal: AbortSignal.timeout(5000) });
+    if (!response.ok) return null;
+    return await response.json() as OpportunityProfile;
+  } catch { return null; }
+}
 
-export default function InsightProfilePage() {
-  const { id } = useParams<{ id: string }>();
-  const [profile, setProfile] = useState<OpportunityProfile | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState("");
-  const load = () => { setLoading(true); api<OpportunityProfile>(`/insight-profiles/${id}/`).then(setProfile).catch(() => setError("This profile could not be loaded.")).finally(() => setLoading(false)); };
-  useEffect(load, [id]);
-  if (loading) return <main className="insight-profile-page insights-shell"><p>Loading profile…</p></main>;
-  if (!profile) return <main className="insight-profile-page insights-shell"><p className="insights-empty">{error || "Profile not found."}</p><Link href="/insights" className="section-link"><ArrowLeft size={15} /> Back to Insights</Link></main>;
-  return <main className="insight-profile-page"><div className="insights-shell"><Link href="/insights" className="detail-back"><ArrowLeft size={15} /> Back to Insights</Link><header className="insight-profile-hero"><div className="insight-profile-identity"><span className="insight-profile-large-mark"><Building2 size={29} /></span><div><span className="eyebrow">{profile.profile_type}</span><h1>{profile.name} {profile.is_verified && <CheckCircle2 size={22} aria-label="Verified profile" />}</h1><p>{[profile.location_label, profile.country].filter(Boolean).join(" · ") || "Profile on Neba"}</p></div></div>{profile.website && <a className="button button-outline compact" href={profile.website} target="_blank" rel="noreferrer">Visit website <ExternalLink size={14} /></a>}</header><div className="insight-profile-layout"><div><section className="insight-profile-intro"><span className="eyebrow">ABOUT THIS PROFILE</span><p>{profile.summary || "This profile collects current opportunities and community knowledge to help people make a more informed decision."}</p><div className="insight-profile-stats"><span><strong>{profile.opportunity_count}</strong> opportunities</span><span><strong>{profile.insight_count}</strong> community insights</span></div></section><section className="insight-section"><header><div><span className="eyebrow">CURRENT OPPORTUNITIES</span><h2>What you can pursue here.</h2></div></header>{profile.opportunities.length ? <div className="insight-opportunity-list">{profile.opportunities.map((item) => <Link href={`/opportunities/${item.public_id}`} key={item.public_id}><span><strong>{item.title}</strong><small>{item.is_remote ? "Remote" : item.location_label || "See opportunity details"} · {item.category}</small></span><ArrowRight size={16} /></Link>)}</div> : <p className="insights-muted">No published opportunities are linked yet.</p>}</section><section className="insight-section"><header><div><span className="eyebrow">COMMUNITY INSIGHTS</span><h2>What people want you to know.</h2></div></header>{profile.insights.length ? <div className="insight-list">{profile.insights.map((insight) => <article className={`insight-note insight-note-${insight.kind}`} key={insight.public_id}><div className="insight-note-icon">{insight.kind === "warning" ? <ShieldAlert size={17} /> : insight.kind === "tip" ? <Lightbulb size={17} /> : insight.kind === "application" ? <MessageCircle size={17} /> : <Star size={17} />}</div><div><div className="insight-note-meta"><strong>{kindLabels[insight.kind]}</strong><span>{formatDate(insight.created_at)}</span>{insight.recommendation && <b>{insight.recommendation === "yes" ? "Recommended" : insight.recommendation === "no" ? "Not recommended" : "Mixed"}</b>}</div>{insight.title && <h3>{insight.title}</h3>}<p>{insight.body}</p><small>Shared by {insight.author_name}</small></div></article>)}</div> : <div className="insights-empty"><Lightbulb size={24} /><div><strong>No community insights yet.</strong><p>Be the first person to share useful context.</p></div></div>}</section></div><aside><InsightSubmission profileId={profile.public_id} onSubmitted={load} /></aside></div></div></main>;
+export default async function InsightProfilePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const profile = await getProfile(id);
+  if (!profile) notFound();
+  const profileUrl = new URL(`/insights/${profile.public_id}`, siteUrl).toString();
+  const profileType = profile.profile_type === "school" ? "EducationalOrganization" : "Organization";
+  const description = profile.summary || `Community insights, opportunities, and practical context about ${profile.name}.`;
+  const structuredData = { "@context": "https://schema.org", "@graph": [
+    { "@type": "ProfilePage", "@id": `${profileUrl}#profile-page`, url: profileUrl, name: `${profile.name} — Community Insights`, description, mainEntity: { "@id": `${profileUrl}#organization` }, isPartOf: { "@id": new URL("/insights", siteUrl).toString() } },
+    { "@type": profileType, "@id": `${profileUrl}#organization`, name: profile.name, description, url: profile.website || profileUrl, location: [profile.location_label, profile.country].filter(Boolean).join(" · ") || undefined, sameAs: profile.website ? [profile.website] : undefined },
+    { "@type": "ItemList", name: `Opportunities connected to ${profile.name}`, numberOfItems: profile.opportunities.length, itemListElement: profile.opportunities.map((item, index) => ({ "@type": "ListItem", position: index + 1, name: item.title, url: new URL(opportunityPath(item.title, item.public_id), siteUrl).toString() })) },
+    { "@type": "BreadcrumbList", itemListElement: [{ "@type": "ListItem", position: 1, name: "Neba Insights", item: new URL("/insights", siteUrl).toString() }, { "@type": "ListItem", position: 2, name: profile.name, item: profileUrl }] },
+    { "@type": "FAQPage", mainEntity: [{ "@type": "Question", name: `What is ${profile.name}?`, acceptedAnswer: { "@type": "Answer", text: description } }, { "@type": "Question", name: `What opportunities are available through ${profile.name}?`, acceptedAnswer: { "@type": "Answer", text: profile.opportunities.length ? `${profile.name} has ${profile.opportunities.length} published opportunity${profile.opportunities.length === 1 ? "" : "ies"} listed on Neba. Review each opportunity's requirements and official source before applying.` : `Neba does not currently have a published opportunity linked to ${profile.name}.` } }, { "@type": "Question", name: `What do people say about ${profile.name}?`, acceptedAnswer: { "@type": "Answer", text: profile.insight_count ? `Neba has ${profile.insight_count} community insight${profile.insight_count === 1 ? "" : "s"} about ${profile.name}. These are community contributions and should be considered alongside the provider's official information.` : `There are no published community insights about ${profile.name} yet.` } }] },
+  ] };
+  return <><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(structuredData) }} /><InsightProfileView initialProfile={profile} profileId={id} /></>;
 }

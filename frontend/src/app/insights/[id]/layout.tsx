@@ -18,7 +18,9 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   if (!profile) return { title: "Insight profile not found | Neba", robots: { index: false, follow: false } };
   const location = [profile.location_label, profile.country].filter(Boolean).join(" · ");
   const description = `${profile.summary || `Community insights and opportunities connected to ${profile.name}.`} ${location}`.trim().slice(0, 160);
-  return publicPageMetadata(`${profile.name} — Community Insights | Neba`, description, `/insights/${id}`);
+  const metadata = publicPageMetadata(`${profile.name} — Community Insights | Neba`, description, `/insights/${id}`);
+  metadata.keywords = [profile.name, `${profile.name} reviews`, `${profile.name} opportunities`, `${profile.profile_type} insights`, "Neba Insights"];
+  return metadata;
 }
 
 export default function InsightProfileLayout({ children }: { children: React.ReactNode }) {
