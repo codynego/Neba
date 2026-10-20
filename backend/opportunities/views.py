@@ -412,7 +412,12 @@ class OpportunityApplicationViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = OpportunityApplicationSerializer
     lookup_field = "public_id"
-    def get_queryset(self): return OpportunityApplication.objects.filter(Q(user=self.request.user) | Q(opportunity__organization__owner=self.request.user)).select_related("opportunity", "user").prefetch_related("messages__sender").distinct()
+    def get_queryset(self):
+        queryset = OpportunityApplication.objects.filter(Q(user=self.request.user) | Q(opportunity__organization__owner=self.request.user)).select_related("opportunity", "user").prefetch_related("messages__sender").distinct()
+        opportunity_id = self.request.query_params.get("opportunity_id")
+        if opportunity_id:
+            queryset = queryset.filter(opportunity__public_id=opportunity_id)
+        return queryset
     @transaction.atomic
     def create(self, request, *args, **kwargs):
         opportunity_id = request.data.get("opportunity_id")

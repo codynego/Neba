@@ -6,13 +6,12 @@ import {
   ArrowLeft,
   ArrowRight,
   Check,
-  Download,
   FileText,
   LoaderCircle,
   Sparkles,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { CVDraft, Opportunity, User } from "@/lib/types";
+import { CVDraft, Opportunity, OpportunityApplication, Page, User } from "@/lib/types";
 
 const emptyDraft: CVDraft = {
   headline: "",
@@ -57,8 +56,6 @@ function profileFallback(user: User): CVDraft {
   const saved: Partial<CVDraft> = user.cv_profile || {};
   return { ...emptyDraft, headline: saved.headline || user.industry || user.field_of_study || "Professional profile", summary: saved.summary || user.bio || "Add a short summary of your experience and the value you bring.", experience: saved.experience?.length ? saved.experience : experience, education: saved.education?.length ? saved.education : education, skills: Array.from(new Set([...(saved.skills || []), ...(user.skills || [])])), missing_information: [!(saved.summary || user.bio) ? "A short professional summary" : "", !(saved.education?.length || user.education_level || user.institution) ? "Your education and institution" : "", !(saved.skills?.length || user.skills?.length) ? "Your relevant skills" : ""].filter(Boolean), keywords: saved.keywords || [], tailoring_notes: saved.tailoring_notes || [] };
 }
-
-function escapeHtml(value: string) { return value.replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[character] || character); }
 
 export default function CVPage() {
   const [user, setUser] = useState<User | null>(null);
@@ -140,6 +137,17 @@ export default function CVPage() {
             : { title: role, provider: company, requirements },
         }),
       });
+      let linkedApplicationId = applicationId;
+      if (opportunity && !linkedApplicationId) {
+        const existing = await api<Page<OpportunityApplication>>(`/opportunity-applications/?opportunity_id=${opportunity.public_id}`);
+        if (existing.results[0]) {
+          linkedApplicationId = existing.results[0].public_id;
+        } else {
+          const created = await api<OpportunityApplication>("/opportunity-applications/", { method: "POST", body: JSON.stringify({ opportunity_id: opportunity.public_id, status: "preparing", next_action: "Review and submit your tailored CV" }) });
+          linkedApplicationId = created.public_id;
+        }
+        setApplicationId(linkedApplicationId);
+      }
       const fallback = profileFallback(user);
       setDraft({ ...fallback, ...result, summary: result.summary || fallback.summary, headline: result.headline || fallback.headline, experience: result.experience?.length ? result.experience : fallback.experience, education: result.education?.length ? result.education : fallback.education, skills: Array.from(new Set([...(result.skills || []), ...(fallback.skills || [])])), missing_information: Array.from(new Set([...(result.missing_information || []), ...(fallback.missing_information || [])])) });
     } catch (generateError) {
@@ -172,15 +180,6 @@ export default function CVPage() {
     const education = [...(draft?.education || [])];
     education[index] = { ...education[index], [key]: value };
     updateDraft("education", education);
-  }
-
-  function downloadCv() {
-    if (!draft || !user) return;
-    const experience = draft.experience.map((item) => `<section><h3>${escapeHtml(item.role)}</h3><p><strong>${escapeHtml(item.organization)}</strong> · ${escapeHtml(item.dates)}</p><ul>${item.bullets.map((bullet) => `<li>${escapeHtml(bullet)}</li>`).join("")}</ul></section>`).join("");
-    const education = draft.education.map((item) => `<p><strong>${escapeHtml(item.qualification)}</strong><br>${escapeHtml(item.institution)} · ${escapeHtml(item.dates)}</p>`).join("");
-    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(user.display_name)} CV</title><style>body{font-family:Arial,sans-serif;max-width:760px;margin:48px auto;color:#26382d;line-height:1.55}h1{margin:0;font-size:30px}h2{font-size:14px;color:#397052;margin:5px 0 10px}h3{font-size:14px;margin:12px 0 2px}h4{font-size:11px;color:#397052;border-bottom:1px solid #cfe0d2;padding-bottom:5px;letter-spacing:.12em;margin:24px 0 10px}p,li{font-size:12px}ul{padding-left:20px}</style></head><body><h1>${escapeHtml(user.display_name)}</h1><h2>${escapeHtml(draft.headline)}</h2><p>${escapeHtml([user.email, user.city, user.country].filter(Boolean).join(" · "))}</p><h4>PROFILE</h4><p>${escapeHtml(draft.summary)}</p>${experience ? `<h4>EXPERIENCE</h4>${experience}` : ""}<h4>EDUCATION</h4>${education}<h4>SKILLS</h4><p>${draft.skills.map(escapeHtml).join(" · ")}</p></body></html>`;
-    const url = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
-    const link = document.createElement("a"); link.href = url; link.download = `${user.display_name.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "") || "Neba-CV"}.html`; link.click(); URL.revokeObjectURL(url);
   }
 
   if (busy)
@@ -306,9 +305,9 @@ export default function CVPage() {
               <div>
                 <span className="eyebrow">EDITABLE DRAFT</span>
                 <h2>Review before you send.</h2>
+                {opportunity && applicationId && <span className="cv-attached-status"><Check size={12} /> Saved to this opportunity</span>}
               </div>
               <div className="cv-editor-actions">
-                <button className="button button-outline compact" onClick={downloadCv}><Download size={15} /> Download CV</button>
                 <button className="button button-outline compact" onClick={() => window.print()}>Save as PDF</button>
               </div>
             </div>
