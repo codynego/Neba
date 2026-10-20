@@ -6,7 +6,7 @@ from rest_framework.routers import DefaultRouter
 from accounts.notification_views import NotificationViewSet
 from accounts.staff_views import OpportunityFetch, StaffDashboard, StaffIdentityDecision, StaffOrganizationDecision, StaffOperationsSection, StaffOpportunityCollection, StaffOpportunityDecision
 from opportunities.views import OpportunityApplicationViewSet, OpportunityCheckViewSet, OpportunityViewSet, OrganizationOpportunityViewSet, PersonalOpportunityViewSet, SavedOpportunityViewSet
-from ai_views import InterviewText, InterviewTranscription, InterviewReport, CVTailor
+from ai_views import InterviewText, InterviewTranscription, InterviewReport, CVTailor, OpportunityFit
 
 router = DefaultRouter()
 router.register("notifications", NotificationViewSet, basename="notification")
@@ -42,5 +42,6 @@ urlpatterns = [
     path("api/ai/interview/transcribe/", InterviewTranscription.as_view()),
     path("api/ai/interview/report/", InterviewReport.as_view()),
     path("api/ai/cv/tailor/", CVTailor.as_view()),
+    path("api/ai/opportunity-fit/", OpportunityFit.as_view()),
     path("api/", include(router.urls)),
 ]

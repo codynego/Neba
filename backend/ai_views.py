@@ -7,6 +7,7 @@ from django.conf import settings
 from rest_framework import permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from opportunities.models import OpportunityCheck
 
 
 class InterviewText(APIView):
@@ -217,3 +218,79 @@ class CVTailor(APIView):
             return Response(draft)
         except (requests.RequestException, json.JSONDecodeError, TypeError, ValueError) as error:
             return Response({"detail": f"CV could not be prepared: {error}"}, status=status.HTTP_502_BAD_GATEWAY)
+
+
+class OpportunityFit(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        if not settings.OPENAI_API_KEY:
+            return Response({"detail": "Opportunity fit checks are not configured yet."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        public_id = str(request.data.get("check_id", "")).strip()
+        try:
+            check = OpportunityCheck.objects.get(public_id=public_id, user=request.user, status=OpportunityCheck.Status.COMPLETED)
+        except (OpportunityCheck.DoesNotExist, ValueError):
+            return Response({"detail": "Complete an opportunity check before checking your fit."}, status=status.HTTP_404_NOT_FOUND)
+
+        profile = {
+            "name": request.user.display_name,
+            "country": request.user.country,
+            "education_level": request.user.education_level,
+            "field_of_study": request.user.field_of_study,
+            "institution": request.user.institution,
+            "employment_status": request.user.employment_status,
+            "years_experience": request.user.years_experience,
+            "industry": request.user.industry,
+            "skills": request.user.skills,
+            "interests": request.user.opportunity_interests,
+            "goals": request.user.goals,
+            "cv_profile": request.user.cv_profile,
+        }
+        opportunity = {
+            "title": check.title,
+            "organization": check.organization,
+            "type": check.opportunity_type,
+            "summary": check.report_summary,
+            "submitted_text": check.submitted_text,
+            "claims": check.claims,
+            "warnings": check.warnings,
+            "recommended_action": check.recommended_action,
+        }
+        instructions = (
+            "You are Neba's opportunity-fit advisor. Decide whether this opportunity appears suitable for this specific user, based only on the opportunity evidence and profile supplied. "
+            "Do not promise acceptance, invent requirements, or treat missing information as a rejection. Separate a personal-fit assessment from source credibility: the opportunity may be a good fit even when verification is incomplete, but tell the user to resolve safety concerns before applying. "
+            "Use a conservative score: 80-100 strong fit, 55-79 possible fit, 1-54 unlikely fit, and 0 only when there is not enough information. "
+            "Return valid JSON only with this exact shape: "
+            '{"fit_score": number, "fit_verdict": "strong_fit"|"possible_fit"|"unlikely_fit"|"not_enough_information", "fit_summary": string, "fit_reasons": [string], "fit_gaps": [string], "fit_next_steps": [string], "fit_missing_profile": [string]}. '
+            "Use no more than 4 items in each list. Keep the summary under 60 words. Mention when the available opportunity details are too incomplete to judge confidently."
+        )
+        prompt = f"Opportunity evidence:\n{json.dumps(opportunity, ensure_ascii=False)}\n\nUser profile:\n{json.dumps(profile, ensure_ascii=False)}"
+        try:
+            response = requests.post(
+                "https://api.openai.com/v1/responses",
+                headers={"Authorization": f"Bearer {settings.OPENAI_API_KEY}", "Content-Type": "application/json"},
+                json={"model": settings.OPENAI_TEXT_MODEL, "instructions": instructions, "input": prompt},
+                timeout=30,
+            )
+            if not response.ok:
+                return Response({"detail": f"Opportunity fit could not be assessed: {response.text[:500]}"}, status=status.HTTP_502_BAD_GATEWAY)
+            data = response.json()
+            output = str(data.get("output_text", "")).strip()
+            if not output:
+                output = " ".join(content.get("text", "") for item in data.get("output", []) for content in item.get("content", []) if content.get("type") == "output_text").strip()
+            output = re.sub(r"^```(?:json)?\s*|\s*```$", "", output.strip(), flags=re.IGNORECASE)
+            fit = json.loads(output)
+            required = ("fit_score", "fit_verdict", "fit_summary", "fit_reasons", "fit_gaps", "fit_next_steps", "fit_missing_profile")
+            if any(key not in fit for key in required):
+                raise ValueError("The fit response was incomplete.")
+            check.fit_score = max(0, min(100, int(fit["fit_score"])))
+            check.fit_verdict = str(fit["fit_verdict"])[:32]
+            check.fit_summary = str(fit["fit_summary"])[:1200]
+            for field in ("fit_reasons", "fit_gaps", "fit_next_steps", "fit_missing_profile"):
+                value = fit[field] if isinstance(fit[field], list) else []
+                setattr(check, field, [str(item)[:300] for item in value[:4]])
+            check.save(update_fields=("fit_score", "fit_verdict", "fit_summary", "fit_reasons", "fit_gaps", "fit_next_steps", "fit_missing_profile", "updated_at"))
+            return Response({"fit_score": check.fit_score, "fit_verdict": check.fit_verdict, "fit_summary": check.fit_summary, "fit_reasons": check.fit_reasons, "fit_gaps": check.fit_gaps, "fit_next_steps": check.fit_next_steps, "fit_missing_profile": check.fit_missing_profile})
+        except (requests.RequestException, json.JSONDecodeError, TypeError, ValueError) as error:
+            return Response({"detail": f"Opportunity fit could not be assessed: {error}"}, status=status.HTTP_502_BAD_GATEWAY)

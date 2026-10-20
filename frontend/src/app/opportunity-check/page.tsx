@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, ArrowRight, Check, CheckCircle2, CircleHelp, ExternalLink, FileText, Globe2, History, Link2, LoaderCircle, Plus, Search, ShieldAlert, ShieldCheck } from "lucide-react";
+import { AlertTriangle, ArrowRight, Check, CheckCircle2, CircleHelp, ExternalLink, FileText, Globe2, History, Link2, LoaderCircle, Plus, Search, ShieldAlert, ShieldCheck, Target } from "lucide-react";
 import { api } from "@/lib/api";
 import { OpportunityApplication, OpportunityCheck, Page } from "@/lib/types";
 
@@ -13,7 +13,8 @@ const verdictCopy = {
   unable: { label: "Unable to verify", note: "There is not enough reliable evidence for a safe conclusion.", icon: CircleHelp },
 };
 const assessmentCopy = { confirmed: "Confirmed", corroborated: "Corroborated", unconfirmed: "Not verified", contradicted: "Contradicted", not_applicable: "Context" };
-const stages = ["Reading the submission", "Searching official sources", "Comparing claims and application route", "Building the evidence report"];
+const stages = ["Reading the submission", "Searching official sources", "Comparing claims and application route", "Checking your profile fit", "Building your action plan"];
+const fitCopy = { strong_fit: "Strong fit", possible_fit: "Possible fit", unlikely_fit: "Unlikely fit", not_enough_information: "Need more information" };
 
 function categoryFor(type: string) {
   const value = type.toLowerCase();
@@ -45,7 +46,14 @@ export default function OpportunityCheckPage() {
     event.preventDefault(); setBusy(true); setError(""); setReport(null); setTracked(null);
     try {
       const result = await api<OpportunityCheck>("/opportunity-checks/", { method: "POST", body: JSON.stringify({ [mode]: value.trim() }) });
-      setReport(result); setHistory((items) => [result, ...items.filter((item) => item.public_id !== result.public_id)]);
+      let complete = result;
+      try {
+        const fit = await api<OpportunityCheck>("/ai/opportunity-fit/", { method: "POST", body: JSON.stringify({ check_id: result.public_id }) });
+        complete = { ...result, ...fit };
+      } catch (fitException) {
+        setError(`Fit review could not be completed yet. The evidence report is still available. ${(fitException as Error).message}`);
+      }
+      setReport(complete); setHistory((items) => [complete, ...items.filter((item) => item.public_id !== complete.public_id)]);
     } catch (exception) { setError((exception as Error).message); } finally { setBusy(false); }
   }
 
@@ -65,17 +73,17 @@ export default function OpportunityCheckPage() {
 
   return <main className="check-page container">
     <header className="check-hero">
-      <div><span className="eyebrow">NEBA EVIDENCE DESK</span><h1>Check before you <em>trust the link.</em></h1><p>Share an opportunity link or paste the message you received. Neba searches for official evidence, compares the claims and checks where the application actually leads.</p></div>
-      <div className="check-method"><ShieldCheck size={25} /><strong>Evidence, not guesswork</strong><span>Official sources first · Claims checked separately · Uncertainty shown clearly</span></div>
+      <div><span className="eyebrow">NEBA OPPORTUNITY FIT</span><h1>Is this opportunity <em>right for you?</em></h1><p>Share an opportunity link or paste the message you received. Neba compares what it asks for with your profile, explains the fit, and checks whether the source looks safe before you spend time applying.</p></div>
+      <div className="check-method"><Target size={25} /><strong>Fit first, safety always</strong><span>Your profile match · Missing details · Official sources and warning signs</span></div>
     </header>
 
     {!report && <section className="check-intake" aria-labelledby="check-form-title">
-      <div className="check-intake-number">01</div><div className="check-intake-main"><div className="check-intake-heading"><div><span className="eyebrow">SUBMIT FOR REVIEW</span><h2 id="check-form-title">What would you like Neba to inspect?</h2></div><span className="check-private">Private to your account</span></div>
+      <div className="check-intake-number">01</div><div className="check-intake-main"><div className="check-intake-heading"><div><span className="eyebrow">CHECK YOUR FIT</span><h2 id="check-form-title">What opportunity are you considering?</h2></div><span className="check-private">Private to your account</span></div>
       <div className="check-mode-tabs" role="tablist" aria-label="Submission type"><button role="tab" aria-selected={mode === "url"} className={mode === "url" ? "active" : ""} onClick={() => { setMode("url"); setValue(""); setError(""); }}><Link2 size={16} /> Opportunity link</button><button role="tab" aria-selected={mode === "text"} className={mode === "text" ? "active" : ""} onClick={() => { setMode("text"); setValue(""); setError(""); }}><FileText size={16} /> Paste a message</button></div>
       <form onSubmit={runCheck} className="check-form">
         {mode === "url" ? <label><span>Link to the opportunity</span><div className="check-url-field"><Globe2 size={19} /><input type="url" required maxLength={1000} value={value} onChange={(event) => setValue(event.target.value)} placeholder="https://organisation.org/opportunity" /></div><small>Use the exact page or application link you were sent.</small></label> : <label><span>Opportunity message or advert</span><textarea required minLength={40} maxLength={12000} rows={9} value={value} onChange={(event) => setValue(event.target.value)} placeholder="Paste the full message, including the organisation, deadline, benefits, contact details and application instructions…" /><small>{value.length.toLocaleString()} / 12,000 characters</small></label>}
         {error && <p className="error-box" role="alert">{error}</p>}
-        <div className="check-submit-row"><p><ShieldCheck size={15} /> Your submission is processed by Neba’s AI and web-search providers to produce this private report.</p><button className="button button-dark" disabled={busy || !value.trim()}>{busy ? <><LoaderCircle className="spin" size={17} /> Checking…</> : <>Run opportunity check <Search size={16} /></>}</button></div>
+        <div className="check-submit-row"><p><ShieldCheck size={15} /> Your submission is processed by Neba’s AI and web-search providers to produce this private report.</p><button className="button button-dark" disabled={busy || !value.trim()}>{busy ? <><LoaderCircle className="spin" size={17} /> Checking fit…</> : <>Check if it&apos;s for me <Search size={16} /></>}</button></div>
       </form></div>
     </section>}
 
@@ -88,6 +96,7 @@ export default function OpportunityCheckPage() {
       <section className="check-report-head"><div><span className="eyebrow">OPPORTUNITY IDENTIFIED</span><h1>{report.title || "Unidentified opportunity"}</h1><p>{report.organization || "Organisation not established"}{report.opportunity_type ? ` · ${report.opportunity_type}` : ""}</p></div><div className="check-report-actions">{primarySource && <a className="button button-outline" href={primarySource} target="_blank" rel="noreferrer">Open best source <ExternalLink size={15} /></a>}{tracked ? <Link className="button button-dark" href={`/applications/${tracked.public_id}`}>Open tracker <ArrowRight size={15} /></Link> : <button className="button button-dark" onClick={trackOpportunity}><Plus size={15} /> Add to tracker</button>}</div></section>
       {error && <p className="error-box" role="alert">{error}</p>}
       <div className="check-report-grid"><div className="check-report-main">
+        <section className="check-fit-card"><div className="check-fit-top"><div className="check-fit-score"><Target size={22} /><strong>{report.fit_score === null ? "—" : report.fit_score}</strong><span>out of 100</span></div><div className="check-fit-copy"><span className="eyebrow">YOUR OPPORTUNITY FIT</span><h2>{report.fit_verdict ? fitCopy[report.fit_verdict] : "Fit review unavailable"}</h2><p>{report.fit_summary || "Complete more of your profile and run the fit review again for a personal answer."}</p></div></div><div className="check-fit-columns"><div><strong>Why it may fit</strong>{report.fit_reasons.length ? report.fit_reasons.map((item) => <span key={item}><Check size={14} />{item}</span>) : <small>No clear fit signals yet.</small>}</div><div><strong>What to check</strong>{report.fit_gaps.length ? report.fit_gaps.map((item) => <span key={item}><AlertTriangle size={14} />{item}</span>) : <small>No obvious gaps from the information available.</small>}</div></div>{report.fit_missing_profile.length > 0 && <div className="check-fit-missing"><strong>Complete your profile for a sharper answer</strong>{report.fit_missing_profile.map((item) => <span key={item}>{item}</span>)}<Link className="section-link" href="/profile">Update my profile <ArrowRight size={14} /></Link></div>}{report.fit_next_steps.length > 0 && <div className="check-fit-next"><strong>What to do next</strong>{report.fit_next_steps.map((item) => <span key={item}>{item}</span>)}</div>}</section>
         <section className="check-report-section check-summary"><span className="check-section-index">01</span><div><span className="eyebrow">WHAT THE EVIDENCE SAYS</span><p className="check-summary-lead">{report.report_summary}</p><div className="check-action-note"><ArrowRight size={17} /><div><strong>Recommended next step</strong><p>{report.recommended_action}</p></div></div></div></section>
         <section className="check-report-section"><span className="check-section-index">02</span><div><div className="check-section-title"><div><span className="eyebrow">CLAIM LEDGER</span><h2>Each claim, checked separately.</h2></div><span>{report.claims.length} findings</span></div><div className="claim-ledger">{report.claims.map((claim, index) => <article key={`${claim.claim}-${index}`} className={`claim-row ${claim.assessment}`}><div className="claim-line"><span>{index + 1}</span><i /></div><div><span className="claim-status">{assessmentCopy[claim.assessment]}</span><h3>{claim.claim}</h3><p>{claim.evidence_summary}</p>{claim.source_url && <a href={claim.source_url} target="_blank" rel="noreferrer">View supporting source <ExternalLink size={13} /></a>}</div></article>)}</div></div></section>
         <section className="check-report-section"><span className="check-section-index">03</span><div><div className="check-section-title"><div><span className="eyebrow">SOURCE RECORD</span><h2>Where this report came from.</h2></div><span>{report.sources.length} sources</span></div><div className="check-source-list">{report.sources.map((source, index) => <a key={`${source.url}-${index}`} href={source.url} target="_blank" rel="noreferrer"><span>{String(index + 1).padStart(2, "0")}</span><div><strong>{source.title}</strong><p>{source.supports}</p><small>{source.authority} · {new URL(source.url).hostname.replace("www.", "")}</small></div><ExternalLink size={15} /></a>)}</div></div></section>

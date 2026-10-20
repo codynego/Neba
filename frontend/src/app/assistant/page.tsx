@@ -6,7 +6,7 @@ import { ArrowRight, FileCheck2, Lightbulb, Mic2, ShieldCheck, Sparkles, Target 
 const practiceModes = [
   { icon: FileCheck2, title: "Prepare your CV", copy: "Turn your real profile into a clean, ATS-friendly CV tailored to an opportunity.", href: "/cv", active: true },
   { icon: Mic2, title: "AI interview practice", copy: "Practice behavioral, HR, technical, and role-specific questions.", href: "/assistant/interview", active: true },
-  { icon: ShieldCheck, title: "Opportunity Check", copy: "Share a link or paste an opportunity to investigate its evidence, warning signs, and credibility.", href: "/opportunity-check", active: true },
+  { icon: ShieldCheck, title: "Is this for me?", copy: "Share an opportunity and see how it fits your profile, what may be missing, and whether the source looks safe.", href: "/opportunity-check", active: true },
   { icon: Lightbulb, title: "AI pitch practice", copy: "Test your startup or idea against investor-style questions." },
   { icon: FileCheck2, title: "Application review", copy: "Review your CV, statement, or application against an opportunity." },
   { icon: Target, title: "Skill gap analysis", copy: "Find what is holding you back and get a practical improvement plan." },

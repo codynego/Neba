@@ -237,6 +237,7 @@ class OpportunityApplicationSerializer(serializers.ModelSerializer):
         data = super().to_representation(instance)
         if self.get_is_poster(instance):
             data["notes"] = ""
+            data.pop("cv_profile_snapshot", None)
         return data
     class Meta:
         model = OpportunityApplication
@@ -247,7 +248,7 @@ class OpportunityApplicationSerializer(serializers.ModelSerializer):
 class OpportunityCheckSerializer(serializers.ModelSerializer):
     class Meta:
         model = OpportunityCheck
-        fields = ("public_id", "input_type", "submitted_url", "submitted_text", "status", "verdict", "evidence_confidence", "risk_level", "title", "organization", "opportunity_type", "report_summary", "recommended_action", "deterministic_checks", "claims", "sources", "warnings", "extracted_data", "failure_reason", "checked_at", "created_at")
+        fields = ("public_id", "input_type", "submitted_url", "submitted_text", "status", "verdict", "evidence_confidence", "risk_level", "title", "organization", "opportunity_type", "report_summary", "recommended_action", "deterministic_checks", "claims", "sources", "warnings", "extracted_data", "fit_score", "fit_verdict", "fit_summary", "fit_reasons", "fit_gaps", "fit_next_steps", "fit_missing_profile", "failure_reason", "checked_at", "created_at")
         read_only_fields = fields
 
 
