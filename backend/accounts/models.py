@@ -22,6 +22,7 @@ class User(AbstractUser):
     photo_visible = models.BooleanField(default=False)
     bio = models.TextField(max_length=600, blank=True)
     skills = models.JSONField(default=list, blank=True)
+    cv_profile = models.JSONField(default=dict, blank=True)
     neighborhood = models.CharField(max_length=120, blank=True)
     address = models.CharField(max_length=240, blank=True)
     latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
