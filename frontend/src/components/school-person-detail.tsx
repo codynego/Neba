@@ -24,13 +24,14 @@ const initials = (first?: string, last?: string) => `${first?.[0] || ""}${last?.
 const shortId = (id?: string) => id?.slice(0, 8).toUpperCase() || "PREPARING";
 
 function WorkspaceSidebar({ workspace, active }: { workspace: Workspace; active: "students" | "staff" }) {
+  const canAccessSetup = workspace.role === "admin" || workspace.role === "academic_head";
   const navigation = [
     ["Overview", "/schools/dashboard", LayoutDashboard, false], ["Academic intelligence", "/schools/dashboard?section=intelligence", BarChart3, false], ["My classes", "/schools/dashboard?section=assistant", Sparkles, false], ["Students & classes", "/schools/dashboard?section=students", UsersRound, active === "students"], ["Reports", "/schools/dashboard?section=reports", FileText, false], ["Staff & access", "/schools/dashboard?section=staff", UsersRound, active === "staff"], ["School settings", "/schools/dashboard?section=settings", Settings2, false],
   ] as const;
   return <aside className="school-app-sidebar">
     <div className="school-app-brand"><Link href="/schools" aria-label="Neba for Schools home"><GraduationCap size={24} /><span>neba</span></Link><b>FOR SCHOOLS</b></div>
     <div className="school-app-school-switch"><button type="button" aria-label={`Current school workspace: ${workspace.name}`}><span>SCHOOL WORKSPACE</span><strong>{workspace.name}</strong><ChevronDown size={15} /></button></div>
-    <nav aria-label="Schools workspace navigation"><span className="school-app-nav-label">ACADEMIC WORKSPACE</span>{navigation.slice(0, 5).map(([label, href, Icon, selected]) => <Link className={selected ? "active" : ""} href={href} key={label}><Icon size={18} /><span>{label}</span></Link>)}<span className="school-app-nav-label setup">SETUP</span>{navigation.slice(5).map(([label, href, Icon, selected]) => <Link className={selected ? "active" : ""} href={href} key={label}><Icon size={18} /><span>{label}</span></Link>)}</nav>
+    <nav aria-label="Schools workspace navigation"><span className="school-app-nav-label">ACADEMIC WORKSPACE</span>{navigation.slice(0, 5).map(([label, href, Icon, selected]) => <Link className={selected ? "active" : ""} href={href} key={label}><Icon size={18} /><span>{label}</span></Link>)}{canAccessSetup && <><span className="school-app-nav-label setup">SETUP</span>{navigation.slice(5).map(([label, href, Icon, selected]) => <Link className={selected ? "active" : ""} href={href} key={label}><Icon size={18} /><span>{label}</span></Link>)}</>}</nav>
     <div className="school-app-sidebar-bottom"><div><span>{workspace.role.replace("_", " ").toUpperCase()}</span><p>Your school workspace is private to approved members.</p></div><Link href="/schools">About Neba for Schools <ArrowUpRight size={14} /></Link></div>
   </aside>;
 }

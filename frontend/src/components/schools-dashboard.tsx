@@ -219,6 +219,7 @@ export function SchoolsDashboard() {
   const [showStudentForm, setShowStudentForm] = useState(false);
   const [showStaffForm, setShowStaffForm] = useState(false);
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+  const canAccessSetup = workspace?.role === "admin" || workspace?.role === "academic_head";
 
   const workspacePath = (schoolId?: number) =>
     `/schools/workspace/${schoolId ? `?school_id=${schoolId}` : ""}`;
@@ -261,10 +262,16 @@ export function SchoolsDashboard() {
   }, []);
 
   useEffect(() => {
-    setPage(pageFromSearch(searchParams.get("section")));
-  }, [searchParams]);
+    const requestedPage = pageFromSearch(searchParams.get("section"));
+    setPage(!canAccessSetup && (requestedPage === "staff" || requestedPage === "settings") ? "overview" : requestedPage);
+  }, [searchParams, canAccessSetup]);
 
   const selectPage = (next: Page) => {
+    if (!canAccessSetup && (next === "staff" || next === "settings")) {
+      setPage("overview");
+      setNotice("Setup is available to school heads only.");
+      return;
+    }
     setSelectedMember(null);
     setPage(next);
     setMobileOpen(false);
@@ -438,20 +445,22 @@ export function SchoolsDashboard() {
                 <span>{label}</span>
               </button>
             ))}
-          <span className="school-app-nav-label setup">SETUP</span>
-          {navigation
-            .filter((item) => item.group === "setup")
-            .map(({ id, label, icon: Icon }) => (
-              <button
-                type="button"
-                key={id}
-                className={page === id ? "active" : ""}
-                onClick={() => selectPage(id)}
-              >
-                <Icon size={18} />
-                <span>{label}</span>
-              </button>
-            ))}
+          {canAccessSetup && <>
+            <span className="school-app-nav-label setup">SETUP</span>
+            {navigation
+              .filter((item) => item.group === "setup")
+              .map(({ id, label, icon: Icon }) => (
+                <button
+                  type="button"
+                  key={id}
+                  className={page === id ? "active" : ""}
+                  onClick={() => selectPage(id)}
+                >
+                  <Icon size={18} />
+                  <span>{label}</span>
+                </button>
+              ))}
+          </>}
         </nav>
         <div className="school-app-sidebar-bottom">
           <div>
@@ -2157,6 +2166,7 @@ type TeachingAssessment = {
   status: string;
   topics: string;
   entered_scores: number;
+  scores: Array<{ student_id: number; score: number | null; status: string }>;
   questions: Array<{
     id: number;
     number: number;
@@ -2221,6 +2231,7 @@ function TeacherClasses({
   const [selectedTab, setSelectedTab] = useState<
     | "overview"
     | "students"
+    | "performance"
     | "attendance"
     | "classwork"
     | "assessments"
@@ -2474,6 +2485,24 @@ type ClassIntelligenceData = {
   filters: { terms: string[]; selected_term: string };
 };
 
+function ClassPerformancePanel({ work }: { work: TeachingWork }) {
+  const learnerAverages = work.students.map((student) => {
+    const percentages = work.assessments.flatMap((assessment) => {
+      if (assessment.questions.length) {
+        const scores = assessment.questions.flatMap((question) => question.scores.filter((score) => score.student_id === student.id && score.status === "entered" && score.score !== null).map((score) => ({ score: Number(score.score), maximum: question.maximum_score || 0 })));
+        const maximum = scores.reduce((total, item) => total + item.maximum, 0);
+        return maximum ? [scores.reduce((total, item) => total + item.score, 0) / maximum * 100] : [];
+      }
+      const score = assessment.scores.find((item) => item.student_id === student.id && item.status === "entered" && item.score !== null);
+      return score && assessment.maximum_score ? [Number(score.score) / assessment.maximum_score * 100] : [];
+    });
+    return { ...student, average: percentages.length ? Math.round(percentages.reduce((total, value) => total + value, 0) / percentages.length * 10) / 10 : null, entries: percentages.length };
+  }).filter((student) => student.average !== null).sort((left, right) => (right.average || 0) - (left.average || 0));
+  const overall = learnerAverages.length ? Math.round(learnerAverages.reduce((total, student) => total + (student.average || 0), 0) / learnerAverages.length * 10) / 10 : null;
+  const needsReview = learnerAverages.filter((student) => (student.average || 0) < 60);
+  return <section className="school-class-performance"><header><div><span>RECORDED PERFORMANCE</span><h3>How learners are performing in this subject.</h3><p>Calculated from entered scores in the current teaching record, including draft assessments.</p></div><BarChart3 size={22} /></header><div className="school-class-performance-metrics"><article><span>CLASS AVERAGE</span><strong>{overall ?? "—"}{overall !== null && <em>%</em>}</strong><small>{learnerAverages.length} of {work.students.length} students covered</small></article><article><span>ASSESSMENTS</span><strong>{work.assessments.filter((assessment) => assessment.entered_scores > 0 || assessment.questions.some((question) => question.scores.some((score) => score.status === "entered"))).length}</strong><small>With recorded evidence</small></article><article><span>NEEDS REVIEW</span><strong>{needsReview.length}</strong><small>Below 60% current signal</small></article></div>{learnerAverages.length ? <div className="school-class-performance-list"><header><span>LEARNER PERFORMANCE</span><small>Use this as a prompt for review, not a label.</small></header>{learnerAverages.map((student) => <div key={student.id}><div><strong>{student.first_name} {student.last_name}</strong><small>{student.student_id} · {student.entries} recorded assessment{student.entries === 1 ? "" : "s"}</small></div><span><i><b className={(student.average || 0) < 60 ? "needs-review" : ""} style={{ width: `${student.average || 0}%` }} /></i><strong>{student.average}%</strong></span></div>)}</div> : <div className="school-class-performance-empty"><ClipboardCheck size={22} /><p>Enter scores in Results to build the class performance picture.</p></div>}</section>;
+}
+
 function ClassIntelligenceOverview({ schoolId, classId, subjects, mode, rosterCount, onOpenSubject }: { schoolId: number; classId: number; subjects: Subject[]; mode: "class_teacher" | "subject_teacher"; rosterCount: number; onOpenSubject: (subjectId: string) => void }) {
   const [subjectId, setSubjectId] = useState(mode === "subject_teacher" && subjects[0] ? String(subjects[0].id) : "all");
   const [term, setTerm] = useState("all");
@@ -2514,6 +2543,7 @@ function ClassWorkspace({
   initialTab?:
     | "overview"
     | "students"
+    | "performance"
     | "attendance"
     | "classwork"
     | "assessments"
@@ -2527,6 +2557,7 @@ function ClassWorkspace({
   const [tab, setTab] = useState<
     | "overview"
     | "students"
+    | "performance"
     | "attendance"
     | "classwork"
     | "assessments"
@@ -2603,6 +2634,7 @@ function ClassWorkspace({
     [
       ["overview", "Overview"],
       ["students", "Students"],
+      ["performance", "Performance"],
       ["attendance", "Attendance"],
       ["classwork", "Classwork"],
       ["assessments", "Assessments"],
@@ -2715,6 +2747,7 @@ function ClassWorkspace({
           void load(nextSubjectId);
         }}
       />
+      {work && <section className="school-class-metrics"><article><span>ENROLLED STUDENTS</span><strong>{work.students.length}</strong><small>In this class</small></article><article><span>ATTENDANCE</span><strong>Open</strong><small>Use the Attendance tab</small></article><article><span>ASSIGNMENTS</span><strong>{work.assignments.length}</strong><small>Saved for this subject</small></article><article><span>ASSESSMENTS</span><strong>{work.assessments.length}</strong><small>Ready for score entry</small></article></section>}
     </section>
   );
   return (
@@ -2778,7 +2811,9 @@ function ClassWorkspace({
         ))}
       </nav>
       {message && <p className="school-app-notice">{message}</p>}
-      {tab === "attendance" ? (
+      {tab === "performance" ? (
+        work ? <ClassPerformancePanel work={work} /> : <section className="school-class-empty"><p>Open a subject record to view performance.</p></section>
+      ) : tab === "attendance" ? (
         <AttendanceRegister schoolId={school.id} schoolClass={schoolClass} />
       ) : tab === "students" ? (
         <section className="school-class-list">
@@ -2808,7 +2843,7 @@ function ClassWorkspace({
             <p>No active students are recorded for this class.</p>
           )}
         </section>
-      ) : tab === "overview" && !work ? (
+      ) : tab === "overview" ? (
         classOverview
       ) : !work ? (
         <section className="school-class-empty">
@@ -2838,53 +2873,6 @@ function ClassWorkspace({
         </section>
       ) : (
         <>
-          {tab === "overview" && (
-            <>
-              <section className="school-class-metrics">
-                <article>
-                  <span>ENROLLED STUDENTS</span>
-                  <strong>{work.students.length}</strong>
-                  <small>In this class</small>
-                </article>
-                <article>
-                  <span>ATTENDANCE</span>
-                  <strong>Open</strong>
-                  <small>Use the Attendance tab</small>
-                </article>
-                <article>
-                  <span>ASSIGNMENTS</span>
-                  <strong>{work.assignments.length}</strong>
-                  <small>Saved for this subject</small>
-                </article>
-                <article>
-                  <span>ASSESSMENTS</span>
-                  <strong>{work.assessments.length}</strong>
-                  <small>Ready for score entry</small>
-                </article>
-              </section>
-              <section className="school-class-quick">
-                <span>QUICK ACTIONS</span>
-                <div>
-                  <button onClick={() => setTab("attendance")}>
-                    <UsersRound size={17} />
-                    Take attendance
-                  </button>
-                  <button onClick={() => setTab("classwork")}>
-                    <FileText size={17} />
-                    Create assignment
-                  </button>
-                  <button onClick={() => setTab("results")}>
-                    <ClipboardCheck size={17} />
-                    Record results
-                  </button>
-                  <button onClick={() => setTab("assistant")}>
-                    <Sparkles size={17} />
-                    Ask Neba AI
-                  </button>
-                </div>
-              </section>
-            </>
-          )}
           {tab === "classwork" && (
             <section className="school-class-form">
               <span>CLASSWORK</span>
@@ -2957,7 +2945,11 @@ function ClassWorkspace({
                 </label>
                 <label>
                   Term
-                  <input name="term" defaultValue="First term" required />
+                  <select name="term" defaultValue="First term" required>
+                    <option value="First term">First term</option>
+                    <option value="Second term">Second term</option>
+                    <option value="Third term">Third term</option>
+                  </select>
                 </label>
                 <button className="school-app-button primary" disabled={saving}>
                   {saving ? "Saving…" : "Save assessment draft"}
@@ -3733,6 +3725,7 @@ function AssessmentBoard({
   const [typeFilter, setTypeFilter] = useState("all");
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const [collapsedTerms, setCollapsedTerms] = useState<Set<string>>(new Set());
   const terms = Array.from(
     new Set(assessments.map((assessment) => assessment.term || "Unassigned term")),
   );
@@ -3758,6 +3751,12 @@ function AssessmentBoard({
       setCollapsed((current) => { const next = new Set(current); next.delete(id); return next; });
     }
   };
+  const toggleTerm = (term: string) => setCollapsedTerms((current) => {
+    const next = new Set(current);
+    if (next.has(term)) next.delete(term);
+    else next.add(term);
+    return next;
+  });
   const allProgress = filtered.reduce(
     (total, assessment) => {
       const progress = assessmentProgress(assessment, students.length);
@@ -3807,10 +3806,10 @@ function AssessmentBoard({
         return (
           <section className="school-assessment-group" key={term}>
             <header>
-              <div><span>{term}</span><strong>{group.length} assessment{group.length === 1 ? "" : "s"}</strong></div>
+              <button type="button" className="school-assessment-group-toggle" onClick={() => toggleTerm(term)} aria-expanded={!collapsedTerms.has(term)}><ChevronDown size={16} /><div><span>{term}</span><strong>{group.length} assessment{group.length === 1 ? "" : "s"}</strong></div></button>
               <div className="school-assessment-group-progress"><strong>{percent}%</strong><small>{progress.entered}/{progress.expected || 0} entries</small><i><b style={{ width: `${percent}%` }} /></i></div>
             </header>
-            <div className="school-assessment-cards">
+            {!collapsedTerms.has(term) && <div className="school-assessment-cards">
               {group.map((assessment) => {
                 const item = assessmentProgress(assessment, students.length);
                 const isExpanded = expanded.has(assessment.id) || (item.percent < 100 && !collapsed.has(assessment.id));
@@ -3827,7 +3826,7 @@ function AssessmentBoard({
                   </article>
                 );
               })}
-            </div>
+            </div>}
           </section>
         );
       })}
