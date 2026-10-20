@@ -10,6 +10,7 @@ from urllib.request import Request, urlopen
 from django.db import transaction
 from django.db.models import Count, F, Prefetch, Q
 from django.utils import timezone
+from django.utils.text import slugify
 from rest_framework import mixins, permissions, serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
@@ -188,6 +189,39 @@ class OpportunitySerializer(serializers.ModelSerializer):
 
     def get_application_count(self, opportunity):
         return opportunity.applications.filter(status__in=("applied", "shortlisted", "interview", "awarded", "unsuccessful", "withdrawn")).count()
+
+
+def _profile_type_for_category(category):
+    return {"training": "training", "startup": "accelerator", "scholarship": "programme", "fellowship": "programme"}.get(category, "organization")
+
+
+def resolve_opportunity_profile(provider, category, country="", location_label="", user=None, selected=None, organization=None):
+    if selected:
+        return selected
+    name = str(provider or "").strip()
+    if not name:
+        return None
+    profile = OpportunityProfile.objects.filter(name__iexact=name).first()
+    if profile:
+        return profile
+    base = slugify(name)[:180] or "opportunity-provider"
+    slug = base
+    suffix = 2
+    while OpportunityProfile.objects.filter(slug=slug).exists():
+        slug = f"{base[:190 - len(str(suffix))]}-{suffix}"
+        suffix += 1
+    return OpportunityProfile.objects.create(
+        name=name,
+        slug=slug,
+        profile_type=("school" if organization and organization.organization_type == "university" else "company" if organization and organization.organization_type in ("company", "startup") else _profile_type_for_category(category)),
+        website=organization.website if organization else "",
+        summary=organization.description if organization else "",
+        country=organization.country if organization else country,
+        location_label=organization.location if organization else location_label,
+        is_verified=bool(organization),
+        is_published=bool(organization),
+        created_by=user,
+    )
 
 
 class CommunityInsightSerializer(serializers.ModelSerializer):
@@ -656,6 +690,8 @@ class OpportunityApplicationViewSet(viewsets.ModelViewSet):
 
 
 class OrganizationOpportunitySerializer(serializers.ModelSerializer):
+    profile_public_id = serializers.SlugRelatedField(source="profile", slug_field="public_id", queryset=OpportunityProfile.objects.filter(is_published=True), write_only=True, required=False, allow_null=True)
+
     def validate(self, attrs):
         mode = attrs.get("application_mode", getattr(self.instance, "application_mode", Opportunity.ApplicationMode.EXTERNAL))
         channel = attrs.get("application_channel", getattr(self.instance, "application_channel", Opportunity.ApplicationChannel.WEBSITE))
@@ -699,7 +735,7 @@ class OrganizationOpportunitySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Opportunity
-        fields = ("public_id", "title", "provider", "summary", "category", "application_mode", "application_channel", "application_url", "application_email", "application_phone", "deadline", "country", "location_label", "is_remote", "requires_physical_presence", "requires_local_residency", "benefit", "eligibility_notes", "eligible_countries", "education_levels", "fields_of_study", "employment_statuses", "min_age", "max_age", "requires_business", "source_url", "share_note", "review_status", "review_note", "is_published", "view_count", "created_at", "updated_at")
+        fields = ("public_id", "title", "provider", "summary", "category", "application_mode", "application_channel", "application_url", "application_email", "application_phone", "deadline", "country", "location_label", "is_remote", "requires_physical_presence", "requires_local_residency", "benefit", "eligibility_notes", "eligible_countries", "education_levels", "fields_of_study", "employment_statuses", "min_age", "max_age", "requires_business", "source_url", "share_note", "profile_public_id", "review_status", "review_note", "is_published", "view_count", "created_at", "updated_at")
         read_only_fields = ("public_id", "provider", "review_status", "review_note", "is_published", "created_at", "updated_at")
 
 
@@ -788,12 +824,17 @@ class OrganizationOpportunityViewSet(viewsets.ModelViewSet):
         organization = getattr(self.request.user, "organization", None)
         if not organization or organization.status != organization.Status.VERIFIED:
             raise PermissionDenied("Your organization must be verified before submitting an opportunity.")
-        serializer.save(organization=organization, provider=organization.name, review_status=Opportunity.ReviewStatus.PENDING, is_published=False)
+        serializer.validated_data.pop("profile", None)
+        profile = resolve_opportunity_profile(organization.name, serializer.validated_data.get("category", ""), user=self.request.user, organization=organization)
+        serializer.save(organization=organization, provider=organization.name, profile=profile, review_status=Opportunity.ReviewStatus.PENDING, is_published=False)
 
     def perform_update(self, serializer):
         if serializer.instance.review_status == Opportunity.ReviewStatus.APPROVED:
             raise PermissionDenied("Published opportunities are locked. Approved opportunities can only be edited by an administrator.")
-        serializer.save(review_status=Opportunity.ReviewStatus.PENDING, is_published=False, review_note="")
+        serializer.validated_data.pop("profile", None)
+        organization = getattr(self.request.user, "organization", None)
+        profile = resolve_opportunity_profile(organization.name if organization else serializer.instance.provider, serializer.validated_data.get("category", serializer.instance.category), user=self.request.user, selected=serializer.instance.profile if not organization else None, organization=organization)
+        serializer.save(profile=profile, review_status=Opportunity.ReviewStatus.PENDING, is_published=False, review_note="")
 
 
 class PersonalOpportunitySerializer(OrganizationOpportunitySerializer):
@@ -813,8 +854,12 @@ class PersonalOpportunityViewSet(OrganizationOpportunityViewSet):
         return Opportunity.objects.filter(created_by=self.request.user, tracker_only=False).order_by("-updated_at")
 
     def perform_create(self, serializer):
+        selected = serializer.validated_data.pop("profile", None)
+        profile = resolve_opportunity_profile(serializer.validated_data.get("provider", ""), serializer.validated_data.get("category", ""), serializer.validated_data.get("country", ""), serializer.validated_data.get("location_label", ""), self.request.user, selected=selected)
         serializer.save(
             created_by=self.request.user,
+            provider=profile.name if profile else serializer.validated_data.get("provider", ""),
+            profile=profile,
             application_mode=Opportunity.ApplicationMode.EXTERNAL,
             review_status=Opportunity.ReviewStatus.PENDING,
             is_published=False,
@@ -823,7 +868,9 @@ class PersonalOpportunityViewSet(OrganizationOpportunityViewSet):
     def perform_update(self, serializer):
         if serializer.instance.review_status == Opportunity.ReviewStatus.APPROVED:
             raise PermissionDenied("Published opportunities are locked. Approved opportunities cannot be edited.")
-        serializer.save(is_published=False, review_status=Opportunity.ReviewStatus.PENDING, review_note="")
+        selected = serializer.validated_data.pop("profile", None)
+        profile = resolve_opportunity_profile(serializer.validated_data.get("provider", serializer.instance.provider), serializer.validated_data.get("category", serializer.instance.category), serializer.validated_data.get("country", serializer.instance.country), serializer.validated_data.get("location_label", serializer.instance.location_label), self.request.user, selected=selected or serializer.instance.profile)
+        serializer.save(provider=profile.name if profile else serializer.validated_data.get("provider", serializer.instance.provider), profile=profile, is_published=False, review_status=Opportunity.ReviewStatus.PENDING, review_note="")
 
     @action(detail=False, methods=["get"])
     def overview(self, request):

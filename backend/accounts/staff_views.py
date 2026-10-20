@@ -399,6 +399,9 @@ class StaffOpportunityDecision(APIView):
         opportunity.is_published = approve
         opportunity.review_note = str(request.data.get("note", ""))[:500]
         opportunity.save(update_fields=("review_status", "is_published", "review_note", "updated_at"))
+        if opportunity.profile_id:
+            opportunity.profile.is_published = approve
+            opportunity.profile.save(update_fields=("is_published", "updated_at"))
         awarded_credits = 0
         if approve and opportunity.created_by:
             from .credits import award_contribution_credits

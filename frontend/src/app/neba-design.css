@@ -125,6 +125,15 @@ a, button, input, select, textarea { -webkit-tap-highlight-color: transparent; }
 .nb-op-grant .nb-provider-mark, .nb-op-funding .nb-provider-mark { background: var(--nb-peach); color: #795334; }
 .nb-op-top > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; align-items: flex-start; }
 .nb-op-provider { font-size: 11px; font-weight: 650; overflow-wrap: anywhere; }
+.provider-picker { position: relative; display: grid; gap: 7px; }
+.provider-picker > small { color: var(--muted); font-size: 10px; line-height: 1.5; }
+.provider-selected { color: var(--primary) !important; font-weight: 650; }
+.provider-suggestions { display: grid; gap: 5px; padding: 7px; border: 1px solid var(--border); border-radius: 9px; background: white; box-shadow: 0 12px 24px #193b2612; }
+.provider-suggestions button { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; padding: 10px; border: 0; border-radius: 6px; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
+.provider-suggestions button:hover { background: #eef2e8; }
+.provider-suggestions button > span { display: grid; gap: 4px; }
+.provider-suggestions button strong { font-size: 12px; }
+.provider-suggestions button small { color: var(--muted); font-size: 10px; }
 .nb-op-type { font-size: 9px; padding: 5px 8px; border-radius: 5px; background: #f1f3ed; color: #51654f; white-space: nowrap; }
 .nb-op-card h3 { font-size: 19px; font-weight: 750; line-height: 1.35; letter-spacing: -.04em; margin: 22px 0 10px; }
 .nb-op-card h3 a { color: var(--text); }
