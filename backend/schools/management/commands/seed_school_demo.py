@@ -253,6 +253,8 @@ class Command(BaseCommand):
                 (("Living things", "Identify characteristics shared by living things"), ("Matter", "Classify common materials by state"), ("Energy", "Describe everyday sources of energy")),
                 ((7, 6, 8), (6, 5, 7), (8, 7, 8), (5, 6, 5), (7, 8, 7), (6, 7, 6), (9, 8, 9), (5, 6, 7)),
             ),
+        ))
+        seed_assessments(jss1, jss1_students, subjects["Basic Science"], Assessment.Type.EXAM, Decimal("60.00"), (
             (
                 "[Demo] Basic Science First Term Examination",
                 today - timedelta(days=3),
