@@ -12,6 +12,7 @@ import "./onboarding-flow.css";
 import "./opportunity-discover.css";
 import "./homepage-rebrand.css";
 import "./homepage-network.css";
+import "./homepage-schools.css";
 import "./schools.css";
 import "./schools-dashboard.css";
 import "./schools-dashboard-empty.css";
