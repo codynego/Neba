@@ -3742,6 +3742,10 @@ function AssessmentBoard({
     },
     {},
   );
+  useEffect(() => {
+    // Keep term groups open when a results view or filter is first loaded.
+    setCollapsedTerms(new Set());
+  }, [assessments, termFilter, typeFilter]);
   const toggle = (id: number, isExpanded: boolean) => {
     if (isExpanded) {
       setExpanded((current) => { const next = new Set(current); next.delete(id); return next; });
@@ -4180,6 +4184,13 @@ function ScoreEntry({
             Question-level evidence · {assessment.questions.length} mapped
             questions
           </span>
+          <button
+            type="button"
+            className="school-app-button quiet"
+            onClick={() => void updateStatus("submitted")}
+          >
+            Submit for review
+          </button>
         </div>
         <form
           className="school-app-question-score-form"
