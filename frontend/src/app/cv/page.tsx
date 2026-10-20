@@ -63,6 +63,7 @@ function escapeHtml(value: string) { return value.replace(/[&<>"']/g, (character
 export default function CVPage() {
   const [user, setUser] = useState<User | null>(null);
   const [opportunity, setOpportunity] = useState<Opportunity | null>(null);
+  const [applicationId, setApplicationId] = useState("");
   const [role, setRole] = useState("");
   const [company, setCompany] = useState("");
   const [requirements, setRequirements] = useState("");
@@ -76,7 +77,7 @@ export default function CVPage() {
     if (!draft || !user) return;
     const timer = window.setTimeout(() => {
       api<User>("/auth/me/", { method: "PATCH", body: JSON.stringify({ cv_profile: { ...draft, missing_information: [], tailoring_notes: [] } }) })
-        .then((updated) => setUser(updated))
+        .then((updated) => { setUser(updated); if (applicationId) api(`/opportunity-applications/${applicationId}/attach-cv/`, { method: "POST" }).catch(() => {}); })
         .catch(() => setError("Your CV is still available here, but the latest changes could not be saved to your profile."));
     }, 700);
     return () => window.clearTimeout(timer);
@@ -86,6 +87,7 @@ export default function CVPage() {
     const opportunityId = new URLSearchParams(window.location.search).get(
       "opportunity",
     );
+    setApplicationId(new URLSearchParams(window.location.search).get("application") || "");
     Promise.all([
       api<User>("/auth/me/"),
       opportunityId

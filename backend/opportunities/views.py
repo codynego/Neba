@@ -471,6 +471,15 @@ class OpportunityApplicationViewSet(viewsets.ModelViewSet):
             return Response(status=204)
         return super().destroy(request, *args, **kwargs)
 
+    @action(detail=True, methods=["post"], url_path="attach-cv")
+    def attach_cv(self, request, *args, **kwargs):
+        application = self.get_object()
+        if application.user_id != request.user.id:
+            raise PermissionDenied("Only the applicant can attach a CV to this application.")
+        application.cv_profile_snapshot = request.user.cv_profile or {}
+        application.save(update_fields=("cv_profile_snapshot", "updated_at"))
+        return Response(self.get_serializer(application).data)
+
     def update(self, request, *args, **kwargs):
         application = self.get_object()
         is_poster = application.opportunity.organization_id == getattr(getattr(request.user, "organization", None), "id", None)
