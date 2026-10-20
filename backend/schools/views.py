@@ -222,6 +222,10 @@ class SchoolRosterView(APIView):
             "classes": list(classes),
             "subjects": list(subjects),
             "students": student_payload,
+            "my_assignments": ([
+                *({"type": "class_teacher", "class_id": item.school_class_id, "subject_id": None} for item in membership.class_teacher_assignments.filter(is_active=True)),
+                *({"type": "subject_teacher", "class_id": item.school_class_id, "subject_id": item.subject_id} for item in membership.teaching_assignments.filter(is_active=True)),
+            ] if membership.role == SchoolMembership.Role.TEACHER else []),
             "members": [{
                 "id": item.id,
                 "public_id": item.public_id,
