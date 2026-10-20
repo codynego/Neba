@@ -2,7 +2,7 @@
 
 import { FormEvent, ReactNode, useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, BarChart3, Bot, CalendarCheck2, Check, CheckCircle2, ClipboardCheck, Edit3, FileText, LayoutDashboard, Settings, Sparkles, Target, TrendingDown, TrendingUp, Users, UsersRound } from "lucide-react";
+import { ArrowLeft, ArrowRight, ArrowUpRight, BarChart3, CalendarCheck2, Check, CheckCircle2, ChevronDown, ClipboardCheck, Edit3, FileText, GraduationCap, LayoutDashboard, Settings2, Sparkles, Target, TrendingDown, TrendingUp, UsersRound } from "lucide-react";
 import { api } from "@/lib/api";
 
 type Workspace = { id: number; name: string; role: string };
@@ -25,13 +25,13 @@ const shortId = (id?: string) => id?.slice(0, 8).toUpperCase() || "PREPARING";
 
 function WorkspaceSidebar({ workspace, active }: { workspace: Workspace; active: "students" | "staff" }) {
   const navigation = [
-    ["Overview", "/schools/dashboard", LayoutDashboard, false], ["Academic intelligence", "/schools/dashboard?section=intelligence", BarChart3, false], ["My classes", "/schools/dashboard?section=assistant", Bot, false], ["Students & classes", "/schools/dashboard?section=students", Users, active === "students"], ["Reports", "/schools/dashboard?section=reports", FileText, false], ["Staff & access", "/schools/dashboard?section=staff", UsersRound, active === "staff"], ["School settings", "/schools/dashboard?section=settings", Settings, false],
+    ["Overview", "/schools/dashboard", LayoutDashboard, false], ["Academic intelligence", "/schools/dashboard?section=intelligence", BarChart3, false], ["My classes", "/schools/dashboard?section=assistant", Sparkles, false], ["Students & classes", "/schools/dashboard?section=students", UsersRound, active === "students"], ["Reports", "/schools/dashboard?section=reports", FileText, false], ["Staff & access", "/schools/dashboard?section=staff", UsersRound, active === "staff"], ["School settings", "/schools/dashboard?section=settings", Settings2, false],
   ] as const;
   return <aside className="school-app-sidebar">
-    <div className="school-app-brand"><Link href="/schools/dashboard" aria-label="Neba for Schools home"><span>N</span><strong>neba</strong></Link><b>FOR SCHOOLS</b></div>
-    <div className="school-app-school-switch"><span>SCHOOL WORKSPACE</span><strong>{workspace.name}</strong></div>
-    <nav aria-label="School workspace navigation"><span className="school-app-nav-label">ACADEMIC WORKSPACE</span>{navigation.slice(0, 5).map(([label, href, Icon, selected]) => <Link className={selected ? "active" : ""} href={href} key={label}><Icon size={16} /> <span>{label}</span></Link>)}<span className="school-app-nav-label setup">SETUP</span>{navigation.slice(5).map(([label, href, Icon, selected]) => <Link className={selected ? "active" : ""} href={href} key={label}><Icon size={16} /> <span>{label}</span></Link>)}</nav>
-    <div className="school-app-sidebar-bottom"><span>{workspace.role.replace("_", " ").toUpperCase()}</span><p>Your school workspace is private to approved members.</p><Link href="/schools">About Neba for Schools <ArrowRight size={14} /></Link></div>
+    <div className="school-app-brand"><Link href="/schools" aria-label="Neba for Schools home"><GraduationCap size={24} /><span>neba</span></Link><b>FOR SCHOOLS</b></div>
+    <div className="school-app-school-switch"><button type="button" aria-label={`Current school workspace: ${workspace.name}`}><span>SCHOOL WORKSPACE</span><strong>{workspace.name}</strong><ChevronDown size={15} /></button></div>
+    <nav aria-label="Schools workspace navigation"><span className="school-app-nav-label">ACADEMIC WORKSPACE</span>{navigation.slice(0, 5).map(([label, href, Icon, selected]) => <Link className={selected ? "active" : ""} href={href} key={label}><Icon size={18} /><span>{label}</span></Link>)}<span className="school-app-nav-label setup">SETUP</span>{navigation.slice(5).map(([label, href, Icon, selected]) => <Link className={selected ? "active" : ""} href={href} key={label}><Icon size={18} /><span>{label}</span></Link>)}</nav>
+    <div className="school-app-sidebar-bottom"><div><span>{workspace.role.replace("_", " ").toUpperCase()}</span><p>Your school workspace is private to approved members.</p></div><Link href="/schools">About Neba for Schools <ArrowUpRight size={14} /></Link></div>
   </aside>;
 }
 
@@ -46,8 +46,17 @@ export function StudentDetail({ studentId }: { studentId: string }) {
   const load = async () => {
     const suffix = workspaceSuffix();
     const attendanceSuffix = workspaceId() ? `?school_id=${workspaceId()}&student_id=${studentId}` : `?student_id=${studentId}`;
-    const [workspaceResult, studentResult, intelligenceResult, attendanceResult] = await Promise.all([api<{ workspace: Workspace }>(`/schools/workspace/${suffix}`), api<Student>(`/schools/students/${studentId}/${suffix}`), api<StudentIntelligence>(`/schools/students/${studentId}/intelligence/${suffix}`), api<StudentAttendance>(`/schools/attendance/${attendanceSuffix}`)]);
-    setWorkspace(workspaceResult.workspace); setStudent(studentResult); setIntelligence(intelligenceResult); setAttendance(attendanceResult);
+    const [workspaceResult, studentResult] = await Promise.all([api<{ workspace: Workspace }>(`/schools/workspace/${suffix}`), api<Student>(`/schools/students/${studentId}/${suffix}`)]);
+    setWorkspace(workspaceResult.workspace); setStudent(studentResult);
+    const optionalResults = await Promise.allSettled([
+      api<StudentIntelligence>(`/schools/students/${studentId}/intelligence/${suffix}`),
+      api<StudentAttendance>(`/schools/attendance/${attendanceSuffix}`),
+    ]);
+    const [intelligenceResult, attendanceResult] = optionalResults;
+    if (intelligenceResult.status === "fulfilled") setIntelligence(intelligenceResult.value);
+    if (attendanceResult.status === "fulfilled") setAttendance(attendanceResult.value);
+    const failedSections = [intelligenceResult.status === "rejected" ? "academic intelligence" : "", attendanceResult.status === "rejected" ? "attendance" : ""].filter(Boolean);
+    if (failedSections.length) setNotice(`${failedSections.join(" and ")} could not be loaded for this role.`);
   };
   useEffect(() => { void load().catch(() => setNotice("This student could not be found in the selected school workspace.")); }, [studentId]);
   const save = async (event: FormEvent<HTMLFormElement>) => {
