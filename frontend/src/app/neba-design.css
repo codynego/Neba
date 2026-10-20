@@ -76,7 +76,10 @@ a, button, input, select, textarea { -webkit-tap-highlight-color: transparent; }
 .nb-world-strip { background: var(--nb-lime); }
 .nb-world-strip > div { display: flex; align-items: stretch; }
 .nb-world-strip > div > span { flex: 1.1; align-content: center; padding-right: 24px; font-size: 9px; font-weight: 750; letter-spacing: .1em; }
-.nb-world-strip a { flex: 1; padding: 24px; display: flex; align-items: center; justify-content: space-between; font-size: 18px; font-weight: 700; border-left: 1px solid #18352222; color: var(--primary-dark); }
+.nb-world-strip a { flex: 1; min-width: 0; padding: 20px 22px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-left: 1px solid #18352222; color: var(--primary-dark); }
+.nb-world-strip a > span { display: grid; gap: 5px; min-width: 0; }
+.nb-world-strip a strong { font-size: 16px; line-height: 1.15; font-weight: 750; letter-spacing: -.035em; }
+.nb-world-strip a small { font-size: 10px; line-height: 1.35; font-weight: 500; color: #36533c; }
 .nb-world-strip a:hover { background: #ffffff33; }
 .nb-home-opportunities { padding-block: 76px 88px; scroll-margin-top: 110px; }
 .nb-section-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 30px; margin-bottom: 32px; }
@@ -352,7 +355,9 @@ a, button, input, select, textarea { -webkit-tap-highlight-color: transparent; }
   .nb-pass-fund { bottom: 18px; left: 20px; right: 20px; font-size: 11px; padding: 14px; }
   .nb-pass-card strong { font-size: 20px; }
   .nb-board-note { display: none; }
-  .nb-world-strip a { padding: 19px 11px; font-size: 14px; }
+  .nb-world-strip a { padding: 19px 11px; }
+  .nb-world-strip a strong { font-size: 13px; }
+  .nb-world-strip a small { display: none; }
   .nb-world-strip a svg { width: 16px; }
   .nb-home-opportunities, .nb-how { padding-block: 49px; }
   .nb-section-heading { align-items: flex-start; flex-direction: column; gap: 18px; margin-bottom: 25px; }
