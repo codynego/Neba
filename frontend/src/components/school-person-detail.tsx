@@ -27,10 +27,11 @@ function WorkspaceSidebar({ workspace, active }: { workspace: Workspace; active:
   const navigation = [
     ["Overview", "/schools/dashboard", LayoutDashboard, false], ["Academic intelligence", "/schools/dashboard?section=intelligence", BarChart3, false], ["My classes", "/schools/dashboard?section=assistant", Bot, false], ["Students & classes", "/schools/dashboard?section=students", Users, active === "students"], ["Reports", "/schools/dashboard?section=reports", FileText, false], ["Staff & access", "/schools/dashboard?section=staff", UsersRound, active === "staff"], ["School settings", "/schools/dashboard?section=settings", Settings, false],
   ] as const;
-  return <aside className="school-detail-sidebar">
-    <Link className="school-detail-brand" href="/schools/dashboard"><span>N</span><strong>neba</strong></Link>
-    <div className="school-detail-workspace"><small>SCHOOL WORKSPACE</small><strong>{workspace.name}</strong><span>{workspace.role.replace("_", " ")}</span></div>
-    <nav aria-label="School workspace navigation">{navigation.map(([label, href, Icon, selected]) => <Link className={selected ? "active" : ""} href={href} key={label}><Icon size={16} /> {label}</Link>)}</nav>
+  return <aside className="school-app-sidebar">
+    <div className="school-app-brand"><Link href="/schools/dashboard" aria-label="Neba for Schools home"><span>N</span><strong>neba</strong></Link><b>FOR SCHOOLS</b></div>
+    <div className="school-app-school-switch"><span>SCHOOL WORKSPACE</span><strong>{workspace.name}</strong></div>
+    <nav aria-label="School workspace navigation"><span className="school-app-nav-label">ACADEMIC WORKSPACE</span>{navigation.slice(0, 5).map(([label, href, Icon, selected]) => <Link className={selected ? "active" : ""} href={href} key={label}><Icon size={16} /> <span>{label}</span></Link>)}<span className="school-app-nav-label setup">SETUP</span>{navigation.slice(5).map(([label, href, Icon, selected]) => <Link className={selected ? "active" : ""} href={href} key={label}><Icon size={16} /> <span>{label}</span></Link>)}</nav>
+    <div className="school-app-sidebar-bottom"><span>{workspace.role.replace("_", " ").toUpperCase()}</span><p>Your school workspace is private to approved members.</p><Link href="/schools">About Neba for Schools <ArrowRight size={14} /></Link></div>
   </aside>;
 }
 
