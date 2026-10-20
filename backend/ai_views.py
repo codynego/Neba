@@ -49,7 +49,6 @@ class InterviewText(APIView):
                 f"Previous interview turns:\n{json.dumps(history[-8:])}"
             )
         try:
-            prompt = str(request.data.get("prompt", "")).strip()[:1200]
             response = requests.post(
                 "https://api.openai.com/v1/responses",
                 headers={"Authorization": f"Bearer {settings.OPENAI_API_KEY}", "Content-Type": "application/json"},
