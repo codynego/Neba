@@ -1307,7 +1307,8 @@ class AcademicIntelligenceView(APIView):
         review_threshold = float(membership.school.intelligence_review_threshold)
         strength_threshold = float(membership.school.intelligence_strength_threshold)
         include_current = request.query_params.get("include_current") == "1"
-        assessments = _assessment_scope(membership, include_current=include_current).select_related("school_class", "subject")
+        scoped_assessments = _assessment_scope(membership, include_current=include_current)
+        assessments = scoped_assessments.select_related("school_class", "subject")
         academic_session = str(request.query_params.get("academic_session", "")).strip()
         term = str(request.query_params.get("term", "")).strip()
         if academic_session:
@@ -1372,10 +1373,14 @@ class AcademicIntelligenceView(APIView):
             "topic_signals": topic_signals,
             "interventions": [{"id": item.id, "topic": item.topic, "title": item.title, "status": item.status, "class_name": item.school_class.name, "subject_name": item.subject.name, "baseline_average": float(item.baseline_average) if item.baseline_average is not None else None} for item in interventions[:12]],
             "filters": {
-                "academic_sessions": sorted(set(_assessment_scope(membership, include_current=include_current).values_list("academic_session", flat=True))),
-                "terms": sorted(set(_assessment_scope(membership, include_current=include_current).values_list("term", flat=True))),
+                "academic_sessions": sorted(set(scoped_assessments.values_list("academic_session", flat=True))),
+                "terms": sorted(set(scoped_assessments.values_list("term", flat=True))),
+                "classes": list(scoped_assessments.values("school_class_id", "school_class__name").distinct().order_by("school_class__name")),
+                "subjects": list(scoped_assessments.values("subject_id", "subject__name").distinct().order_by("subject__name")),
                 "selected_academic_session": academic_session,
                 "selected_term": term,
+                "selected_class_id": request.query_params.get("class_id", ""),
+                "selected_subject_id": request.query_params.get("subject_id", ""),
             },
         })
 

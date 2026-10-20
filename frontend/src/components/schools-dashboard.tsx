@@ -1483,6 +1483,16 @@ type IntelligenceData = {
     subject_name: string;
     baseline_average: number | null;
   }>;
+  filters: {
+    academic_sessions: string[];
+    terms: string[];
+    classes: Array<{ school_class_id: number; school_class__name: string }>;
+    subjects: Array<{ subject_id: number; subject__name: string }>;
+    selected_academic_session: string;
+    selected_term: string;
+    selected_class_id: string;
+    selected_subject_id: string;
+  };
 };
 
 function AcademicIntelligence({
@@ -1496,11 +1506,23 @@ function AcademicIntelligence({
   const [selected, setSelected] = useState<IntelligenceSignal | null>(null);
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(true);
+  const [classFilter, setClassFilter] = useState("all");
+  const [subjectFilter, setSubjectFilter] = useState("all");
+  const [sessionFilter, setSessionFilter] = useState("all");
+  const [termFilter, setTermFilter] = useState("all");
   const load = async () => {
     setLoading(true);
     try {
+      const params = new URLSearchParams({
+        school_id: String(schoolId),
+        include_current: "1",
+      });
+      if (classFilter !== "all") params.set("class_id", classFilter);
+      if (subjectFilter !== "all") params.set("subject_id", subjectFilter);
+      if (sessionFilter !== "all") params.set("academic_session", sessionFilter);
+      if (termFilter !== "all") params.set("term", termFilter);
       const result = await api<IntelligenceData>(
-        `/schools/intelligence/?school_id=${schoolId}`,
+        `/schools/intelligence/?${params.toString()}`,
       );
       setData(result);
       setSelected(
@@ -1527,7 +1549,7 @@ function AcademicIntelligence({
   };
   useEffect(() => {
     void load();
-  }, [schoolId]);
+  }, [schoolId, classFilter, subjectFilter, sessionFilter, termFilter]);
   const createIntervention = async () => {
     if (!selected) return;
     try {
@@ -1568,7 +1590,7 @@ function AcademicIntelligence({
       </section>
     );
   const summary = data?.summary;
-  if (!data || !data.topic_signals.length)
+  if (!data)
     return (
       <section className="school-app-page">
         <div className="school-app-page-heading">
@@ -1618,6 +1640,41 @@ function AcademicIntelligence({
           </button>
         </div>
       )}
+      <section className="school-academic-intelligence-filters" aria-label="Intelligence filters">
+        <div>
+          <span>FILTER EVIDENCE</span>
+          <strong>Focus the intelligence view</strong>
+          <small>Only records you are allowed to see are included in these options.</small>
+        </div>
+        <label>
+          Class
+          <select value={classFilter} onChange={(event) => setClassFilter(event.target.value)}>
+            <option value="all">All classes</option>
+            {data.filters.classes.map((item) => <option value={item.school_class_id} key={item.school_class_id}>{item.school_class__name}</option>)}
+          </select>
+        </label>
+        <label>
+          Subject
+          <select value={subjectFilter} onChange={(event) => setSubjectFilter(event.target.value)}>
+            <option value="all">All subjects</option>
+            {data.filters.subjects.map((item) => <option value={item.subject_id} key={item.subject_id}>{item.subject__name}</option>)}
+          </select>
+        </label>
+        <label>
+          Session
+          <select value={sessionFilter} onChange={(event) => setSessionFilter(event.target.value)}>
+            <option value="all">All sessions</option>
+            {data.filters.academic_sessions.map((item) => <option value={item} key={item}>{item}</option>)}
+          </select>
+        </label>
+        <label>
+          Term
+          <select value={termFilter} onChange={(event) => setTermFilter(event.target.value)}>
+            <option value="all">All terms</option>
+            {data.filters.terms.map((item) => <option value={item} key={item}>{item}</option>)}
+          </select>
+        </label>
+      </section>
       <section
         className="school-app-stats"
         aria-label="Academic intelligence summary"
@@ -1655,7 +1712,7 @@ function AcademicIntelligence({
             </div>
             <BarChart3 size={20} />
           </header>
-          {data.topic_signals.map((signal) => (
+          {data.topic_signals.length ? data.topic_signals.map((signal) => (
             <button
               type="button"
               className={`school-app-topic-card${selected === signal ? " selected" : ""}`}
@@ -1684,7 +1741,7 @@ function AcademicIntelligence({
               </b>
               <ChevronRight size={16} />
             </button>
-          ))}
+          )) : <div className="school-class-intelligence-empty-copy">No topic signals match these filters. Try widening the evidence view or record more mapped results.</div>}
         </article>
         {selected && (
           <article className="school-app-panel school-app-performance">
