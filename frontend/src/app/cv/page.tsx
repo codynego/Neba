@@ -33,8 +33,11 @@ function profileContext(user: User) {
     field_of_study: user.field_of_study,
     institution: user.institution,
     graduation_year: user.graduation_year,
+    education_history: user.education_history,
     employment_status: user.employment_status,
     years_experience: user.years_experience,
+    experience_history: user.experience_history,
+    languages: user.languages,
     industry: user.industry,
     business_name: user.business_name,
     business_industry: user.business_industry,
@@ -47,14 +50,23 @@ function profileContext(user: User) {
 }
 
 function profileFallback(user: User): CVDraft {
-  const education = user.education_level || user.field_of_study || user.institution
-    ? [{ qualification: [user.education_level, user.field_of_study].filter(Boolean).join(" · ") || "Education", institution: user.institution || "Add institution", dates: user.graduation_year ? String(user.graduation_year) : "Add dates" }]
-    : [];
-  const experience = user.business_name || user.business_description
-    ? [{ role: "Founder / Project lead", organization: user.business_name || "Personal project", dates: "Add dates", bullets: [user.business_description || "Add what you built, managed, or achieved."] }]
-    : [];
+  const education = user.education_history?.length ? user.education_history.map((entry) => ({ qualification: entry.qualification || "Education", institution: entry.institution || "Add institution", dates: [entry.start_year, entry.graduation_year].filter(Boolean).join(" – ") || "Add dates" })) : user.education_level || user.field_of_study || user.institution ? [{ qualification: [user.education_level, user.field_of_study].filter(Boolean).join(" · ") || "Education", institution: user.institution || "Add institution", dates: user.graduation_year ? String(user.graduation_year) : "Add dates" }] : [];
+  const experience = user.experience_history?.length ? user.experience_history.map((entry) => ({ role: entry.role || "Experience", organization: entry.organization || "Add organisation", dates: entry.current ? `${entry.start_date || ""} – Present` : [entry.start_date, entry.end_date].filter(Boolean).join(" – ") || "Add dates", bullets: entry.description ? [entry.description] : ["Add what you contributed or achieved."] })) : user.business_name || user.business_description ? [{ role: "Founder / Project lead", organization: user.business_name || "Personal project", dates: "Add dates", bullets: [user.business_description || "Add what you built, managed, or achieved."] }] : [];
   const saved: Partial<CVDraft> = user.cv_profile || {};
   return { ...emptyDraft, headline: saved.headline || user.industry || user.field_of_study || "Professional profile", summary: saved.summary || user.bio || "Add a short summary of your experience and the value you bring.", experience: saved.experience?.length ? saved.experience : experience, education: saved.education?.length ? saved.education : education, skills: Array.from(new Set([...(saved.skills || []), ...(user.skills || [])])), missing_information: [!(saved.summary || user.bio) ? "A short professional summary" : "", !(saved.education?.length || user.education_level || user.institution) ? "Your education and institution" : "", !(saved.skills?.length || user.skills?.length) ? "Your relevant skills" : ""].filter(Boolean), keywords: saved.keywords || [], tailoring_notes: saved.tailoring_notes || [] };
+}
+
+function missingCvProfileFields(user: User): string[] {
+  const hasEducation = Boolean(
+    user.education_history?.some((entry) => entry.qualification || entry.institution || entry.field_of_study) ||
+    user.education_level || user.field_of_study || user.institution,
+  );
+  return [
+    !user.display_name?.trim() ? "Your full name" : "",
+    !user.country?.trim() ? "Your country" : "",
+    !hasEducation ? "At least one education record" : "",
+    !user.skills?.length ? "At least one relevant skill" : "",
+  ].filter(Boolean);
 }
 
 export default function CVPage() {
@@ -68,17 +80,28 @@ export default function CVPage() {
   const [additionalInformation, setAdditionalInformation] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [profileGate, setProfileGate] = useState<string[]>([]);
   const [error, setError] = useState("");
 
   useEffect(() => {
     if (!draft || !user) return;
     const timer = window.setTimeout(() => {
-      api<User>("/auth/me/", { method: "PATCH", body: JSON.stringify({ cv_profile: { ...draft, missing_information: [], tailoring_notes: [] } }) })
-        .then((updated) => { setUser(updated); if (applicationId) api(`/opportunity-applications/${applicationId}/attach-cv/`, { method: "POST" }).catch(() => {}); })
-        .catch(() => setError("Your CV is still available here, but the latest changes could not be saved to your profile."));
+      setSaveState("saving");
+      const savedDraft = { ...draft, missing_information: [], tailoring_notes: [] };
+      api<User>("/auth/me/", { method: "PATCH", body: JSON.stringify({ cv_profile: savedDraft }) })
+        .then((updated) => {
+          setUser(updated);
+          return applicationId ? api(`/opportunity-applications/${applicationId}/attach-cv/`, { method: "POST" }) : null;
+        })
+        .then(() => setSaveState("saved"))
+        .catch((saveError) => {
+          setSaveState("error");
+          setError(saveError instanceof Error ? `CV generated, but it could not be saved: ${saveError.message}` : "CV generated, but it could not be saved.");
+        });
     }, 700);
     return () => window.clearTimeout(timer);
-  }, [draft]);
+  }, [draft, applicationId]);
 
   useEffect(() => {
     const opportunityId = new URLSearchParams(window.location.search).get(
@@ -116,6 +139,13 @@ export default function CVPage() {
       setError("Add the role or opportunity you are preparing for.");
       return;
     }
+    const missingProfile = missingCvProfileFields(user);
+    if (missingProfile.length) {
+      setProfileGate(missingProfile);
+      setError("");
+      return;
+    }
+    setProfileGate([]);
     setGenerating(true);
     setError("");
     try {
@@ -266,10 +296,14 @@ export default function CVPage() {
             </label>
           </div>
         )}
+        {profileGate.length > 0 && <div className="cv-profile-gate" role="alert">
+          <div><strong>Complete your profile before creating this CV.</strong><p>Neba needs real information to write a useful CV and will not invent missing details.</p><ul>{profileGate.map((field) => <li key={field}>{field}</li>)}</ul></div>
+          <Link className="button button-outline compact" href="/profile">Complete profile <ArrowRight size={14} /></Link>
+        </div>}
         <button
           className="button button-dark"
           onClick={generate}
-          disabled={generating || !user}
+          disabled={generating || !user || profileGate.length > 0}
         >
           {generating ? (
             <>
@@ -305,7 +339,8 @@ export default function CVPage() {
               <div>
                 <span className="eyebrow">EDITABLE DRAFT</span>
                 <h2>Review before you send.</h2>
-                {opportunity && applicationId && <span className="cv-attached-status"><Check size={12} /> Saved to this opportunity</span>}
+                {saveState === "saving" && <span className="cv-attached-status">Saving your CV…</span>}
+                {saveState === "saved" && <span className="cv-attached-status"><Check size={12} /> {opportunity && applicationId ? "Saved to this opportunity and profile" : "Saved to your profile"}</span>}
               </div>
               <div className="cv-editor-actions">
                 <button className="button button-outline compact" onClick={() => window.print()}>Save as PDF</button>

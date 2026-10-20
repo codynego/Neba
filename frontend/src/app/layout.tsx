@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Manrope } from "next/font/google";
+import { Analytics } from "@vercel/analytics/react";
 import { Header } from "@/components/header";
 import { AppShell } from "@/components/app-shell";
 import { PwaInstall } from "@/components/pwa-install";
@@ -61,5 +62,5 @@ export const metadata: Metadata = {
 };
 export const viewport: Viewport = { themeColor: "#edf8f2", width: "device-width", initialScale: 1, viewportFit: "cover" };
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en-NG" data-scroll-behavior="smooth"><body className={`${geist.variable} ${manrope.variable}`}><a className="skip-link" href="#main-content">Skip to content</a><Header /><AppShell>{children}</AppShell><PushNotifications /><PwaInstall /></body></html>;
+  return <html lang="en-NG" data-scroll-behavior="smooth"><body className={`${geist.variable} ${manrope.variable}`}><a className="skip-link" href="#main-content">Skip to content</a><Header /><AppShell>{children}</AppShell><PushNotifications /><PwaInstall /><Analytics /></body></html>;
 }

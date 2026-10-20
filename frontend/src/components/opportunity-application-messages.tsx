@@ -17,6 +17,9 @@ export function OpportunityApplicationMessages({ applicationId }: { applicationI
   useEffect(() => {
     api<OpportunityApplication>(`/opportunity-applications/${applicationId}/`).then((item) => {
       setApplication(item);
+      if (item.opportunity.application_mode !== "internal") {
+        throw new Error("Messaging is only available for applications submitted inside Getneba.");
+      }
       return api<OpportunityMessage[]>(`/opportunity-applications/${applicationId}/messages/`);
     }).then((messages) => setApplication((current) => current ? { ...current, messages, unread_message_count: 0 } : current)).catch((err) => setError((err as Error).message));
   }, [applicationId]);

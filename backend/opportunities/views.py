@@ -220,8 +220,14 @@ class OpportunityApplicationSerializer(serializers.ModelSerializer):
     cv_ready = serializers.SerializerMethodField()
     def get_applicant_name(self, application): return application.user.display_name or application.user.username
     def get_is_poster(self, application): return application.opportunity.organization_id == getattr(getattr(self.context["request"].user, "organization", None), "id", None)
-    def get_messages(self, application): return [{"id": message.id, "sender": message.sender_id, "sender_name": message.sender.display_name or message.sender.username, "text": message.text, "created_at": message.created_at, "is_mine": message.sender_id == self.context["request"].user.id} for message in application.messages.select_related("sender").all()]
-    def get_unread_message_count(self, application): return application.messages.filter(read_at__isnull=True).exclude(sender=self.context["request"].user).count()
+    def get_messages(self, application):
+        if application.opportunity.application_mode != Opportunity.ApplicationMode.INTERNAL:
+            return []
+        return [{"id": message.id, "sender": message.sender_id, "sender_name": message.sender.display_name or message.sender.username, "text": message.text, "created_at": message.created_at, "is_mine": message.sender_id == self.context["request"].user.id} for message in application.messages.select_related("sender").all()]
+    def get_unread_message_count(self, application):
+        if application.opportunity.application_mode != Opportunity.ApplicationMode.INTERNAL:
+            return 0
+        return application.messages.filter(read_at__isnull=True).exclude(sender=self.context["request"].user).count()
     def get_unread_activity_count(self, application):
         unread_messages = self.get_unread_message_count(application)
         is_poster = self.get_is_poster(application)
@@ -619,7 +625,7 @@ class OrganizationOpportunityViewSet(viewsets.ModelViewSet):
         rows = []
         for application in applications:
             match = match_for(application.user, opportunity)
-            rows.append({"id": application.id, "application_id": str(application.public_id), "applicant_id": application.user.id, "name": application.user.display_name or application.user.username, "country": application.user.country, "status": application.status, "match_score": match["score"], "match_reasons": match["reasons"], "missing": match["missing"], "application_message": application.application_message, "additional_information": application.additional_information, "shared_fields": application.shared_fields, "created_at": application.created_at})
+            rows.append({"id": application.id, "application_id": str(application.public_id), "applicant_id": application.user.id, "name": application.user.display_name or application.user.username, "country": application.user.country, "status": application.status, "application_mode": application.opportunity.application_mode, "match_score": match["score"], "match_reasons": match["reasons"], "missing": match["missing"], "application_message": application.application_message, "additional_information": application.additional_information, "shared_fields": application.shared_fields, "created_at": application.created_at})
         return sorted(rows, key=lambda row: (-row["match_score"], row["created_at"]))
 
     def _audience(self, opportunity):

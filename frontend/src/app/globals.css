@@ -810,3 +810,6 @@ body:has(.interview-room){overflow:hidden}.interview-room{height:100dvh;min-heig
 :where(.seo-category-faq) details { padding: .85rem 0; border-top: 1px solid var(--border); }
 :where(.seo-category-faq) summary { cursor: pointer; font-weight: 700; }
 :where(.seo-category-faq) p { margin: .6rem 0 0; color: var(--muted); line-height: 1.65; }
+/* Repeatable profile history cards */
+.pp-repeatable-list{display:grid;gap:10px}.pp-repeatable-heading{display:grid;gap:3px;margin-top:6px}.pp-repeatable-heading strong{font-size:12px}.pp-repeatable-heading span{color:var(--muted);font-size:11px;line-height:1.5}.pp-repeatable-card{position:relative;display:grid;gap:10px;padding:16px;border:1px solid var(--border);border-radius:10px;background:var(--background)}.pp-repeatable-card legend{padding-right:62px;font-size:11px}.pp-repeatable-card label{min-width:0}.pp-remove-entry{position:absolute;top:12px;right:12px;padding:0;border:0;background:transparent;color:#a44a40;font-size:10px;font-weight:700}.pp-repeatable-inline{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:end}.pp-repeatable-inline .pp-remove-entry{position:static;justify-self:start}.pp-repeatable-list>.small-button{justify-self:start}
+@media(max-width:620px){.pp-repeatable-inline{grid-template-columns:1fr}}

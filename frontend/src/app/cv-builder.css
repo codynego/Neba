@@ -111,6 +111,33 @@
 .cv-target-card > .button {
   white-space: nowrap;
 }
+.cv-profile-gate {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 14px 16px;
+  border: 1px solid #e9c98f;
+  border-radius: 10px;
+  background: #fff9ed;
+}
+.cv-profile-gate strong {
+  font-size: 12px;
+}
+.cv-profile-gate p {
+  margin-top: 4px;
+  line-height: 1.5;
+}
+.cv-profile-gate ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 18px;
+  margin: 8px 0 0;
+  padding-left: 16px;
+  color: var(--muted);
+  font-size: 11px;
+}
 .cv-empty {
   display: grid;
   justify-items: center;

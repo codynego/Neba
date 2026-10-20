@@ -5,5 +5,5 @@ import { OpportunityApplicationWorkspace } from "@/components/opportunity-applic
 
 export default function OpportunityApplicationReviewPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  return <OpportunityApplicationWorkspace key={id} applicationId={id} view="poster" />;
+  return <OpportunityApplicationWorkspace key={id} applicationId={id} />;
 }

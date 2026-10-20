@@ -3,7 +3,7 @@
 import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import { Camera, LocateFixed, MailCheck, Send, ShieldCheck } from "lucide-react";
 import { api } from "@/lib/api";
-import { ProfileDocument, User } from "@/lib/types";
+import { EducationEntry, ExperienceEntry, LanguageEntry, ProfileDocument, User } from "@/lib/types";
 import { compressImage } from "@/lib/image-compression";
 
 type UploadTicket = { upload_url: string; key: string; content_type: string };
@@ -166,15 +166,21 @@ function PersonalSection({ user, onSaved }: { user: User; onSaved: (u: User) => 
 function EducationSection({ user, onSaved }: { user: User; onSaved: (u: User) => void }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
+  const [entries, setEntries] = useState<EducationEntry[]>(() => user.education_history?.length ? user.education_history : (user.education_level || user.institution || user.field_of_study ? [{ qualification: user.education_level, institution: user.institution, field_of_study: user.field_of_study, start_year: null, graduation_year: user.graduation_year, gpa: user.gpa, current: false }] : [{ qualification: "", institution: "", field_of_study: "", start_year: null, graduation_year: null, gpa: "", current: false }]));
+
+  function update(index: number, patch: Partial<EducationEntry>) { setEntries((current) => current.map((entry, i) => i === index ? { ...entry, ...patch } : entry)); }
+  function add() { setEntries((current) => [...current, { qualification: "", institution: "", field_of_study: "", start_year: null, graduation_year: null, gpa: "", current: false }]); }
+  function remove(index: number) { setEntries((current) => current.length === 1 ? current : current.filter((_, i) => i !== index)); }
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setMsg("");
     const data = Object.fromEntries(new FormData(event.currentTarget));
-    try { const updated = await patchUser({ ...data, graduation_year: data.graduation_year ? Number(data.graduation_year) : null }); onSaved(updated); setMsg("Saved."); }
+    const first = entries.find((entry) => entry.institution || entry.qualification || entry.field_of_study) || entries[0];
+    try { const updated = await patchUser({ ...data, education_history: entries, education_level: data.education_level || first.qualification, institution: first.institution, field_of_study: first.field_of_study, graduation_year: first.graduation_year, gpa: first.gpa }); onSaved(updated); setMsg("Education saved."); }
     catch (e) { setMsg((e as Error).message); } finally { setBusy(false); }
   }
   return (
     <form className="pp-editor-form stack-form" onSubmit={save}>
-      <label>Education level
+      <label>Highest education level
         <select name="education_level" defaultValue={user.education_level || ""}>
           <option value="">Select…</option>
           <option value="secondary">Secondary school</option>
@@ -186,10 +192,19 @@ function EducationSection({ user, onSaved }: { user: User; onSaved: (u: User) =>
           <option value="other">Other</option>
         </select>
       </label>
-      <label>Institution<input name="institution" defaultValue={user.institution} maxLength={200} placeholder="University of Lagos" /></label>
-      <label>Field of study<input name="field_of_study" defaultValue={user.field_of_study} maxLength={120} placeholder="Computer Science" /></label>
-      <label>Expected graduation year<input name="graduation_year" type="number" defaultValue={user.graduation_year ?? ""} min={1990} max={2040} placeholder="2027" /></label>
-      <label>CGPA / GPA<input name="gpa" defaultValue={user.gpa} maxLength={20} placeholder="3.4 / 5.0" /></label>
+      <div className="pp-repeatable-list">
+        {entries.map((entry, index) => <fieldset className="pp-repeatable-card" key={`education-${index}`}>
+          <legend>Education {index + 1}{index === 0 ? " · primary" : ""}</legend>
+          {entries.length > 1 && <button type="button" className="pp-remove-entry" onClick={() => remove(index)}>Remove</button>}
+          <label>Qualification<input value={entry.qualification} onChange={(e) => update(index, { qualification: e.target.value })} maxLength={80} placeholder="Bachelor&apos;s degree" /></label>
+          <label>Institution<input value={entry.institution} onChange={(e) => update(index, { institution: e.target.value })} maxLength={200} placeholder="University of Lagos" /></label>
+          <label>Field of study<input value={entry.field_of_study} onChange={(e) => update(index, { field_of_study: e.target.value })} maxLength={120} placeholder="Computer Science" /></label>
+          <div className="form-row"><label>Started<input type="number" value={entry.start_year ?? ""} onChange={(e) => update(index, { start_year: e.target.value ? Number(e.target.value) : null })} min={1950} max={2040} placeholder="2022" /></label><label>Graduation year<input type="number" value={entry.graduation_year ?? ""} onChange={(e) => update(index, { graduation_year: e.target.value ? Number(e.target.value) : null })} min={1950} max={2040} placeholder="2026" /></label></div>
+          <label>CGPA / GPA<input value={entry.gpa} onChange={(e) => update(index, { gpa: e.target.value })} maxLength={20} placeholder="3.4 / 5.0" /></label>
+          <label className="legal-consent"><input type="checkbox" checked={entry.current} onChange={(e) => update(index, { current: e.target.checked })} /><span>I am currently studying here.</span></label>
+        </fieldset>)}
+      </div>
+      <button type="button" className="small-button" onClick={add}>+ Add another education</button>
       <button className="button button-dark compact" disabled={busy}>{busy ? "Saving…" : "Save education"}</button>
       {msg && <p role="status" className="profile-feedback">{msg}</p>}
     </form>
@@ -203,14 +218,19 @@ function CareerSection({ user, onSaved }: { user: User; onSaved: (u: User) => vo
   const [msg, setMsg] = useState("");
   const [skills, setSkills] = useState<string[]>(user.skills || []);
   const [customSkill, setCustomSkill] = useState("");
+  const [experiences, setExperiences] = useState<ExperienceEntry[]>(user.experience_history || []);
+  const [languages, setLanguages] = useState<LanguageEntry[]>(user.languages || []);
 
   function toggleSkill(s: string) { setSkills((p) => p.includes(s) ? p.filter((x) => x !== s) : [...p, s]); }
   function addCustom() { const t = customSkill.trim(); if (t && !skills.includes(t)) setSkills((p) => [...p, t]); setCustomSkill(""); }
+  function updateExperience(index: number, patch: Partial<ExperienceEntry>) { setExperiences((current) => current.map((entry, i) => i === index ? { ...entry, ...patch } : entry)); }
+  function updateLanguage(index: number, patch: Partial<LanguageEntry>) { setLanguages((current) => current.map((entry, i) => i === index ? { ...entry, ...patch } : entry)); }
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setMsg("");
     const data = Object.fromEntries(new FormData(event.currentTarget));
-    try { const updated = await patchUser({ ...data, skills }); onSaved(updated); setMsg("Saved."); }
+    const first = experiences.find((entry) => entry.role || entry.organization) || experiences[0];
+    try { const updated = await patchUser({ ...data, skills, experience_history: experiences, languages, industry: data.industry || (first ? first.organization : "") }); onSaved(updated); setMsg("Career information saved."); }
     catch (e) { setMsg((e as Error).message); } finally { setBusy(false); }
   }
 
@@ -248,6 +268,27 @@ function CareerSection({ user, onSaved }: { user: User; onSaved: (u: User) => vo
           <option value="scaling">Scaling</option>
         </select>
       </label>
+      <div className="pp-repeatable-list">
+        <div className="pp-repeatable-heading"><strong>Experience</strong><span>Add internships, jobs, freelance work, volunteering, or projects.</span></div>
+        {experiences.map((entry, index) => <fieldset className="pp-repeatable-card" key={`experience-${index}`}>
+          <legend>Experience {index + 1}</legend>
+          <button type="button" className="pp-remove-entry" onClick={() => setExperiences((current) => current.filter((_, i) => i !== index))}>Remove</button>
+          <label>Role or title<input value={entry.role} onChange={(e) => updateExperience(index, { role: e.target.value })} maxLength={140} placeholder="Product design intern" /></label>
+          <label>Organisation<input value={entry.organization} onChange={(e) => updateExperience(index, { organization: e.target.value })} maxLength={180} placeholder="Company, school, or project" /></label>
+          <div className="form-row"><label>Start date<input type="month" value={entry.start_date} onChange={(e) => updateExperience(index, { start_date: e.target.value })} /></label><label>End date<input type="month" value={entry.end_date} onChange={(e) => updateExperience(index, { end_date: e.target.value })} disabled={entry.current} /></label></div>
+          <label className="legal-consent"><input type="checkbox" checked={entry.current} onChange={(e) => updateExperience(index, { current: e.target.checked, end_date: e.target.checked ? "" : entry.end_date })} /><span>I currently do this.</span></label>
+          <label>What did you do?<textarea value={entry.description} onChange={(e) => updateExperience(index, { description: e.target.value })} maxLength={800} rows={3} placeholder="Describe your contribution and results." /></label>
+        </fieldset>)}
+        <button type="button" className="small-button" onClick={() => setExperiences((current) => [...current, { role: "", organization: "", start_date: "", end_date: "", current: false, description: "" }])}>+ Add experience</button>
+      </div>
+      <div className="pp-repeatable-list">
+        <div className="pp-repeatable-heading"><strong>Languages</strong><span>Include local and international languages you can use in work, study, or interviews.</span></div>
+        {languages.map((entry, index) => <div className="pp-repeatable-card" key={`language-${index}`}>
+          <div className="pp-repeatable-inline"><label>Language<input value={entry.name} onChange={(e) => updateLanguage(index, { name: e.target.value })} maxLength={80} placeholder="Yoruba, Hausa, English…" /></label><label>Type<select value={entry.category} onChange={(e) => updateLanguage(index, { category: e.target.value as LanguageEntry["category"] })}><option value="">Select</option><option value="local">Local</option><option value="international">International</option></select></label></div>
+          <div className="pp-repeatable-inline"><label>Proficiency<select value={entry.proficiency} onChange={(e) => updateLanguage(index, { proficiency: e.target.value as LanguageEntry["proficiency"] })}><option value="">Select</option><option value="basic">Basic</option><option value="conversational">Conversational</option><option value="fluent">Fluent</option><option value="native">Native</option></select></label><button type="button" className="pp-remove-entry" onClick={() => setLanguages((current) => current.filter((_, i) => i !== index))}>Remove</button></div>
+        </div>)}
+        <button type="button" className="small-button" onClick={() => setLanguages((current) => [...current, { name: "", proficiency: "", category: "" }])}>+ Add language</button>
+      </div>
       <fieldset className="pp-skill-picker">
         <legend>Your skills</legend>
         <div className="pp-skill-chips">

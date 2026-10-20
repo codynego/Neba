@@ -243,19 +243,22 @@ export default function ProfilePage() {
         {/* 2. Education */}
         <section className="pp-section">
           <SectionHeader icon={<BookOpen size={16} />} eyebrow="EDUCATION" onEdit={() => setEditing("education")} />
-          <p className="pp-section-desc">Used for scholarship and fellowship matching.</p>
-          <div className="pp-rows">
-            <Row label="Education level" value={user.education_level} />
-            <Row label="Institution" value={user.institution} />
-            <Row label="Field of study" value={user.field_of_study} />
-            <Row label="Expected graduation" value={user.graduation_year ?? undefined} />
-            <Row label="CGPA" value={user.gpa} />
-          </div>
+          <p className="pp-section-desc">Keep every qualification in one place so Neba can use your full academic background.</p>
+          {(user.education_history?.length ? user.education_history : [{ qualification: user.education_level, institution: user.institution, field_of_study: user.field_of_study, graduation_year: user.graduation_year, gpa: user.gpa }]).map((entry, index) => (
+            <div className="pp-rows" key={`profile-education-${index}`} style={{ marginTop: index ? 10 : 0 }}>
+              <Row label={index === 0 ? "Primary qualification" : "Qualification"} value={entry.qualification} />
+              <Row label="Institution" value={entry.institution} />
+              <Row label="Field of study" value={entry.field_of_study} />
+              <Row label="Graduation" value={entry.graduation_year ?? undefined} />
+              <Row label="CGPA / GPA" value={entry.gpa} />
+            </div>
+          ))}
         </section>
 
         {/* 3. Career & Experience */}
         <section className="pp-section">
           <SectionHeader icon={<Briefcase size={16} />} eyebrow="CAREER & EXPERIENCE" onEdit={() => setEditing("career")} />
+          <p className="pp-section-desc">Show the work, projects, volunteering, and languages that help opportunities understand what you can do.</p>
           <div className="pp-rows">
             <Row label="Employment status" value={user.employment_status} />
             <Row label="Industry" value={user.industry} />
@@ -269,6 +272,8 @@ export default function ProfilePage() {
               </div>
             </div>
           )}
+          {user.experience_history?.length > 0 && <div className="pp-chips-group"><span className="pp-chips-label">Experience</span><div className="pp-rows">{user.experience_history.map((entry, index) => <div className="pp-row" key={`profile-experience-${index}`}><span className="pp-row-value">{entry.role || "Experience"}{entry.organization ? ` · ${entry.organization}` : ""}</span><span className="pp-row-label">{entry.current ? "Current" : [entry.start_date, entry.end_date].filter(Boolean).join(" – ")}{entry.description ? ` · ${entry.description}` : ""}</span></div>)}</div></div>}
+          {user.languages?.length > 0 && <div className="pp-chips-group"><span className="pp-chips-label">Languages</span><div className="pp-chips">{user.languages.filter((language) => language.name).map((language, index) => <span key={`profile-language-${index}`} className="pp-chip">{language.name}{language.proficiency ? ` · ${language.proficiency}` : ""}{language.category ? ` · ${language.category}` : ""}</span>)}</div></div>}
         </section>
 
         {/* 4. Interests & Goals */}
