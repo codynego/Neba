@@ -153,6 +153,24 @@ class SchoolRosterTests(APITestCase):
         self.assertEqual(len(response.data["students"]), 1)
         self.assertEqual(response.data["students"][0]["full_name"], "Ada Okafor")
 
+    def test_teacher_workspace_counts_match_their_assignments(self):
+        teacher = get_user_model().objects.create_user(username="roster-teacher", password="password", display_name="Roster Teacher")
+        membership = SchoolMembership.objects.create(school=self.school, user=teacher, role=SchoolMembership.Role.TEACHER, status=SchoolMembership.Status.ACTIVE)
+        second_class = SchoolClass.objects.create(school=self.school, name="JSS 2", academic_session="2026/2027")
+        mathematics = Subject.objects.create(school=self.school, name="Mathematics")
+        Subject.objects.create(school=self.school, name="English")
+        Student.objects.create(school=self.school, school_class=self.school_class, first_name="Ada", last_name="Okafor")
+        Student.objects.create(school=self.school, school_class=second_class, first_name="Tobi", last_name="Bello")
+        TeachingAssignment.objects.create(membership=membership, school_class=self.school_class, subject=mathematics)
+
+        self.client.force_authenticate(teacher)
+        response = self.client.get(f"/api/schools/workspace/?school_id={self.school.id}")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["workspace"]["classes_count"], 1)
+        self.assertEqual(response.data["workspace"]["subjects_count"], 1)
+        self.assertEqual(response.data["workspace"]["students_count"], 1)
+
     def test_admin_cannot_add_student_to_another_school_class(self):
         response = self.client.post("/api/schools/roster/", {"action": "student", "first_name": "Ada", "last_name": "Okafor", "school_class": self.other_class.id}, format="json")
         self.assertEqual(response.status_code, 403)

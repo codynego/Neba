@@ -89,14 +89,24 @@ def active_workspace_membership(request):
 
 def workspace_payload(membership):
     school = membership.school
+    classes = school.classes.filter(is_active=True)
+    subjects = school.subjects.filter(is_active=True)
+    students = school.students.filter(is_active=True)
+    if membership.role == SchoolMembership.Role.TEACHER:
+        class_ids, assigned_pairs = _current_teacher_scope(membership)
+        classes = classes.filter(id__in=class_ids)
+        students = students.filter(school_class_id__in=class_ids)
+        has_class_teacher_scope = membership.class_teacher_assignments.filter(school_class_id__in=class_ids, is_active=True).exists()
+        if not has_class_teacher_scope:
+            subjects = subjects.filter(id__in={subject_id for _class_id, subject_id in assigned_pairs})
     return {
         "id": school.id,
         "name": school.name,
         "slug": school.slug,
         "role": membership.role,
-        "classes_count": school.classes.filter(is_active=True).count(),
-        "subjects_count": school.subjects.filter(is_active=True).count(),
-        "students_count": school.students.filter(is_active=True).count(),
+        "classes_count": classes.count(),
+        "subjects_count": subjects.count(),
+        "students_count": students.count(),
         "intelligence_benchmarks": {
             "review_threshold": float(school.intelligence_review_threshold),
             "strength_threshold": float(school.intelligence_strength_threshold),
