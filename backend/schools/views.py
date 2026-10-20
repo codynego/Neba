@@ -1287,8 +1287,10 @@ def _topic_labels(value):
     return list(dict.fromkeys(label.strip()[:160] for label in value.split(",") if label.strip()))
 
 
-def _assessment_scope(membership):
-    assessments = Assessment.objects.filter(school=membership.school, status=Assessment.Status.PUBLISHED).prefetch_related("scores", "questions__scores")
+def _assessment_scope(membership, include_current=False):
+    assessments = Assessment.objects.filter(school=membership.school).prefetch_related("scores", "questions__scores")
+    if not include_current:
+        assessments = assessments.filter(status=Assessment.Status.PUBLISHED)
     if membership.role != SchoolMembership.Role.TEACHER:
         return assessments
     return assessments.filter(_teacher_scope_q(membership))
@@ -1304,7 +1306,8 @@ class AcademicIntelligenceView(APIView):
             raise serializers.ValidationError({"detail": "Set up a school workspace first."})
         review_threshold = float(membership.school.intelligence_review_threshold)
         strength_threshold = float(membership.school.intelligence_strength_threshold)
-        assessments = _assessment_scope(membership).select_related("school_class", "subject")
+        include_current = request.query_params.get("include_current") == "1"
+        assessments = _assessment_scope(membership, include_current=include_current).select_related("school_class", "subject")
         academic_session = str(request.query_params.get("academic_session", "")).strip()
         term = str(request.query_params.get("term", "")).strip()
         if academic_session:
@@ -1369,8 +1372,8 @@ class AcademicIntelligenceView(APIView):
             "topic_signals": topic_signals,
             "interventions": [{"id": item.id, "topic": item.topic, "title": item.title, "status": item.status, "class_name": item.school_class.name, "subject_name": item.subject.name, "baseline_average": float(item.baseline_average) if item.baseline_average is not None else None} for item in interventions[:12]],
             "filters": {
-                "academic_sessions": sorted(set(_assessment_scope(membership).values_list("academic_session", flat=True))),
-                "terms": sorted(set(_assessment_scope(membership).values_list("term", flat=True))),
+                "academic_sessions": sorted(set(_assessment_scope(membership, include_current=include_current).values_list("academic_session", flat=True))),
+                "terms": sorted(set(_assessment_scope(membership, include_current=include_current).values_list("term", flat=True))),
                 "selected_academic_session": academic_session,
                 "selected_term": term,
             },

@@ -2512,7 +2512,7 @@ function ClassIntelligenceOverview({ schoolId, classId, subjects, mode, rosterCo
   const load = async () => {
     if (mode === "subject_teacher" && subjectId === "all") return;
     setLoading(true); setMessage("");
-    const params = new URLSearchParams({ school_id: String(schoolId), class_id: String(classId) });
+    const params = new URLSearchParams({ school_id: String(schoolId), class_id: String(classId), include_current: "1" });
     if (subjectId !== "all") params.set("subject_id", subjectId);
     if (term !== "all") params.set("term", term);
     try { setData(await api<ClassIntelligenceData>(`/schools/intelligence/?${params.toString()}`)); }

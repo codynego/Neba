@@ -163,20 +163,20 @@ class Command(BaseCommand):
 
         assessment_records = {}
 
-        def seed_assessments(school_class, class_students, assessments):
+        def seed_assessments(school_class, class_students, subject, assessment_type, maximum_score, assessments):
             for title, assessment_date, question_specs, score_rows in assessments:
                 self.stdout.write(f"Preparing {title}...")
                 assessment, _ = Assessment.objects.update_or_create(
                     school=school,
                     school_class=school_class,
-                    subject=math,
+                    subject=subject,
                     academic_session=academic_session,
                     term="First term",
                     title=title,
                     defaults={
-                        "assessment_type": Assessment.Type.CA,
-                        "maximum_score": Decimal("30.00"),
-                        "weight": Decimal("20.00"),
+                        "assessment_type": assessment_type,
+                        "maximum_score": maximum_score,
+                        "weight": Decimal("50.00") if assessment_type == Assessment.Type.EXAM else Decimal("20.00"),
                         "assessment_date": assessment_date,
                         "topics": ", ".join(topic for topic, _objective in question_specs),
                         "status": Assessment.Status.PUBLISHED,
@@ -218,7 +218,7 @@ class Command(BaseCommand):
                         )
                 self.stdout.write(f"Finished {title}.")
 
-        seed_assessments(jss1, jss1_students, (
+        seed_assessments(jss1, jss1_students, math, Assessment.Type.CA, Decimal("30.00"), (
             (
                 "[Demo] Mathematics Baseline Check",
                 today - timedelta(days=28),
@@ -232,7 +232,7 @@ class Command(BaseCommand):
                 ((6, 8, 6), (6, 9, 7), (7, 9, 8), (5, 8, 6), (6, 9, 7), (5, 8, 7), (8, 10, 8), (6, 8, 7)),
             ),
         ))
-        seed_assessments(jss2, jss2_students, (
+        seed_assessments(jss2, jss2_students, math, Assessment.Type.CA, Decimal("30.00"), (
             (
                 "[Demo] JSS 2 Mathematics Baseline Check",
                 today - timedelta(days=26),
@@ -244,6 +244,20 @@ class Command(BaseCommand):
                 today - timedelta(days=5),
                 (("Linear equations", "Solve two-step equations"), ("Geometry", "Apply angle rules"), ("Data handling", "Compare values in charts")),
                 ((9, 8, 9), (8, 7, 8), (10, 9, 9), (7, 8, 8), (9, 9, 9), (8, 9, 8), (10, 9, 9), (7, 7, 8)),
+            ),
+        ))
+        seed_assessments(jss1, jss1_students, subjects["Basic Science"], Assessment.Type.CA, Decimal("30.00"), (
+            (
+                "[Demo] Basic Science Class Assessment 1",
+                today - timedelta(days=21),
+                (("Living things", "Identify characteristics shared by living things"), ("Matter", "Classify common materials by state"), ("Energy", "Describe everyday sources of energy")),
+                ((7, 6, 8), (6, 5, 7), (8, 7, 8), (5, 6, 5), (7, 8, 7), (6, 7, 6), (9, 8, 9), (5, 6, 7)),
+            ),
+            (
+                "[Demo] Basic Science First Term Examination",
+                today - timedelta(days=3),
+                (("Living things", "Explain how plants and animals depend on their environment"), ("Matter", "Explain changes of state"), ("Energy", "Compare renewable and non-renewable energy"), ("Forces", "Describe simple pushes and pulls"), ("The human body", "Identify basic body systems"), ("Safety", "Apply safe practices at home and school")),
+                ((8, 7, 8, 6, 7, 8), (6, 6, 6, 5, 6, 7), (9, 8, 8, 7, 7, 7), (5, 5, 4, 5, 5, 5), (8, 7, 7, 6, 7, 7), (7, 6, 6, 6, 6, 6), (9, 9, 8, 9, 8, 9), (5, 6, 5, 5, 5, 5)),
             ),
         ))
 
@@ -339,7 +353,7 @@ class Command(BaseCommand):
         self.stdout.write(
             self.style.SUCCESS(
                 f'Seeded demo data for "{school.name}" ({academic_session}): '
-                "2 classes, 3 subjects, 16 students, 4 assessments, 96 question scores, "
+                "2 classes, 3 subjects, 16 students, 6 assessments, 48 result scores, 168 question scores, "
                 "80 attendance records, 2 assignments, 1 class intervention, and 1 learner support plan."
             )
         )
