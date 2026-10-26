@@ -8,7 +8,7 @@ import type { Opportunity, Page } from "@/lib/types";
 import { opportunityPath } from "@/lib/routes";
 import { OpportunityCard, opportunityLabels } from "./opportunity-card";
 
-const goals = [{ value: "", label: "All opportunities" }, { value: "internship", label: "Internships" }, { value: "job", label: "Jobs" }, { value: "scholarship", label: "Scholarships" }, { value: "grant", label: "Grants" }, { value: "training", label: "Training" }];
+const goals = [{ value: "", label: "For you" }, { value: "internship", label: "Internships" }, { value: "job", label: "Jobs" }, { value: "scholarship", label: "Scholarships" }, { value: "grant", label: "Grants" }, { value: "tender", label: "Tenders" }, { value: "training", label: "Training" }];
 
 export function OpportunityList({ matches = false }: { matches?: boolean }) {
   const [items, setItems] = useState<Opportunity[]>([]);

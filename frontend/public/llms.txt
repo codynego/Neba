@@ -14,6 +14,7 @@ Getneba helps people discover, understand, prepare for, and pursue opportunities
 - [Internships](https://getneba.app/opportunities/internships): Published internship opportunities.
 - [Fellowships](https://getneba.app/opportunities/fellowships): Published fellowship opportunities.
 - [Startup opportunities](https://getneba.app/opportunities/startup): Published startup, co-founder, and build opportunities.
+- [Tenders](https://getneba.app/opportunities/tenders): Published tenders, procurement calls, and supplier opportunities in Nigeria, Africa, and other eligible locations.
 
 ## Source and trust
 

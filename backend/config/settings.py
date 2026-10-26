@@ -167,6 +167,15 @@ SCHOOLS_AI_MODEL = os.getenv("SCHOOLS_AI_MODEL", OPENAI_TEXT_MODEL)
 OPPORTUNITY_CHECK_MODEL = os.getenv("OPPORTUNITY_CHECK_MODEL", OPENAI_TEXT_MODEL)
 OPPORTUNITY_FEED_URLS = env_list("OPPORTUNITY_FEED_URLS", "https://www.afdb.org/en/vacancies/news-and-events/rss")
 OPPORTUNITY_FETCH_LIMIT = min(int(os.getenv("OPPORTUNITY_FETCH_LIMIT", "5")), 20)
+TENDER_FETCH_LIMIT = min(int(os.getenv("TENDER_FETCH_LIMIT", "20")), 50)
+TENDER_NOCOPO_URL = os.getenv(
+    "TENDER_NOCOPO_URL",
+    "https://fastly.data.open-contracting.org/downloads/nigeria_portal/4321/2026.jsonl.gz",
+)
+TENDER_WORLD_BANK_URL = os.getenv(
+    "TENDER_WORLD_BANK_URL",
+    "https://search.worldbank.org/api/v2/procnotices?format=json&fl=id,notice_title,project_name,project_ctry_name,submission_deadline_date,notice_type,notice_url&rows=100&order=desc&srt=submission_deadline_date",
+)
 CRON_SECRET = os.getenv("CRON_SECRET", "")
 BACHS_API_KEY = os.getenv("BACHS_API_KEY", "")
 BACHS_WEBHOOK_SECRET = os.getenv("BACHS_WEBHOOK_SECRET", "")

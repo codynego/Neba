@@ -331,7 +331,7 @@ export function DocumentsSection() {
 const INTEREST_OPTIONS = [
   { value: "scholarship", label: "Scholarships" },{ value: "grant", label: "Grants" },{ value: "job", label: "Jobs" },
   { value: "internship", label: "Internships" },{ value: "fellowship", label: "Fellowships" },{ value: "competition", label: "Competitions" },
-  { value: "training", label: "Training" },{ value: "startup", label: "Startup Programs" },{ value: "tender", label: "Tenders & Procurement" },{ value: "remote", label: "Remote Opportunities" },
+  { value: "training", label: "Training" },{ value: "startup", label: "Startup Programs" },{ value: "funding", label: "Business Funding" },{ value: "tender", label: "Tenders & Procurement" },{ value: "remote", label: "Remote Opportunities" },
 ];
 const GOAL_OPTIONS = [
   { value: "fund_education", label: "Fund my education" },{ value: "find_job", label: "Find a job" },{ value: "start_business", label: "Start a business" },
@@ -350,7 +350,10 @@ function InterestsSection({ user, onSaved }: { user: User; onSaved: (u: User) =>
   }
 
   async function save(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setBusy(true); setMsg("");
+    event.preventDefault();
+    const hasOpportunityType = INTEREST_OPTIONS.some(({ value }) => value !== "remote" && interests.includes(value));
+    if (!hasOpportunityType) { setMsg("Choose at least one opportunity type for your feed."); return; }
+    setBusy(true); setMsg("");
     try { const updated = await patchUser({ opportunity_interests: interests, goals }); onSaved(updated); setMsg("Saved."); }
     catch (e) { setMsg((e as Error).message); } finally { setBusy(false); }
   }

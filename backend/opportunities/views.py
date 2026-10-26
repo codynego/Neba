@@ -461,7 +461,17 @@ class OpportunityViewSet(viewsets.ReadOnlyModelViewSet):
         query = self.request.query_params.get("search", "").strip()
         category = self.request.query_params.get("category", "").strip()
         if query: queryset = queryset.filter(Q(title__icontains=query) | Q(provider__icontains=query) | Q(summary__icontains=query))
-        if category: queryset = queryset.filter(category=category)
+        if category:
+            queryset = queryset.filter(category=category)
+        elif user.is_authenticated and self.action in ("list", "matches", "dashboard"):
+            # Category choices define the member's feed. Older accounts without
+            # category selections retain the broad feed until they choose some.
+            selected_categories = {
+                value for value in (user.opportunity_interests or [])
+                if value in Opportunity.Category.values
+            }
+            if selected_categories:
+                queryset = queryset.filter(category__in=selected_categories)
         return queryset
 
     def retrieve(self, request, *args, **kwargs):

@@ -1,5 +1,7 @@
 from datetime import date, timedelta
 from io import StringIO
+import gzip
+import json
 from unittest.mock import Mock, patch
 
 from django.core.management import call_command
@@ -126,6 +128,41 @@ class OpportunityApiTests(APITestCase):
         self.assertIn("Fits your build direction", result["reasons"])
         self.assertIn("Matches your remote preference", result["reasons"])
 
+    def test_selected_opportunity_types_bound_default_feed_and_matches(self):
+        tender = Opportunity.objects.create(
+            title="National Supply Tender",
+            provider="Example Procurement Agency",
+            summary="A procurement opportunity for Nigerian suppliers.",
+            category="tender",
+            application_url="https://example.test/tender",
+            deadline=timezone.now() + timedelta(days=10),
+            eligible_countries=["Nigeria"],
+        )
+        Opportunity.objects.create(
+            title="Unrelated Product Job",
+            provider="Example Employer",
+            summary="A product role that should not enter a tender-only feed.",
+            category="job",
+            application_url="https://example.test/job",
+            deadline=timezone.now() + timedelta(days=10),
+        )
+        self.user.opportunity_interests = ["tender", "business"]
+        self.user.goals = ["fund"]
+        self.user.save(update_fields=("opportunity_interests", "goals"))
+
+        feed = self.client.get("/api/opportunities/")
+        self.assertEqual(feed.status_code, 200, feed.data)
+        self.assertEqual([item["public_id"] for item in feed.data["results"]], [str(tender.public_id)])
+
+        matches = self.client.get("/api/opportunities/matches/")
+        self.assertEqual(matches.status_code, 200, matches.data)
+        self.assertEqual([item["category"] for item in matches.data["results"]], ["tender"])
+
+        # A deliberate category selection still lets a member explore outside
+        # their default feed without silently changing their saved preferences.
+        jobs = self.client.get("/api/opportunities/?category=job")
+        self.assertEqual([item["category"] for item in jobs.data["results"]], ["job"])
+
     def test_match_v2_separates_eligibility_confidence_from_fit(self):
         result = match_for(self.user, self.opportunity)
         self.assertEqual(result["version"], "v3")
@@ -244,6 +281,44 @@ class OpportunityApiTests(APITestCase):
         self.assertFalse(item.is_published)
         self.assertIn("Fetched 1 new opportunity", output.getvalue())
         mock_get.assert_called_once()
+
+    @override_settings(
+        TENDER_NOCOPO_URL="https://source.example/nocopo.jsonl.gz",
+        TENDER_WORLD_BANK_URL="https://source.example/world-bank.json",
+        TENDER_FETCH_LIMIT=5,
+    )
+    @patch("opportunities.management.commands.fetch_tenders.requests.get")
+    def test_tender_fetch_command_queues_only_actionable_official_notices(self, mock_get):
+        nocopo = Mock()
+        nocopo.content = gzip.compress((json.dumps({
+            "compiledRelease": {
+                "ocid": "ocds-ng-001",
+                "buyer": {"name": "Federal Works Agency"},
+                "tender": {
+                    "id": "NG-001", "title": "Road rehabilitation works", "description": "Rehabilitate a federal road.",
+                    "tenderPeriod": {"endDate": "2027-01-15T12:00:00Z"},
+                    "documents": [{"url": "https://nocopo.example/tenders/NG-001"}],
+                },
+            },
+        }) + "\n").encode("utf-8"))
+        nocopo.raise_for_status.return_value = None
+        world_bank = Mock()
+        world_bank.json.return_value = {"procnotices": [{
+            "id": "WB-001", "notice_title": "Supply of solar equipment", "project_name": "Energy Access Project",
+            "project_ctry_name": "Nigeria", "notice_type": "Invitation for Bids",
+            "submission_deadline_date": "2027-02-10T12:00:00Z", "notice_url": "https://worldbank.example/notices/WB-001",
+        }]}
+        world_bank.raise_for_status.return_value = None
+        mock_get.side_effect = [nocopo, world_bank]
+
+        output = StringIO()
+        call_command("fetch_tenders", stdout=output)
+
+        notices = Opportunity.objects.filter(category="tender").order_by("title")
+        self.assertEqual(notices.count(), 2)
+        self.assertTrue(all(item.review_status == Opportunity.ReviewStatus.PENDING and not item.is_published for item in notices))
+        self.assertTrue(all(item.requires_business for item in notices))
+        self.assertIn("Queued 2 new tenders", output.getvalue())
 
     def test_personal_share_keeps_provider_separate_and_cannot_receive_applications(self):
         contributor = User.objects.create_user(username="connector", email="connector@example.test", display_name="Community Connector", password="test-password-123")

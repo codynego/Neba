@@ -352,6 +352,7 @@ class OpportunityFetch(APIView):
             return Response({"detail": "Not authorized."}, status=403)
         output = io.StringIO()
         call_command("fetch_opportunities", stdout=output, stderr=output)
+        call_command("fetch_tenders", stdout=output, stderr=output)
         return Response({"status": "completed", "output": output.getvalue()})
 
 
