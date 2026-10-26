@@ -3,7 +3,7 @@ import { publicPageMetadata } from "@/lib/seo";
 
 export const metadata = publicPageMetadata(
   "Pricing",
-  "Explore Neba Opportunities plans for finding, saving, and preparing for opportunities.",
+  "Explore Neba plans for focused learning, exam preparation, and finding opportunities.",
   "/pricing",
 );
 

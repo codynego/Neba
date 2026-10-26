@@ -30,16 +30,16 @@ def _plans():
         {
             "code": "free",
             "name": "Free",
-            "description": "A clear place to find, save and pursue good opportunities.",
-            "features": ["Opportunity discovery and matching", "Unlimited saves and application tracking", "3 evidence-based opportunity checks each month", "Community contributions and earned credits"],
+            "description": "A useful place to discover opportunities and begin a focused study routine.",
+            "features": ["Opportunity discovery and matching", "20 Neba Learn practice answers each day", "1 timed mock exam each week", "3 AI Tutor messages each day", "3 evidence-based opportunity checks each month"],
             "prices": [],
         },
         {
             "code": "plus",
             "name": "Plus",
-            "description": "More intelligence for an active opportunity search.",
+            "description": "Unlimited learning practice and more intelligence for every serious next step.",
             "featured": True,
-            "features": ["Everything in Free", "30 evidence-based opportunity checks each month", "Expanded AI preparation tools", "Credits still work alongside your plan"],
+            "features": ["Everything in Free", "Unlimited Neba Learn practice and mock exams", "Unlimited AI Tutor guidance", "Adaptive study plans and performance history", "30 evidence-based opportunity checks each month", "Credits still work alongside your plan"],
             "prices": [
                 {"interval": "month", "amount": settings.BILLING_PLUS_MONTHLY_PRICE, "currency": currency, "configured": bool(settings.BACHS_PLUS_MONTHLY_PRODUCT_ID)},
                 {"interval": "year", "amount": settings.BILLING_PLUS_YEARLY_PRICE, "currency": currency, "configured": bool(settings.BACHS_PLUS_YEARLY_PRODUCT_ID)},

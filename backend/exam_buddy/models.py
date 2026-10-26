@@ -160,6 +160,9 @@ class LearnerExamGoal(models.Model):
     paper = models.ForeignKey(ExamPaper, on_delete=models.CASCADE, related_name="learner_goals")
     exam_date = models.DateField(null=True, blank=True)
     weekly_study_minutes = models.PositiveIntegerField(default=180)
+    target_score = models.PositiveSmallIntegerField(default=75)
+    preferred_session_minutes = models.PositiveSmallIntegerField(default=25)
+    study_days = models.JSONField(default=list, blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -170,6 +173,7 @@ class LearnerExamGoal(models.Model):
 
 class PracticeSession(models.Model):
     class Mode(models.TextChoices):
+        DIAGNOSTIC = "diagnostic", "Diagnostic"
         PRACTICE = "practice", "Practice"
         PAST_QUESTIONS = "past_questions", "Past questions"
         AI_PRACTICE = "ai_practice", "AI practice"
@@ -219,6 +223,15 @@ class TopicMastery(models.Model):
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=("learner", "topic"), name="unique_learner_topic_mastery")]
+
+
+class LearnerDailyUsage(models.Model):
+    learner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="exam_daily_usage")
+    date = models.DateField()
+    tutor_messages = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=("learner", "date"), name="unique_learner_exam_daily_usage")]
 
 
 class GenerationJob(models.Model):

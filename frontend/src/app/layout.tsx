@@ -39,6 +39,8 @@ import "./neba-design.css";
 import "./neba-corporate.css";
 import "./learn.css";
 import "./learn-dashboard.css";
+import "./learn-mvp.css";
+import "./learn-entitlements.css";
 import "./learn-extra.css";
 import "./learn-sidebar.css";
 import "./exam-buddy.css";
